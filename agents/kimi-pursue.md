@@ -45,7 +45,7 @@ When invoked:
 - **pursue's edits land in the user's REAL tree and a cancel does not roll them back** (unlike `kimi-swarm-write`, whose edits are confined to a throwaway worktree and come back as a discardable patch). Cancelling stops further work; it does not undo work already done. Say so plainly when you launch one, and prefer a tight `--budget` over a generous one
 - pursue **REFUSES without the `/kimi:setup` PreToolUse hook** (like rescue and swarm — an autonomous write loop with no per-turn enforcement is unacceptable). If the companion refuses, surface that and tell the user to run `/kimi:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
 - requires kimi-code **>= 0.8.0** (headless goal mode)
-- when pursue starts, return the `job_id` so the main thread can use `/kimi:status`, `/kimi:result`, or `/kimi:cancel`
+- there is no job id to return at launch. Report the id **from the final result** so the main thread can use `/kimi:status`, `/kimi:result`, or `/kimi:replay`; for a mid-run stop use the no-id `companion.sh cancel` above
 - `/kimi:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 
 When pursue completes:

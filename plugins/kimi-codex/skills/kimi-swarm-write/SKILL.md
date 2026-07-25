@@ -23,6 +23,6 @@ Pass through: `[--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [-m <mode
 
 - Require both many disjoint write targets and explicit parallel fan-out intent.
 - Keep `--max-concurrency` conservative, normally 1, unless the user explicitly asks to widen it.
-- The runtime rejects `--background`, but detaching your own shell call is expected: a fan-out routinely outlives a foreground timeout, and the run is patch-only and worktree-confined. Keep `--budget` and `--max-concurrency` finite, and keep the job id yourself so you can run `status`/`cancel` on the user's word rather than making them type a UUID.
+- The runtime rejects `--background`, but detaching your own shell call is expected: a fan-out routinely outlives a foreground timeout, and the run is patch-only and worktree-confined. Keep `--budget` and `--max-concurrency` finite. To stop a run, use `companion.sh cancel` with NO id — it targets the latest running job for the repo, and no UUID crosses you or the user (a detached run prints nothing at launch; the id first arrives with the final report). Prefer that over an interrupt: an interrupt gives the companion only ~1.35s before SIGKILL, less than its teardown plus `git diff --binary` patch capture, so interrupting can lose the patch.
 - If the companion reports SWARM_HOOK_NOT_INSTALLED, tell the user to run Claude Code /kimi:setup or Codex $kimi-setup, then retry.
 - Return the patch path and companion output verbatim; do not apply the patch unless the user separately asks.
