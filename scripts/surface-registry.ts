@@ -34,8 +34,8 @@ export interface CodexSkillSpec {
 }
 
 export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
-  { path: ".claude-plugin/plugin.json", sha256: "67d771263767f044b785f3ab383d3dd5d988b6b72e608c1dd0ce3f75a17c00fe" },
-  { path: ".claude-plugin/marketplace.json", sha256: "96f8e510c0dcbe11bd175d4163f576b5db352d0784539f3eb757cfa253774a85" },
+  { path: ".claude-plugin/plugin.json", sha256: "305d7b98b26dca39fa5e93b7fb86990b9c5bfe0a81c829b4c1b27f06c4aaecbc" },
+  { path: ".claude-plugin/marketplace.json", sha256: "05abe579dc7c5c1dc09d78b4cd7f7ca91493fac736e50a830d16cfb89e4925a4" },
   { path: "commands/README.md", sha256: "f996a084f8c7762c2405c3990443cff49d96003416da8fead8fd875a0f50fd23" },
   { path: "commands/ask.md", sha256: "5ffcd405b1f905f400c00520d210afc6dbf35cae3a0b07c6189866fa639bf778" },
   { path: "commands/cancel.md", sha256: "f6fc6e474242901e2e4836956f2b67c6335ff0042a7a6e60c8baf9585cec0035" },
@@ -48,13 +48,13 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: "commands/setup.md", sha256: "17e0e2c274f3cc4cb36780ea62c078bb1bbeeee81bfd1b0c8e0594f7e7f4fc8c" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
   { path: "commands/swarm.md", sha256: "e4728c31c5d7ae355759bdb497ce340c994d05a9f1a65b4fa246895ee9bcfac5" },
-  { path: "agents/kimi-ask.md", sha256: "8961924c8e844b225926f53180f9275e6775d002caef74711c7c827615bcc2f6" },
-  { path: "agents/kimi-challenge.md", sha256: "7403d916493794e25ee6bf2fe816de33cd1bab0a4a2f6de4224f7eb754c77439" },
-  { path: "agents/kimi-pursue.md", sha256: "aa9646824ed8cebd306a21a0a0ba3b73508a4aa4c3fbe7424a2ac9af33c84c17" },
-  { path: "agents/kimi-rescue.md", sha256: "0844c0e40cd3301c9325b6ed406a2ca4c8de2d151bddbc1e30bb1e37a4fdd2e3" },
-  { path: "agents/kimi-review.md", sha256: "d5af811ea429ff0eac134dda0b78a074d1c646d41a7d6836b0de9081240ad9ec" },
-  { path: "agents/kimi-swarm-write.md", sha256: "d789393d499ab44aed9f62c69782cda1a61637b85e9e195fdfc9eeff9f22a530" },
-  { path: "agents/kimi-swarm.md", sha256: "d12237243437c7544b29b9e96a26856c92928a10668ae09f49cfab82bef7b797" },
+  { path: "agents/kimi-ask.md", sha256: "3bdcf3b92142560026105a232cd61b2141ff97186081f557a0c54ff12a1d159c" },
+  { path: "agents/kimi-challenge.md", sha256: "29021277339269d19d9d2e41b18b9a38d4b25c168e3efd8b295d4942f3722938" },
+  { path: "agents/kimi-pursue.md", sha256: "d2649edfa42484687ca6ddef399bf981a47afe4673bb5f23a07edb52bbdf1245" },
+  { path: "agents/kimi-rescue.md", sha256: "7c1f44ae8b7e9ca8311f4d0144689703f79a5c449faca7834342c6598d652d6c" },
+  { path: "agents/kimi-review.md", sha256: "44a869d601ae8ed4fa498bdef38d25c6d9baf2576fbf3c80b46ddf9f597bc329" },
+  { path: "agents/kimi-swarm-write.md", sha256: "9295d4b3f8a3b526f593f0898ef2747cd08e2bfdae6533a0180670542b5d3ce2" },
+  { path: "agents/kimi-swarm.md", sha256: "111742057055a0382540893152f3db95fe9253e869148a49eefb61dba672a061" },
 ];
 
 export const CODEX_PLUGIN_MANIFEST = {

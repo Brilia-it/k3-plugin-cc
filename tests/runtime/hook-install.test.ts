@@ -1,10 +1,12 @@
 import { describe, expect, test, beforeEach } from "bun:test";
+import { realpathSync } from "node:fs";
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
   __resetHookMissingWarning,
   formatHookMissingWarning,
+  hookRefusalDetails,
   maybeWarnHookMissing,
   verifyHookInstalled,
 } from "../../runtime/hooks/install.js";
@@ -443,9 +445,218 @@ describe("verifyHookInstalled", () => {
       expect(status.reason).toContain("Hook script path drift");
       expect(status.reason).toContain(oldHookPath);
       expect(status.reason).toContain("Run /kimi:setup");
+      // The prose above is for humans; an LLM caller branches on this instead.
+      expect(status.drift).toEqual({
+        axis: "hook-script",
+        installedCommand: staleCommand,
+        expectedCommand: canonicalCommandFor(newHookPath),
+      });
+      expect(hookRefusalDetails(status)).toMatchObject({
+        drift_axis: "hook-script",
+        retryable_after_setup: true,
+      });
     } finally {
       await cleanupTestPath(home);
     }
+  });
+
+  // §6 step 2 — machine-readable drift, so an agent can re-run setup and retry
+  // instead of dead-ending. NEVER influences `installed`; it is derived only
+  // after byte-exact equality has already failed.
+  describe("structured drift signal", () => {
+    test("classifies a marker-less stale table (the real 2026-07-25 incident shape)", async () => {
+      // kimi-code strips ALL comments on every login/settings write, so markers
+      // vanish; a plugin update then moves the version-stamped path. Both at
+      // once is the COMMON case, and it lands in `absent`, not `found` — the
+      // case an earlier draft of this feature missed entirely.
+      const home = await createTestPluginDataRoot("hook-install-drift-bare");
+      try {
+        const oldHookPath =
+          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.7/dist/hooks/approval-hook.js";
+        const newHookPath =
+          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+        await mkdir(home, { recursive: true });
+        await writeFile(
+          path.join(home, "config.toml"),
+          [
+            "[[hooks]]",
+            'event = "PreToolUse"',
+            `command = ${JSON.stringify(canonicalCommandFor(oldHookPath))}`,
+            "timeout = 15",
+          ].join("\n"),
+          "utf8",
+        );
+        const status = await verifyHookInstalled({
+          KIMI_CODE_HOME: home,
+          KIMI_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
+        });
+        expect(status.installed).toBe(false);
+        expect(status.drift?.axis).toBe("hook-script");
+        expect(hookRefusalDetails(status).retryable_after_setup).toBe(true);
+      } finally {
+        await cleanupTestPath(home);
+      }
+    });
+
+    test("the v1.9.0 re-pin (same interpreter, moved script) IS retryable", async () => {
+      // Every pre-1.9.0 install hits exactly this once: the node pin moves off
+      // the version-stamped path onto the stable one AND the version-stamped
+      // script path moves, so the axis is "both". It must still be retryable —
+      // otherwise the release's own migration is the one case the self-repair
+      // flow refuses to handle, and the human message ("your Node did not
+      // move") would contradict the structured field.
+      const home = await createTestPluginDataRoot("hook-install-drift-repin");
+      try {
+        const oldHookPath =
+          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+        const newHookPath =
+          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.9.0/dist/hooks/approval-hook.js";
+        // Two real spellings of the SAME interpreter on this machine.
+        const resolved = realpathSync(process.execPath);
+        const staleCommand = buildHookShellCommand(oldHookPath, {
+          KIMI_PLUGIN_CC_NODE_BIN: resolved,
+        });
+        await mkdir(home, { recursive: true });
+        await writeFile(
+          path.join(home, "config.toml"),
+          [
+            "[[hooks]]",
+            'event = "PreToolUse"',
+            `command = ${JSON.stringify(staleCommand)}`,
+            "timeout = 15",
+          ].join("\n"),
+          "utf8",
+        );
+        const status = await verifyHookInstalled({
+          KIMI_CODE_HOME: home,
+          KIMI_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
+          KIMI_PLUGIN_CC_NODE_BIN: resolved,
+        });
+        expect(status.installed).toBe(false);
+        // Same node token here, so only the script moved.
+        expect(status.drift?.axis).toBe("hook-script");
+        expect(hookRefusalDetails(status).retryable_after_setup).toBe(true);
+      } finally {
+        await cleanupTestPath(home);
+      }
+    });
+
+    test("node-bin drift is reported but NOT marked retryable", async () => {
+      // A moved interpreter may be GONE, and a hook that cannot spawn exits 127
+      // — which kimi-code treats as ALLOW. Re-running setup would silently
+      // re-pin over a real enforcement gap, so a caller must never auto-retry.
+      const home = await createTestPluginDataRoot("hook-install-drift-node");
+      try {
+        const hookPath =
+          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+        const staleCommand = buildHookShellCommand(hookPath, {
+          KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.0.0/bin/node",
+        });
+        await mkdir(home, { recursive: true });
+        await writeFile(
+          path.join(home, "config.toml"),
+          [
+            "[[hooks]]",
+            'event = "PreToolUse"',
+            `command = ${JSON.stringify(staleCommand)}`,
+            "timeout = 15",
+          ].join("\n"),
+          "utf8",
+        );
+        const status = await verifyHookInstalled({
+          KIMI_CODE_HOME: home,
+          KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+          KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
+        });
+        expect(status.installed).toBe(false);
+        expect(status.drift?.axis).toBe("node-bin");
+        expect(hookRefusalDetails(status).retryable_after_setup).toBe(false);
+      } finally {
+        await cleanupTestPath(home);
+      }
+    });
+
+    test("both axes drifting is classified as 'both' and is NOT retryable", async () => {
+      // A brew node upgrade and a plugin update on the same morning.
+      const home = await createTestPluginDataRoot("hook-install-drift-both");
+      try {
+        const oldHookPath =
+          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.7/dist/hooks/approval-hook.js";
+        const newHookPath =
+          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+        const staleCommand = buildHookShellCommand(oldHookPath, {
+          KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.0.0/bin/node",
+        });
+        await mkdir(home, { recursive: true });
+        await writeFile(
+          path.join(home, "config.toml"),
+          [
+            "[[hooks]]",
+            'event = "PreToolUse"',
+            `command = ${JSON.stringify(staleCommand)}`,
+            "timeout = 15",
+          ].join("\n"),
+          "utf8",
+        );
+        const status = await verifyHookInstalled({
+          KIMI_CODE_HOME: home,
+          KIMI_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
+          KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
+        });
+        expect(status.installed).toBe(false);
+        expect(status.drift?.axis).toBe("both");
+        expect(hookRefusalDetails(status).retryable_after_setup).toBe(false);
+      } finally {
+        await cleanupTestPath(home);
+      }
+    });
+
+    test("non-drift refusals carry NO drift (not re-pin-recoverable)", async () => {
+      // Duplicate markers, orphan markers, unreadable config, invalid hook set:
+      // all refuse, none are fixed by re-pinning, so none may advertise a retry.
+      const home = await createTestPluginDataRoot("hook-install-drift-absent");
+      try {
+        await mkdir(home, { recursive: true });
+        await writeFile(
+          path.join(home, "config.toml"),
+          `default_model = "kimi-for-coding"\n`,
+          "utf8",
+        );
+        const status = await verifyHookInstalled({ KIMI_CODE_HOME: home });
+        expect(status.installed).toBe(false);
+        expect(status.drift).toBeUndefined();
+        expect(hookRefusalDetails(status)).not.toHaveProperty("retryable_after_setup");
+      } finally {
+        await cleanupTestPath(home);
+      }
+    });
+
+    test("an installed hook reports no drift", async () => {
+      const home = await createTestPluginDataRoot("hook-install-drift-none");
+      try {
+        const hookPath = path.join(home, "dist", "hooks", "approval-hook.js");
+        await mkdir(path.dirname(hookPath), { recursive: true });
+        await writeFile(hookPath, "// hook\n", "utf8");
+        await writeFile(
+          path.join(home, "config.toml"),
+          [
+            "[[hooks]]",
+            'event = "PreToolUse"',
+            `command = ${JSON.stringify(canonicalCommandFor(hookPath))}`,
+            "timeout = 15",
+          ].join("\n"),
+          "utf8",
+        );
+        const status = await verifyHookInstalled({
+          KIMI_CODE_HOME: home,
+          KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        });
+        expect(status.installed).toBe(true);
+        expect(status.drift).toBeUndefined();
+      } finally {
+        await cleanupTestPath(home);
+      }
+    });
   });
 
   test("classifies a Node-binary drift (pinned interpreter gone) — the live H4 case", async () => {

@@ -182,6 +182,16 @@ export function renderTerminalJobArtifact(job: JobRecord): string {
 
   if (job.error) {
     lines.push("", "## Error", `- Code: ${job.error.code}`, `- Stage: ${job.error.stage}`, job.error.message);
+    // Structured context (e.g. `drift_axis` / `retryable_after_setup`) so a
+    // caller reading the rendered artifact — not just `result --json` — can
+    // branch on it. Deterministic key order keeps artifacts stable.
+    const details = job.error.details;
+    if (details !== undefined && Object.keys(details).length > 0) {
+      lines.push("", "### Details");
+      for (const key of Object.keys(details).sort()) {
+        lines.push(`- ${key}: ${JSON.stringify(details[key])}`);
+      }
+    }
   }
 
   return lines.join("\n");

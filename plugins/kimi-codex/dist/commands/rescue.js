@@ -15,7 +15,7 @@ import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import { parseRescueArgs } from "../parsing.js";
 import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.js";
 import { startBackgroundJob } from "../background-spawn.js";
-import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import { hookRefusalDetails, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 export { describeMissingResult } from "../background-spawn.js";
@@ -137,7 +137,7 @@ export async function executeRescueJob(jobId, prompt, context, options) {
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
                 "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
                 "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
-            ].join(" "), "rescue.hook-check", { details: { config_path: installStatus.configPath } });
+            ].join(" "), "rescue.hook-check", { details: hookRefusalDetails(installStatus) });
             try {
                 return await markJobFailed(store, paths, job, classified, cancel.failedSummary, { phase: "failed" });
             }

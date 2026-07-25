@@ -17,7 +17,11 @@ import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.j
 import type { CommandContext } from "../types.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { startBackgroundJob } from "../background-spawn.js";
-import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import {
+  hookRefusalDetails,
+  maybeWarnHookMissing,
+  verifyHookInstalled,
+} from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 
@@ -297,7 +301,7 @@ async function requireAskHookInstalled(context: CommandContext): Promise<void> {
       "Set KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
     ].join(" "),
     "ask.hook-check",
-    { details: { config_path: installStatus.configPath } },
+    { details: hookRefusalDetails(installStatus) },
   );
 }
 

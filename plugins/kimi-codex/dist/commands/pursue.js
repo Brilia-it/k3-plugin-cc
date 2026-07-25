@@ -14,7 +14,7 @@ import { writeInvocationLogHeader } from "../logging.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import { parsePursueArgs } from "../parsing.js";
 import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.js";
-import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import { hookRefusalDetails, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 // /kimi:pursue — autonomous goal mode (kimi-code 0.8.0+ headless `/goal`).
@@ -174,7 +174,7 @@ async function executePursueJob(jobId, prompt, objective, budgetMs, context) {
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
                 "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
                 "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
-            ].join(" "), "pursue.hook-check", { details: { config_path: installStatus.configPath } });
+            ].join(" "), "pursue.hook-check", { details: hookRefusalDetails(installStatus) });
             try {
                 return await markJobFailed(store, paths, job, classified, "Pursue failed.", { phase: "failed" });
             }

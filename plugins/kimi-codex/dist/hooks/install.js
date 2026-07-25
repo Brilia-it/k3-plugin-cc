@@ -66,6 +66,11 @@ export async function verifyHookInstalled(env) {
             installed: false,
             reason: check.reason,
             configPath,
+            // Forwarded verbatim. Present only for a parseable path/binary mismatch;
+            // the earlier short-circuits above (unresolvable command, unreadable
+            // config, invalid hook set) return before this point and therefore never
+            // carry drift — those are not re-pin-recoverable.
+            ...(check.drift !== undefined ? { drift: check.drift } : {}),
         };
     }
     // The command matched byte-for-byte, but that alone doesn't prove the
@@ -91,6 +96,39 @@ function resolveKimiCodeConfigPath(env) {
  * Single source of truth so review.ts / review-gate.ts / ask.ts emit
  * identical language.
  */
+/**
+ * Structured `details` payload for a hook-refusal `RuntimeError`. Single source
+ * of truth so all five model-spawning commands emit the same machine-readable
+ * shape — an LLM caller cannot see stderr, so anything it must act on has to
+ * ride the error's structured context (LLM-caller discipline, v0.3.6+).
+ *
+ * `drift_axis === "hook-script"` is the ONLY value a caller may treat as
+ * retryable (run /kimi:setup for this host, retry once). Its absence means the
+ * refusal is not a moved-path problem and re-running setup will not fix it.
+ */
+export function hookRefusalDetails(status) {
+    return {
+        config_path: status.configPath,
+        ...(status.drift !== undefined
+            ? {
+                drift_axis: status.drift.axis,
+                drift_installed_command: status.drift.installedCommand,
+                drift_expected_command: status.drift.expectedCommand,
+                // Retryable exactly when EVERY differing token is benign:
+                //   - the hook script moved → the install path is version-stamped, so
+                //     setup re-pins it to the running install.
+                //   - the node token changed spelling but names the SAME file → not
+                //     an interpreter move (this is the v1.9.0 re-pin, which also
+                //     moves the script, hence axis "both").
+                // A node token naming a DIFFERENT file is never retryable: the pinned
+                // interpreter may be gone, and a hook that cannot spawn exits 127,
+                // which kimi-code treats as ALLOW. Re-pinning would paper over a real
+                // enforcement gap instead of surfacing it.
+                retryable_after_setup: status.drift.axis === "hook-script" || status.drift.nodeInterpreterUnchanged === true,
+            }
+            : {}),
+    };
+}
 export function formatHookMissingWarning(status, commandLabel) {
     return [
         "",

@@ -54,7 +54,7 @@
 //     idempotency checks.
 //   - The `command` line must contain the hook script path we expect.
 import { parse as parseToml } from "../vendor/smol-toml/parse.js";
-import { describeHookCommandDrift, hostIdFromHookCommand, isOurApprovalHookCommand, } from "./install-paths.js";
+import { classifyHookCommandDrift, describeHookCommandDrift, hostIdFromHookCommand, isOurApprovalHookCommand, } from "./install-paths.js";
 const MARKER_TAG = "kimi-plugin-cc-managed";
 /**
  * Strict BEGIN matcher. Accepts `# === BEGIN kimi-plugin-cc-managed`
@@ -453,7 +453,23 @@ export function evaluateInstalled(contents, expectedCommand, opts) {
                 state,
             };
         }
-        return { installed: false, reason: "managed block is not present", state };
+        // Markers absent AND no byte-exact bare table. The common real-world cause
+        // is BOTH failures at once: kimi-code strips markers on every login/settings
+        // write, and a plugin update then moves the version-stamped hook path. The
+        // 2026-07-25 Codex incident was exactly this pair. Classify the drift from
+        // this host's own stale bare table so callers still get an actionable axis
+        // instead of a bare "not present".
+        const staleOwn = findBareApprovalHookTables(contents).find((table) => table.command !== expectedCommand &&
+            isOurApprovalHookCommand(table.command) &&
+            hostIdFromHookCommand(table.command) === opts.hostId);
+        return {
+            installed: false,
+            reason: "managed block is not present",
+            state,
+            ...(staleOwn !== undefined
+                ? { drift: classifyHookCommandDrift(staleOwn.command, expectedCommand) }
+                : {}),
+        };
     }
     if (state.kind === "duplicate") {
         return {
@@ -487,6 +503,7 @@ export function evaluateInstalled(contents, expectedCommand, opts) {
             reason: classified ??
                 `installed block's command does not match the canonical command this companion would write. Run /kimi:setup to refresh. expected ${expectedCommand}; got ${state.commandPath}.`,
             state,
+            drift: classifyHookCommandDrift(state.commandPath, expectedCommand),
         };
     }
     // The marked body (lines between BEGIN/END) passed the line grammar and the

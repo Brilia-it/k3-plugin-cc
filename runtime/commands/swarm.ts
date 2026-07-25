@@ -26,7 +26,11 @@ import { ensurePluginPaths, resolvePluginPaths, type PluginPaths } from "../path
 import { MAX_DURATION_MS, parseSwarmArgs, type SwarmArgs } from "../parsing.js";
 import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.js";
 import type { CommandContext } from "../types.js";
-import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import {
+  hookRefusalDetails,
+  maybeWarnHookMissing,
+  verifyHookInstalled,
+} from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 
@@ -549,7 +553,7 @@ async function executeSwarmJob(
           "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
         ].join(" "),
         "swarm.hook-check",
-        { details: { config_path: installStatus.configPath } },
+        { details: hookRefusalDetails(installStatus) },
       );
       try {
         return await markJobFailed(store, paths, job, classified, "Swarm failed.", { phase: "failed" });

@@ -56,6 +56,7 @@
 
 import { parse as parseToml } from "../vendor/smol-toml/parse.js";
 import {
+  classifyHookCommandDrift,
   describeHookCommandDrift,
   hostIdFromHookCommand,
   isOurApprovalHookCommand,
@@ -416,6 +417,42 @@ export interface InstalledCheck {
    * as a warning. Never load-bearing for the installed decision.
    */
   note?: string;
+  /**
+   * Machine-readable drift classification, populated ONLY when a structurally
+   * valid, canonically-parseable command differs from the expected one. The
+   * companion's callers are LLMs: `reason` is prose for a human, this is the
+   * field an agent branches on (LLM-caller discipline — load-bearing context
+   * belongs in structured state, never in stderr prose).
+   *
+   * `axis` names WHICH token moved:
+   *   - `"hook-script"` — plugin update/move (install paths are version-stamped).
+   *     Recoverable by re-running setup on this host.
+   *   - `"node-bin"` — Node upgrade or version-manager switch.
+   *   - `"both"` — both tokens moved (e.g. a Node upgrade and a plugin update
+   *     between runs).
+   *
+   * STRICTLY ADVISORY. Like `nodeExists`-based classification, this NEVER
+   * influences `installed`; it is derived AFTER the byte-exact comparison has
+   * already failed. It exists so a caller can re-run setup and retry rather
+   * than dead-ending — the repair stays an explicit, visible action taken by
+   * the caller, never a silent self-write from the verify path (see
+   * `.claude/hook-pin-durability-spec-2026-07-25.md` § 6, and the two
+   * adversarial reviews that rejected in-verifier auto-repin).
+   */
+  drift?: HookCommandDrift;
+}
+
+/** Machine-readable drift classification. See `InstalledCheck.drift`. */
+export interface HookCommandDrift {
+  axis: "hook-script" | "node-bin" | "both";
+  installedCommand: string;
+  expectedCommand: string;
+  /**
+   * Present only when the node token differs: `true` when both spellings name
+   * the SAME file (a rename, not an interpreter move — the v1.9.0 stable-path
+   * re-pin). Load-bearing for `retryable_after_setup`; see `hookRefusalDetails`.
+   */
+  nodeInterpreterUnchanged?: boolean;
 }
 
 export interface EvaluateInstalledOptions {
@@ -577,7 +614,26 @@ export function evaluateInstalled(
         state,
       };
     }
-    return { installed: false, reason: "managed block is not present", state };
+    // Markers absent AND no byte-exact bare table. The common real-world cause
+    // is BOTH failures at once: kimi-code strips markers on every login/settings
+    // write, and a plugin update then moves the version-stamped hook path. The
+    // 2026-07-25 Codex incident was exactly this pair. Classify the drift from
+    // this host's own stale bare table so callers still get an actionable axis
+    // instead of a bare "not present".
+    const staleOwn = findBareApprovalHookTables(contents).find(
+      (table) =>
+        table.command !== expectedCommand &&
+        isOurApprovalHookCommand(table.command) &&
+        hostIdFromHookCommand(table.command) === opts.hostId,
+    );
+    return {
+      installed: false,
+      reason: "managed block is not present",
+      state,
+      ...(staleOwn !== undefined
+        ? { drift: classifyHookCommandDrift(staleOwn.command, expectedCommand) }
+        : {}),
+    };
   }
   if (state.kind === "duplicate") {
     return {
@@ -613,6 +669,7 @@ export function evaluateInstalled(
         classified ??
         `installed block's command does not match the canonical command this companion would write. Run /kimi:setup to refresh. expected ${expectedCommand}; got ${state.commandPath}.`,
       state,
+      drift: classifyHookCommandDrift(state.commandPath, expectedCommand),
     };
   }
   // The marked body (lines between BEGIN/END) passed the line grammar and the

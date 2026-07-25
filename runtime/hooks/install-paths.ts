@@ -30,23 +30,70 @@
 //   These three call sites cannot drift without a compile error.
 
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { RuntimeError } from "../errors.js";
 
 /**
+ * Prefer a non-version-stamped path to the SAME Node binary.
+ *
+ * `process.execPath` is fully symlink-resolved, so under Homebrew it is
+ * `/opt/homebrew/Cellar/node/<version>/bin/node` — a path that changes on
+ * every `brew upgrade node`. The managed block is verified by byte-exact
+ * equality, so that churn silently invalidates EVERY host's hook at once and
+ * forces a re-run of `/kimi:setup` with no user-visible cause (diagnosed
+ * 2026-07-25; a June config backup held `node/26.0.0` and `node/26.3.0`
+ * side by side, i.e. this had already fired before).
+ *
+ * `process.argv0` preserves the path the interpreter was actually invoked
+ * with, and `scripts/companion.sh` execs `$(command -v node)` — the stable
+ * `/opt/homebrew/bin/node` symlink. Prefer it, but ONLY when it provably
+ * denotes the same executable: absolute, and `realpath()`-identical to
+ * `process.execPath`. That guard is the whole safety argument — it can never
+ * select a DIFFERENT binary, only a more stable NAME for the one already
+ * running. Any doubt falls back to `execPath`, so the result is always an
+ * absolute path to a real interpreter.
+ *
+ * Side benefit: this keeps the hook and the companion on the same interpreter
+ * by construction, since companion.sh resolves `node` through that same
+ * stable name. The old behavior could diverge — companion running the new
+ * node while the hook stayed pinned to a Cellar path brew had already
+ * deleted, which spawns nothing and (exit 127) reads as ALLOW.
+ *
+ * Scope: helps symlink-based installs (Homebrew, and any manager exposing a
+ * stable `node`). nvm/asdf/mise expose version-stamped paths directly, so
+ * argv0 == execPath there and behavior is unchanged, not worse.
+ */
+export function preferStableNodePath(
+  execPath: string,
+  argv0: string | undefined = process.argv0,
+  realpath: (p: string) => string = realpathSync,
+): string {
+  if (argv0 === undefined || argv0.length === 0 || !path.isAbsolute(argv0)) {
+    return execPath;
+  }
+  try {
+    return realpath(argv0) === realpath(execPath) ? argv0 : execPath;
+  } catch {
+    return execPath;
+  }
+}
+
+/**
  * Resolve the absolute path to the Node binary used in the PreToolUse
  * hook command. kimi-code spawns hooks via `/bin/sh -c "<command>"`; a
  * bare `node` would rely on the shell's PATH at execution time, which
  * fails under GUI/LaunchAgent launches with sanitized PATH. Require an
- * absolute path — either the in-process `process.execPath` or an
- * explicit `KIMI_PLUGIN_CC_NODE_BIN` override.
+ * absolute path — either a stable alias of the in-process interpreter
+ * (see `preferStableNodePath`) or an explicit `KIMI_PLUGIN_CC_NODE_BIN`
+ * override.
  */
 export function resolveNodeBinary(env: NodeJS.ProcessEnv): string {
   const override = env.KIMI_PLUGIN_CC_NODE_BIN;
   if (override === undefined || override.length === 0) {
-    return process.execPath;
+    return preferStableNodePath(process.execPath);
   }
   if (!path.isAbsolute(override)) {
     throw new RuntimeError(
@@ -241,10 +288,79 @@ function parseSingleQuotedTokens(input: string): string[] | null {
  * `nodeExists` predicate (so the fs probe stays at the call site). Does NOT alter
  * the verifier's exact-equality decision — only the human/LLM-facing reason.
  */
+/**
+ * Machine-readable sibling of `describeHookCommandDrift`. Same inputs, same
+ * parse, but returns WHICH token moved instead of prose — so an LLM caller can
+ * branch on `axis` rather than pattern-matching a human sentence (LLM-caller
+ * discipline: load-bearing context goes in structured state, never in prose).
+ *
+ * `"hook-script"` is the recoverable case: install paths are version-stamped,
+ * so a plugin update moves it and re-running setup on THAT host re-pins it.
+ * `"node-bin"`/`"both"` are reported but deliberately NOT auto-recoverable by
+ * a caller retry — a moved interpreter can mean the pinned one is gone, and a
+ * hook that fails to spawn exits 127, which kimi-code reads as ALLOW.
+ *
+ * Returns `undefined` when either command isn't the canonical two-token shape
+ * or the commands are equal. Never influences the installed decision.
+ */
+/**
+ * Do two paths name the same file? Used ONLY to sharpen a drift *message*
+ * (distinguishing the v1.9.0 stable-path re-pin from a real interpreter move).
+ * Never load-bearing: any throw means "can't tell", and the caller falls back
+ * to the more conservative wording.
+ */
+function defaultSameFile(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return false;
+  }
+}
+
+export function classifyHookCommandDrift(
+  installedCommand: string,
+  expectedCommand: string,
+  sameFile: (a: string, b: string) => boolean = defaultSameFile,
+):
+  | {
+      axis: "hook-script" | "node-bin" | "both";
+      installedCommand: string;
+      expectedCommand: string;
+      nodeInterpreterUnchanged?: boolean;
+    }
+  | undefined {
+  const installed = parseHookShellCommand(installedCommand);
+  const expected = parseHookShellCommand(expectedCommand);
+  if (installed === null || expected === null) {
+    return undefined;
+  }
+  const nodeDrift = installed.nodeBin !== expected.nodeBin;
+  const hookDrift = installed.hookScript !== expected.hookScript;
+  if (!nodeDrift && !hookDrift) {
+    return undefined;
+  }
+  const axis = nodeDrift && hookDrift ? "both" : nodeDrift ? "node-bin" : "hook-script";
+  // A node token that changed SPELLING but still names the same file is not an
+  // interpreter move. Distinguishing this matters because it is precisely the
+  // v1.9.0 upgrade shape (the pin moves off the version-stamped path, and the
+  // plugin's own version-stamped script path moves at the same time → `both`),
+  // which every existing install hits exactly once. Without this the caller
+  // would be told "do not retry, the interpreter may be gone" while the human
+  // message says "your Node did not move" — a contradiction where the
+  // structured field, being the load-bearing one, was the wrong half.
+  return {
+    axis,
+    installedCommand,
+    expectedCommand,
+    ...(nodeDrift ? { nodeInterpreterUnchanged: sameFile(installed.nodeBin, expected.nodeBin) } : {}),
+  };
+}
+
 export function describeHookCommandDrift(
   installedCommand: string,
   expectedCommand: string,
   nodeExists: (binPath: string) => boolean,
+  sameFile: (a: string, b: string) => boolean = defaultSameFile,
 ): string | undefined {
   const installed = parseHookShellCommand(installedCommand);
   const expected = parseHookShellCommand(expectedCommand);
@@ -265,6 +381,19 @@ export function describeHookCommandDrift(
           `(this companion runs ${expected.nodeBin}). This is the classic Node-upgrade / version-manager ` +
           `(nvm, asdf, mise, fnm, Homebrew) drift — the pinned interpreter moved, so kimi-code can no longer ` +
           `spawn the hook and read-only enforcement silently degrades.`,
+      );
+    } else if (sameFile(installed.nodeBin, expected.nodeBin)) {
+      // Both paths name the SAME interpreter — a spelling change, not a moved
+      // binary. This is the v1.9.0 migration: the pin moved off the
+      // symlink-resolved (version-stamped) path onto the stable one, so every
+      // pre-1.9.0 install drifts exactly once. Blaming a "version-manager
+      // switch between runs" here would be actively misleading — the user
+      // changed nothing about their Node.
+      parts.push(
+        `Node path spelling changed: the installed hook pins ${installed.nodeBin} and this companion runs ` +
+          `${expected.nodeBin} — these are the SAME interpreter reached by different paths. Since v1.9.0 the ` +
+          `hook pins the stable path instead of the version-stamped one, so a Node upgrade no longer breaks it. ` +
+          `This is the expected one-time re-pin after upgrading the plugin; your Node did not move.`,
       );
     } else {
       parts.push(

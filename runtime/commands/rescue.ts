@@ -17,7 +17,11 @@ import { parseRescueArgs } from "../parsing.js";
 import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.js";
 import type { CommandContext } from "../types.js";
 import { startBackgroundJob } from "../background-spawn.js";
-import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import {
+  hookRefusalDetails,
+  maybeWarnHookMissing,
+  verifyHookInstalled,
+} from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 
@@ -181,7 +185,7 @@ export async function executeRescueJob(
           "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
         ].join(" "),
         "rescue.hook-check",
-        { details: { config_path: installStatus.configPath } },
+        { details: hookRefusalDetails(installStatus) },
       );
       try {
         return await markJobFailed(

@@ -46,3 +46,27 @@ When challenge completes:
 - treat an empty companion stdout as a hard failure and surface it (challenge output is pass-through prose; the runtime only fails on empty final text)
 
 Do not inspect the repository yourself, do not implement the alternatives Kimi raises, and do not turn challenge into a planning agent. If the user wants edits, switch to the `kimi-rescue` agent or `/kimi:rescue`.
+
+### If the companion refuses with a hook error
+
+A `*_HOOK_NOT_INSTALLED` refusal is fail-closed and correct — never work around it, and
+never set `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
+the plugin's install path is version-stamped, so a plugin update moves the hook script and
+the recorded command stops matching.
+
+The refusal carries structured context. It appears on the error output as a
+`details: {...}` JSON line, and for background jobs in the job record (also via
+`${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh result <jobId> --json`). Read `drift_axis` and
+`retryable_after_setup` from it:
+
+- `retryable_after_setup: true` — the pinned paths moved but still name this install's
+  hook and the same interpreter. Re-pin with one Bash call:
+  `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh setup`
+  If (and only if) that exits 0, retry the original command **once**, then report that you
+  re-pinned it. A nonzero exit means the probe failed — enforcement is NOT in place, so do
+  not retry; surface it.
+- anything else (no `drift_axis`, or `retryable_after_setup: false`) — do NOT retry. The
+  pinned interpreter may be gone, which is a real enforcement gap rather than a moved
+  file. Surface the refusal and its reason to the user and stop.
+
+Retry at most once. If the retry refuses again, surface both failures rather than looping.

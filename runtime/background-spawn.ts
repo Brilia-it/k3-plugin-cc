@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { RuntimeError, formatError } from "./errors.js";
+import { preferStableNodePath } from "./hooks/install-paths.js";
 import { markJobFailed, waitForTerminalJob } from "./jobs.js";
 import { JobStore, type JobRecord } from "./job-store.js";
 import { readArtifact } from "./render.js";
@@ -46,7 +47,29 @@ export async function startBackgroundJob(
   paths: PluginPaths,
   options: BackgroundSpawnOptions,
 ): Promise<string> {
-  const nodeBinary = context.env.KIMI_PLUGIN_CC_NODE_BIN || process.execPath;
+  // MUST be the same resolution the hook verifier uses. The worker re-verifies
+  // the hook (rescue.ts / ask.ts, deliberately, so a background job cannot
+  // outlive or bypass the check), and the verifier rebuilds the canonical
+  // command from ITS OWN `process.argv0`. Spawning with a different spelling of
+  // node than setup pinned makes the worker compute a different expected
+  // command than the config holds → byte-exact mismatch → every background
+  // rescue/ask refuses forever, with `/kimi:setup` unable to converge the two
+  // sides (setup runs via companion.sh, whose argv0 is the stable symlink).
+  //
+  // Concretely: `spawn(process.execPath)` gives the child an argv0 equal to the
+  // fully symlink-resolved path (…/Cellar/node/<ver>/bin/node), whereas setup
+  // pins /opt/homebrew/bin/node. Caught by Kimi's pre-release review of v1.9.0.
+  // NOTE: this is deliberately NOT `resolveNodeBinary`, which additionally
+  // REQUIRES an absolute override because the hook command runs under
+  // `/bin/sh -c` with a possibly sanitized PATH. Spawning has no such
+  // constraint — a bare name is resolved by spawn() via PATH — so the override
+  // is honored verbatim here. Only the no-override default needs to change:
+  // it must match what the verifier computes, hence `preferStableNodePath`.
+  const override = context.env.KIMI_PLUGIN_CC_NODE_BIN;
+  const nodeBinary =
+    override !== undefined && override.length > 0
+      ? override
+      : preferStableNodePath(process.execPath);
 
   // Only fast-path the `fs.access` check for absolute/relative paths. A bare
   // name like "node" is resolved by spawn() via PATH; the spawn `error` listener

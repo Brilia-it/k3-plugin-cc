@@ -31,7 +31,17 @@ async function main(argv: string[]): Promise<void> {
     case "setup": {
       const result = await runSetup(rest, context);
       context.stdout.write(`${renderSetupResult(result)}\n`);
-      if (result.action === "check" && result.probe === "failed") {
+      // A failed probe means the hook did not actually deny when exercised —
+      // enforcement is NOT in place, whichever action produced it. This must be
+      // nonzero for `install` too, not just `check`: since v1.9.0 an agent may
+      // run setup and then RETRY the refused command, and it keys that decision
+      // on the exit code. Exiting 0 after a failed probe would walk it straight
+      // past a proven-dead hook (a byte-exact command + a readable-but-broken
+      // script passes `verifyHookInstalled`, since only the probe can tell that
+      // the script cannot deny — e.g. a truncated `approval-hook.js`, which has
+      // happened here via iCloud sync, or a half-extracted plugin cache).
+      // `probe: "skipped"` (uninstall) is deliberately untouched.
+      if (result.probe === "failed") {
         process.exitCode = 1;
       }
       return;

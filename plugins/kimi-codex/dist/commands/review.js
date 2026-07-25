@@ -16,7 +16,7 @@ import { parseReviewArgs } from "../parsing.js";
 import { renderManagedJobOutput, writeArtifact } from "../render.js";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
-import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import { hookRefusalDetails, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 // v1.0 cutover note (PR 2):
@@ -178,7 +178,7 @@ async function requireReadOnlyHookInstalled(context, commandType) {
         `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
         "Run /kimi:setup or $kimi-setup to install or repair this host's managed block.",
         "Set KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
-    ].join(" "), `${commandType}.hook-check`, { details: { config_path: installStatus.configPath } });
+    ].join(" "), `${commandType}.hook-check`, { details: hookRefusalDetails(installStatus) });
 }
 function buildReviewPrompt(commandType, reviewContext, focus) {
     const modeInstructions = commandType === "challenge"

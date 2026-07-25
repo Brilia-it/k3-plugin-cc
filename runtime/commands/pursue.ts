@@ -18,7 +18,11 @@ import { parsePursueArgs } from "../parsing.js";
 import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.js";
 import type { GoalSummaryRecord } from "../stream-json.js";
 import type { CommandContext } from "../types.js";
-import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import {
+  hookRefusalDetails,
+  maybeWarnHookMissing,
+  verifyHookInstalled,
+} from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 
@@ -222,7 +226,7 @@ async function executePursueJob(
           "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
         ].join(" "),
         "pursue.hook-check",
-        { details: { config_path: installStatus.configPath } },
+        { details: hookRefusalDetails(installStatus) },
       );
       try {
         return await markJobFailed(store, paths, job, classified, "Pursue failed.", { phase: "failed" });
