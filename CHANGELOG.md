@@ -622,5 +622,6 @@ See the [`v0.4.0` tag](https://github.com/linxule/kimi-plugin-cc/releases/tag/v0
 - **0.3.7** — Loud failures across review/challenge/ask/rescue.
 - **0.3.6** — Hard-error unknown flags on review/challenge.
 - **0.3.5** — ApprovalRouter; outputMode invariant; command registry.
+- **0.2.3** — Dropped the JSON output schemas from review and challenge; both became prose pass-through. Only the review gate still parses Kimi output (JSON allow/block).
 
 For pre-1.0 commit-level history see `git log v0.4.0..` on the v0.4-maintenance branch.

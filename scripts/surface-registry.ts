@@ -47,7 +47,7 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: "commands/review.md", sha256: "2a5103029d91bd1f204979e8a52a9726ecfb171bcdc0b273be155ec7ced7c243" },
   { path: "commands/setup.md", sha256: "17e0e2c274f3cc4cb36780ea62c078bb1bbeeee81bfd1b0c8e0594f7e7f4fc8c" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
-  { path: "commands/swarm.md", sha256: "1c2a482a254238a90018ebba4828ad5babff5a1fff622888da700454d80d90cf" },
+  { path: "commands/swarm.md", sha256: "85b36b2c67994540aa5ac94e7d7701ce65c2d7921ddfe89c705ddeec7dd22efa" },
   { path: "agents/kimi-ask.md", sha256: "3bdcf3b92142560026105a232cd61b2141ff97186081f557a0c54ff12a1d159c" },
   { path: "agents/kimi-challenge.md", sha256: "29021277339269d19d9d2e41b18b9a38d4b25c168e3efd8b295d4942f3722938" },
   { path: "agents/kimi-pursue.md", sha256: "ad931598a517afcdcfc1b63c10d6358baea60b60a77d6643d87a4a75c31f6278" },
