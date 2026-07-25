@@ -86,6 +86,78 @@ export async function verifyHookInstalled(env) {
             configPath,
         };
     }
+    // ...and confirm the pinned INTERPRETER is executable.
+    //
+    // SCOPE — read this before widening the claim. This is a NARROW BACKSTOP, not
+    // the thing that catches a dead Node. Two adversarial reviews (2026-07-25)
+    // rejected the original, wider rationale, and it was verified empirically:
+    //
+    //   - It does NOT catch a dangling Homebrew symlink. A dangling symlink cannot
+    //     be exec'd at all, and `command -v node` skips it, so companion.sh (which
+    //     `exec`s the binary it resolves, scripts/companion.sh:34,50) lands on a
+    //     DIFFERENT node. The expected command is recomputed from the live process
+    //     on every call, so it changes, and plain byte-exact equality above
+    //     already refuses — with a RECOVERABLE `drift` that /kimi:setup converges.
+    //   - It does NOT catch the 2026-07-25 dead-node zombie (a config pinning
+    //     ~/.hermes/node). That is a byte mismatch, likewise caught above.
+    //   - On the default path it is close to self-evident: `resolveNodeBinary`
+    //     returns the path THIS process was launched through, which therefore
+    //     existed and was executable moments ago.
+    //
+    // THE EXACT PREDICATE it covers: config and expected command still match
+    // byte-for-byte, yet the Node token embedded in that command fails X_OK AT
+    // VERIFICATION TIME. Three reachable ways to get there:
+    //
+    //   1. An absolute `KIMI_PLUGIN_CC_NODE_BIN` naming a binary that is NOT the
+    //      running interpreter and is already dead — e.g. a pinned `nvm` version
+    //      later `nvm uninstall`ed — reached by a direct `node dist/companion.js`
+    //      that bypasses companion.sh's exec+version gate. The override is
+    //      returned verbatim, so it is never proven by the running process.
+    //   2. POST-LAUNCH MUTATION on the DEFAULT path (this one is easy to miss):
+    //      the interpreter is valid at launch, so the process starts, and is then
+    //      `chmod -x`'d. `realpathSync` still resolves it, so `preferStableNodePath`
+    //      keeps argv0 and the bytes are unchanged — equality passes, X_OK fails.
+    //   3. Same, but the pathname is REMOVED after launch. `realpathSync` throws
+    //      and we fall back to `execPath`, which in argv0===execPath layouts
+    //      (nvm/asdf) is the identical spelling — so equality still passes while
+    //      the path is gone.
+    //
+    // In all three the old behavior was installed=true → `/bin/sh -c` exits 127 →
+    // kimi-code reads any non-2 exit as ALLOW. Converting that to a refusal is
+    // the whole value. Cases 2 and 3 are also why setup's stronger execution
+    // probe is not a substitute: it runs at install/--check, whereas this reruns
+    // before every model spawn and so catches degradation since the last probe.
+    //
+    // It proves the exec bit ONLY — not a working Node, not the right arch, not
+    // >=22.5. The real proof is setup's shell probe, which EXECUTES the byte-
+    // identical command (setup.ts::probeHook) and now fails install nonzero. The
+    // verifier runs on every spawn and cannot afford a fork, so it approximates.
+    //
+    // Fail-closed on ANY errno, deliberately diverging from background-spawn.ts,
+    // which ignores errnos outside ENOENT/EACCES/EPERM. Spawning can afford to try
+    // and see; a security verifier cannot. Do not "harmonize" these.
+    //
+    // Not re-pin-recoverable: no `drift` is attached (drift only exists when the
+    // equality check FAILS, so it can never displace a recoverable path), and
+    // `hookRefusalDetails` therefore omits `retryable_after_setup`, which agent
+    // callers map to "surface and stop." Setup cannot conjure a working Node.
+    try {
+        await access(expected.nodeBin, fsConstants.X_OK);
+    }
+    catch {
+        return {
+            installed: false,
+            reason: `hook interpreter ${expected.nodeBin} is missing or not executable, so the PreToolUse hook ` +
+                `cannot spawn (kimi-code reads a failed hook as ALLOW). Repair the Node install, or set ` +
+                `KIMI_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /kimi:setup.`,
+            configPath,
+            // Machine-readable discriminator: this is the ONE refusal whose remedy is
+            // NOT "run /kimi:setup" (LLM-caller discipline — an agent cannot read the
+            // prose above, and every other refusal emits an identical `{config_path}`).
+            refusalKind: "node-bin-not-executable",
+            nodeBin: expected.nodeBin,
+        };
+    }
     return { installed: true, configPath };
 }
 function resolveKimiCodeConfigPath(env) {
@@ -109,6 +181,12 @@ function resolveKimiCodeConfigPath(env) {
 export function hookRefusalDetails(status) {
     return {
         config_path: status.configPath,
+        // Routes the caller to "tell the human to repair Node" instead of the
+        // default "run /kimi:setup and retry" reflex. Never co-occurs with `drift`:
+        // drift requires the equality check to FAIL, this requires it to PASS.
+        ...(status.refusalKind !== undefined
+            ? { refusal_kind: status.refusalKind, node_bin: status.nodeBin }
+            : {}),
         ...(status.drift !== undefined
             ? {
                 drift_axis: status.drift.axis,

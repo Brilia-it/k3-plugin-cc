@@ -370,7 +370,29 @@ export function tryBuildExpectedHookCommand(env) {
     try {
         const hookScriptPath = resolveHookScriptPath(env);
         const command = buildHookShellCommand(hookScriptPath, env);
-        return { command, hookScriptPath };
+        // Surfaced so the verifier can probe the pinned interpreter for
+        // executability. DERIVED FROM `command` BY PARSING IT BACK, never by calling
+        // `resolveNodeBinary` a second time.
+        //
+        // Re-resolving would be a latent bypass: `resolveNodeBinary`'s no-override
+        // path runs `preferStableNodePath`, which calls `realpathSync` and falls
+        // back to `execPath` on ANY throw. So it is NOT a pure function of `env` —
+        // it reads live filesystem state. If the pinned symlink were unlinked
+        // between the two calls (exactly what `brew upgrade node` does), call #1
+        // would embed the symlink in `command` while call #2 returned the old
+        // realpath. The verifier would then compare the config against the symlink
+        // (match) but probe the OLD Cellar path for executability (may still exist)
+        // — reporting installed=true for a hook whose actual pinned interpreter is
+        // gone. `/bin/sh -c` would exit 127, which kimi-code reads as ALLOW.
+        //
+        // Parsing the command back is the exact inverse of how it was built, so
+        // `nodeBin` is byte-identical to the token in `command` BY CONSTRUCTION —
+        // the guarantee is structural, not probabilistic. The `??` is unreachable
+        // (we just built this string with the very quoting `parseHookShellCommand`
+        // decodes) and exists only so a future change to either side degrades to
+        // the old behavior instead of throwing.
+        const nodeBin = parseHookShellCommand(command)?.nodeBin ?? resolveNodeBinary(env);
+        return { command, hookScriptPath, nodeBin };
     }
     catch (err) {
         if (err instanceof RuntimeError) {

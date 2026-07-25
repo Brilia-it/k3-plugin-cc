@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
-import { access } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { access, mkdir, symlink, writeFile } from "node:fs/promises";
+
+import { buildHookShellCommand } from "../../runtime/hooks/install-paths.js";
 
 import { executeAskJob, runAsk } from "../../runtime/commands/ask.js";
 import { runResult } from "../../runtime/commands/result.js";
@@ -46,6 +49,21 @@ function makeMockEnv(
     KIMI_PLUGIN_CC_NODE_BIN: "node",
     KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
   };
+}
+
+/**
+ * Absolute path to a REAL node binary.
+ *
+ * Deliberately NOT `process.execPath`: these tests run under `bun test`, so
+ * execPath is the bun binary. Spawning a background worker with bun fails —
+ * background-spawn passes `--import tsx`, which bun does not accept. That
+ * mistake produced a confusing "Cannot find module './cjs/index.cjs'" from the
+ * child, which is why the rest of this file hardcodes KIMI_PLUGIN_CC_NODE_BIN
+ * to "node". Tests that need to spawn node *through a symlink* need the
+ * resolved path rather than a bare name.
+ */
+function realNodeBinary(): string {
+  return execFileSync("node", ["-p", "process.execPath"], { encoding: "utf8" }).trim();
 }
 
 function parseStartedJobId(output: string): string {
@@ -244,6 +262,127 @@ describe("ask background", () => {
       await cleanupTestPath(repoRoot);
     }
   });
+
+  // STRUCTURAL GAP CLOSER (v1.9.0 post-release review). Every other background
+  // test sets KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1, and the one worker-refusal test
+  // above calls executeAskJob IN-PROCESS. So no test had ever run a REAL
+  // detached worker with enforcement enabled — which is exactly why the v1.9.0
+  // `spawn(process.execPath)` regression reached pre-release review instead of
+  // being caught by CI. That bug made the spawned worker rebuild a DIFFERENT
+  // canonical command than the one setup pinned, so every background ask/rescue
+  // refused forever and /kimi:setup could not converge them.
+  //
+  // This test crosses the process boundary: the parent pins a command,
+  // background-spawn launches a real child, and the CHILD's own
+  // verifyHookInstalled must agree — or the job lands failed with
+  // ASK_HOOK_NOT_INSTALLED instead of completed.
+  //
+  // LIMIT: because it sets KIMI_PLUGIN_CC_NODE_BIN, spawner and verifier agree
+  // BY CONSTRUCTION (the buggy code honored the override too), so it cannot
+  // catch the v1.9.0 regression itself. Reproducing that needs the no-override
+  // path with a real node parent, which is impossible under `bun test` — see
+  // tests/runtime/background-hook-enforcement.test.ts.
+  test("a REAL spawned background worker verifies the hook and completes with enforcement ON", async () => {
+    const pluginDataRoot = await createTestPluginDataRoot("ask-background-hook-enforced");
+    const repoRoot = await createGitRepoFixture("ask-background-hook-enforced-repo");
+
+    try {
+      const kimiHome = path.join(pluginDataRoot, "kimi-home");
+      await mkdir(kimiHome, { recursive: true });
+
+      // Spawn node through a symlink, mirroring the real Homebrew layout the
+      // v1.9.0 fix targets (pinned stable name vs. version-stamped realpath).
+      const nodeSymlink = path.join(kimiHome, "node-stable");
+      await symlink(realNodeBinary(), nodeSymlink);
+
+      // The real compiled hook script — verifyHookInstalled access()-checks both
+      // this and, since the X_OK fix, the interpreter above.
+      const hookScript = path.join(process.cwd(), "dist", "hooks", "approval-hook.js");
+
+      const env = makeMockEnv(pluginDataRoot, "ask-success");
+      delete env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK; // <- the whole point
+      env.KIMI_CODE_HOME = kimiHome;
+      env.KIMI_PLUGIN_CC_HOOK_SCRIPT = hookScript;
+      env.KIMI_PLUGIN_CC_NODE_BIN = nodeSymlink;
+
+      await writeFile(
+        path.join(kimiHome, "config.toml"),
+        [
+          "[[hooks]]",
+          'event = "PreToolUse"',
+          `command = ${JSON.stringify(buildHookShellCommand(hookScript, env))}`,
+          "timeout = 15",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const output = await runAsk(
+        ["--background", "--wait", "Explain", "the", "job", "store"],
+        makeContext(repoRoot, env),
+      );
+
+      // Completion is the assertion: the spawned worker's own hook check passed.
+      expect(output).toBe(ASK_SUCCESS_BACKGROUND_OUTPUT);
+
+      const status = JSON.parse(
+        await runStatus(["--type", "ask"], makeContext(repoRoot, env)),
+      ) as { status: string; phase: string | null; error: { code?: string } | null };
+
+      expect(status.error?.code).toBeUndefined();
+      expect(status.status).toBe("completed");
+      expect(status.phase).toBe("done");
+    } finally {
+      await cleanupTestPath(pluginDataRoot);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 30_000);
+
+  // The negative direction. NOTE: despite sitting next to a spawn test, this
+  // refusal happens in the PARENT — runAsk calls requireAskHookInstalled before
+  // job creation and before startBackgroundJob (commands/ask.ts), so a stale pin
+  // never reaches a worker and NO child is spawned. It proves the entry gate
+  // refuses on drift with enforcement on; the worker's own re-verify is covered
+  // by the in-process test at the top of this file.
+  test("a REAL spawned background worker refuses when the pinned command is stale", async () => {
+    const pluginDataRoot = await createTestPluginDataRoot("ask-background-hook-stale");
+    const repoRoot = await createGitRepoFixture("ask-background-hook-stale-repo");
+
+    try {
+      const kimiHome = path.join(pluginDataRoot, "kimi-home");
+      await mkdir(kimiHome, { recursive: true });
+      const nodeSymlink = path.join(kimiHome, "node-stable");
+      await symlink(realNodeBinary(), nodeSymlink);
+      const hookScript = path.join(process.cwd(), "dist", "hooks", "approval-hook.js");
+
+      const env = makeMockEnv(pluginDataRoot, "ask-success");
+      delete env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK;
+      env.KIMI_CODE_HOME = kimiHome;
+      env.KIMI_PLUGIN_CC_HOOK_SCRIPT = hookScript;
+      env.KIMI_PLUGIN_CC_NODE_BIN = nodeSymlink;
+
+      // Pin a hook script path this companion does not use — the version-stamped
+      // install-dir drift that started this whole investigation.
+      await writeFile(
+        path.join(kimiHome, "config.toml"),
+        [
+          "[[hooks]]",
+          'event = "PreToolUse"',
+          `command = ${JSON.stringify(
+            buildHookShellCommand(path.join(process.cwd(), "dist", "hooks", "stale-hook.js"), env),
+          )}`,
+          "timeout = 15",
+        ].join("\n"),
+        "utf8",
+      );
+
+      await expect(
+        runAsk(["--background", "--wait", "Explain", "the", "job", "store"], makeContext(repoRoot, env)),
+      ).rejects.toMatchObject({ code: "ASK_HOOK_NOT_INSTALLED" });
+    } finally {
+      await cleanupTestPath(pluginDataRoot);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 30_000);
 
   test("background ask with -r resumes the latest ask session with an already-resolved session id", async () => {
     const pluginDataRoot = await createTestPluginDataRoot("ask-background-resume");

@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import { realpathSync } from "node:fs";
-import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -180,6 +180,132 @@ describe("verifyHookInstalled", () => {
       expect(status.reason).toContain(hookPath);
       expect(status.reason).toContain("missing or unreadable");
       expect(status.reason).toContain("/kimi:setup");
+    } finally {
+      await cleanupTestPath(home);
+    }
+  });
+
+  test("reports missing when the pinned node symlink is retargeted to nothing (command bytes unchanged)", async () => {
+    // The v1.9.0 residual risk, NARROWED (not closed — see install.ts for the
+    // honest scope). This constructs the one shape the X_OK probe actually
+    // catches: an explicit KIMI_PLUGIN_CC_NODE_BIN override naming a binary
+    // that is NOT the running interpreter and has since gone away — e.g. a
+    // pinned nvm version later `nvm uninstall`ed.
+    //
+    // The override is what makes it reachable, and that is the point rather
+    // than a test artifact: on the DEFAULT path the pinned node is the binary
+    // this process is executing from, so it necessarily exists. A dangling
+    // symlink is NOT this case — it cannot be exec'd, so companion.sh resolves
+    // a different node and plain byte-exact equality refuses first, with a
+    // recoverable drift.
+    //
+    // The load-bearing assertion is not just installed=false: it is that the
+    // canonical command is byte-IDENTICAL before and after. That is precisely
+    // why the existing equality check cannot see this one, and why the probe
+    // earns its two syscalls.
+    const home = await createTestPluginDataRoot("hook-install-node-symlink-dead");
+    try {
+      const hookPath = path.join(home, "dist", "hooks", "approval-hook.js");
+      await mkdir(path.dirname(hookPath), { recursive: true });
+      await writeFile(hookPath, "// fake hook script for tests\n", "utf8");
+
+      // A stand-in for /opt/homebrew/bin/node: a symlink to the real
+      // interpreter. This is what gets pinned into the managed block.
+      const nodeSymlink = path.join(home, "bin", "node");
+      await mkdir(path.dirname(nodeSymlink), { recursive: true });
+      await symlink(realpathSync(process.execPath), nodeSymlink);
+
+      const env = {
+        KIMI_CODE_HOME: home,
+        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        KIMI_PLUGIN_CC_NODE_BIN: nodeSymlink,
+      };
+      const canonical = buildHookShellCommand(hookPath, env);
+      await writeFile(
+        path.join(home, "config.toml"),
+        [
+          "# === BEGIN kimi-plugin-cc-managed (v1.0.0) ===",
+          "[[hooks]]",
+          'event = "PreToolUse"',
+          `command = ${JSON.stringify(canonical)}`,
+          "timeout = 15",
+          "# === END kimi-plugin-cc-managed ===",
+        ].join("\n"),
+        "utf8",
+      );
+
+      // Sanity: enforcing while the symlink resolves.
+      expect((await verifyHookInstalled(env)).installed).toBe(true);
+
+      // `brew upgrade` prunes the Cellar dir the symlink pointed at, leaving a
+      // dangling link at the SAME path.
+      await rm(nodeSymlink, { force: true });
+      await symlink(path.join(home, "bin", "node-that-does-not-exist"), nodeSymlink);
+
+      // The pin is still byte-exact — this is why the command check cannot see it.
+      expect(buildHookShellCommand(hookPath, env)).toBe(canonical);
+
+      const status = await verifyHookInstalled(env);
+      expect(status.installed).toBe(false);
+      expect(status.reason).toContain(nodeSymlink);
+      expect(status.reason).toContain("not executable");
+      // kimi-code's fail-open semantics are the reason this must fail closed.
+      expect(status.reason).toContain("ALLOW");
+
+      // NOT re-pin-recoverable: /kimi:setup cannot conjure a working Node, so an
+      // agent caller must not be told to loop on it. It gets a machine-readable
+      // discriminator instead, because every other refusal emits an identical
+      // {config_path} payload and prose is invisible to an LLM caller.
+      const details = hookRefusalDetails(status);
+      expect(details.retryable_after_setup).toBeUndefined();
+      expect(details.drift_axis).toBeUndefined();
+      expect(details.refusal_kind).toBe("node-bin-not-executable");
+      expect(details.node_bin).toBe(nodeSymlink);
+    } finally {
+      await cleanupTestPath(home);
+    }
+  });
+
+  test("reports missing when the pinned node binary exists but is not executable", async () => {
+    // Same bypass, different cause: the interpreter file is present (so an
+    // existence-only check would pass it) but its exec bit is gone — a
+    // botched install or an over-eager chmod. /bin/sh -c still cannot run it.
+    const home = await createTestPluginDataRoot("hook-install-node-not-exec");
+    try {
+      const hookPath = path.join(home, "dist", "hooks", "approval-hook.js");
+      await mkdir(path.dirname(hookPath), { recursive: true });
+      await writeFile(hookPath, "// fake hook script for tests\n", "utf8");
+
+      const fakeNode = path.join(home, "bin", "node");
+      await mkdir(path.dirname(fakeNode), { recursive: true });
+      await writeFile(fakeNode, "#!/bin/sh\nexit 0\n", "utf8");
+      await chmod(fakeNode, 0o755);
+
+      const env = {
+        KIMI_CODE_HOME: home,
+        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        KIMI_PLUGIN_CC_NODE_BIN: fakeNode,
+      };
+      await writeFile(
+        path.join(home, "config.toml"),
+        [
+          "[[hooks]]",
+          'event = "PreToolUse"',
+          `command = ${JSON.stringify(buildHookShellCommand(hookPath, env))}`,
+          "timeout = 15",
+        ].join("\n"),
+        "utf8",
+      );
+
+      expect((await verifyHookInstalled(env)).installed).toBe(true);
+
+      // Readable, but no longer executable.
+      await chmod(fakeNode, 0o644);
+
+      const status = await verifyHookInstalled(env);
+      expect(status.installed).toBe(false);
+      expect(status.reason).toContain("not executable");
+      expect(hookRefusalDetails(status).refusal_kind).toBe("node-bin-not-executable");
     } finally {
       await cleanupTestPath(home);
     }

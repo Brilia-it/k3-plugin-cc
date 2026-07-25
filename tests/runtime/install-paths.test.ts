@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
+import { mkdtemp, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
@@ -14,7 +17,43 @@ import {
   preferStableNodePath,
   resolveHostId,
   slugifyHostId,
+  tryBuildExpectedHookCommand,
 } from "../../runtime/hooks/install-paths.js";
+
+/**
+ * Spawn `tests/helpers/print-node-pin.mjs` with the given node binary and read
+ * back how that REAL child resolves its own node-pin token. Rejects on a
+ * non-zero exit or unparseable stdout so a broken probe fails the test loudly
+ * instead of silently asserting nothing.
+ */
+async function runNodePinProbe(
+  nodeBinary: string,
+): Promise<{ argv0: string; execPath: string; canonical: string }> {
+  const helper = path.join(process.cwd(), "tests/helpers/print-node-pin.mjs");
+  return await new Promise((resolve, reject) => {
+    const child = spawn(nodeBinary, [helper], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(`node-pin probe exited ${code}: ${stderr.trim()}`));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (err) {
+        reject(new Error(`node-pin probe emitted unparseable stdout ${JSON.stringify(stdout)}: ${String(err)}`));
+      }
+    });
+  });
+}
 
 // H4 — hook-command drift parsing + classification.
 
@@ -339,6 +378,89 @@ describe("preferStableNodePath", () => {
     expect(workerWithExecPath).toBe(process.execPath);
     if (stable !== process.execPath) {
       expect(workerWithExecPath).not.toBe(stable);
+    }
+  });
+
+  // The two tests above are in-process: they FEED `setupSide` in as the child's
+  // argv0 rather than observing a real one, so they assume the very OS premise
+  // the v1.9.0 fix rests on — that spawn() reports argv[0] verbatim and does not
+  // resolve symlinks. Flagged in the v1.9.0 post-release review as a proxy.
+  // This test proves it against a real child process and the COMPILED dist/
+  // artifact a background worker actually loads.
+  test("a REAL child spawned through a node symlink pins that symlink, not the realpath", async () => {
+    const linkDir = await mkdtemp(path.join(tmpdir(), "kimi-node-pin-"));
+    try {
+      const stableLink = path.join(linkDir, "node-stable");
+      const realNode = realpathSync(process.execPath);
+      await symlink(realNode, stableLink);
+
+      const probe = await runNodePinProbe(stableLink);
+
+      // The premise, measured rather than assumed.
+      expect(probe.argv0).toBe(stableLink);
+
+      // And the consequence that matters: the child's canonical command names
+      // the symlink it was invoked through — the same spelling companion.sh
+      // pins at setup time — NOT the version-stamped realpath.
+      expect(probe.canonical).toBe(
+        `${shellSingleQuote(stableLink)} '/x/dist/hooks/approval-hook.js'`,
+      );
+
+      // Guard the regression directly: had background-spawn kept
+      // `spawn(process.execPath)`, the child's argv0 would have been the
+      // realpath and the command would have disagreed with the pin. Skip the
+      // assertion on layouts where the two coincide (nvm/asdf), where there is
+      // no divergence to detect.
+      if (realNode !== stableLink) {
+        expect(probe.canonical).not.toContain(realNode);
+      }
+    } finally {
+      await rm(linkDir, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  // `tryBuildExpectedHookCommand` had NO test coverage before v1.9.1 despite
+  // being the single source of both the byte-exact comparand and (now) the
+  // interpreter path the verifier probes. These pin the invariant the X_OK
+  // check rests on.
+  test("tryBuildExpectedHookCommand's nodeBin is the exact token inside its own command", () => {
+    for (const env of [
+      {},
+      { KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/bin/node" },
+      // A path needing shell quoting — proves nodeBin is the DECODED token, not
+      // the quoted form, and that quoting round-trips.
+      { KIMI_PLUGIN_CC_NODE_BIN: "/weird path/it's/node" },
+    ]) {
+      const built = tryBuildExpectedHookCommand({
+        ...env,
+        KIMI_PLUGIN_CC_HOOK_SCRIPT: "/x/dist/hooks/approval-hook.js",
+      });
+      expect("error" in built).toBe(false);
+      if ("error" in built) continue;
+
+      // The load-bearing identity: probing `nodeBin` must be probing the very
+      // binary named in `command`. Deriving nodeBin by re-calling
+      // resolveNodeBinary would break this whenever the filesystem changed
+      // between the two calls (preferStableNodePath does realpath I/O), letting
+      // the verifier bless a command whose real interpreter it never checked.
+      const parsed = parseHookShellCommand(built.command);
+      expect(parsed).not.toBeNull();
+      expect(parsed!.nodeBin).toBe(built.nodeBin);
+      expect(parsed!.hookScript).toBe(built.hookScriptPath);
+      expect(built.command).toBe(
+        `${shellSingleQuote(built.nodeBin)} ${shellSingleQuote(built.hookScriptPath)}`,
+      );
+    }
+  });
+
+  test("tryBuildExpectedHookCommand surfaces a structured error for a relative node override", () => {
+    const built = tryBuildExpectedHookCommand({
+      KIMI_PLUGIN_CC_NODE_BIN: "node",
+      KIMI_PLUGIN_CC_HOOK_SCRIPT: "/x/dist/hooks/approval-hook.js",
+    });
+    expect("error" in built).toBe(true);
+    if ("error" in built) {
+      expect(built.error.code).toBe("SETUP_NODE_BIN_NOT_ABSOLUTE");
     }
   });
 
