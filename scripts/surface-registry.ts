@@ -50,10 +50,10 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: "commands/swarm.md", sha256: "fa5d740389d863639bc880b450ac34663bb87f81f60a259267b3b46539af6615" },
   { path: "agents/kimi-ask.md", sha256: "3bdcf3b92142560026105a232cd61b2141ff97186081f557a0c54ff12a1d159c" },
   { path: "agents/kimi-challenge.md", sha256: "29021277339269d19d9d2e41b18b9a38d4b25c168e3efd8b295d4942f3722938" },
-  { path: "agents/kimi-pursue.md", sha256: "431c1e516eaf07f084036047a0314d9aebadd7ae71af8ea3668b3a7c8291f569" },
+  { path: "agents/kimi-pursue.md", sha256: "982ae7954a9a96ca24d98bde2ffe08c87854fb1a8b7f6e277e3be895930d093a" },
   { path: "agents/kimi-rescue.md", sha256: "7c1f44ae8b7e9ca8311f4d0144689703f79a5c449faca7834342c6598d652d6c" },
   { path: "agents/kimi-review.md", sha256: "44a869d601ae8ed4fa498bdef38d25c6d9baf2576fbf3c80b46ddf9f597bc329" },
-  { path: "agents/kimi-swarm-write.md", sha256: "d77c17ee8ca6ee139bc7d4ff7d9223645a61ace676235cbac2c2f21356011b6a" },
+  { path: "agents/kimi-swarm-write.md", sha256: "6895ead8ea1e6b333797ba39efb5d115ddb3b0ebcd996ca95430a672f2ebc181" },
   { path: "agents/kimi-swarm.md", sha256: "111742057055a0382540893152f3db95fe9253e869148a49eefb61dba672a061" },
 ];
 
@@ -194,7 +194,7 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
       "Run Kimi's autonomous goal mode for an explicitly requested hands-off multi-turn objective. This is write-capable and budget-bounded; use only when the user explicitly asks Kimi to pursue an objective autonomously.",
     guidance: [
       "Require explicit hands-off autonomy intent; single bounded fixes belong to `kimi-rescue`.",
-      "Always keep a finite `--budget`; never background this command.",
+      "Always keep a finite `--budget` — it is the sole hard bound on the loop. The runtime rejects `--background`, but detaching your own shell call is expected: a goal loop routinely outlives a foreground timeout, and the hook, allowlist, and budget do not depend on a human watching. Cancel with `companion.sh cancel` (no id — it targets the latest running job for the repo); note that a cancel stops further work but does not roll back edits already made to the real tree.",
       "Surface terminal goal statuses exactly as the companion reports them.",
     ],
   },
