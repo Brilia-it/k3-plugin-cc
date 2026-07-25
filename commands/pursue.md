@@ -18,7 +18,7 @@ Supported flags:
 
 Prototype limitations (experimental):
 
-- **Foreground only.** No `--background` yet — watch the run; cancel with Ctrl+C or `/kimi:cancel <job-id>`.
+- **No `--background` flag** — the runtime has no detached-worker mode for pursue. That is separate from how the *caller* runs the shell command: a goal loop routinely outlives a foreground timeout (Claude Code caps foreground Bash at 10 minutes vs the 45m default budget), so detaching the call is expected. The bounds that hold either way are the PreToolUse hook, the workspace allowlist, no git mutation, and the mandatory finite `--budget`. To stop a run, just say so — the dispatching agent holds the job id and cancels gracefully.
 - **No `--resume`.** Goal mode emits a goalId distinct from the session id; resuming the session would not reliably re-enter the goal. The goalId is shown in the result for when resume lands.
 - Requires kimi-code **>= 0.8.0** (headless goal mode) and the `/kimi:setup` PreToolUse hook (refuses without it).
 
