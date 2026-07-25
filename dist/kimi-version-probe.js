@@ -828,6 +828,50 @@ export const KIMI_TESTED_MINORS = [
     // out-of-root absolute write denial. Daily monitor: 2026-07-21. Tag:
     // compat-verified-kimi-code-0.28.1.
     { major: 0, minor: 28 },
+    // 0.29.1 (0.29.0 + patch 0.29.1, 2026-07-24) verified
+    // COMPAT-PRESERVED across the 0.28.1→0.29.1 release span. The staged scoped
+    // audits found: 0.28.1→0.29.0 — 01-cli-prompt-mode 3,909 B,
+    // 02-permission 0 B, 03-hooks 0 B, 04-wire-records 8,322 B, and
+    // 05-session-bootstrap 7,655 B; 0.29.0→0.29.1 — 01/02/03 all 0 B,
+    // 04-wire-records 938 B, and 05-session-bootstrap 8,700 B. The v1
+    // load-bearing contract therefore remains intact: PreToolCallHook index 0,
+    // AgentSwarmExclusiveDeny index 1, AutoModeApprove the first approve at index
+    // 5 with only denies between; empty matcher = all tools; exit 2 blocks;
+    // aggregation is any-block-wins; Bash.command / Write.path / Edit.path are
+    // unchanged; fresh and resumed `kimi -p` sessions remain auto with headless
+    // handlers; AgentSwarm subagents retain the standard permission stack and
+    // KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY remains the hard concurrency gate.
+    // The non-empty v1 changes are compat-benign provider/model capability,
+    // session/record identity, replay-limit, MCP timeout, and web endpoint/env
+    // plumbing; none changes PromptJsonWriter records, session.resume_hint,
+    // configured+plugin hook merging, HookDefSchema, workspace-local
+    // additional_dir loading, or permission-context construction.
+    //
+    // 0.29.1 substantially refactors experimental agent-core-v2 tool
+    // adjudication from ordered hook slots to an awaited BeforeToolExecuteEmitter.
+    // Source tracing confirmed the safety order for every main agent and subagent:
+    // dedupe registers first but is veto-only; AgentExternalHooksService registers
+    // second and awaits configured/plugin PreToolUse, vetoing on any block;
+    // permission adjudication registers after it; goal/plan listeners that can
+    // finally allow register later. The app hook runner and hook command/config
+    // engine are byte-identical across the patch, so empty-matcher, exit-2 denial,
+    // and first-block-wins aggregation are preserved. New custom-agent/tool-policy
+    // and secondary-model paths are restrictive/model-selection plumbing, not a
+    // hook bypass; run-v2-print still forces auto on fresh and resumed sessions.
+    //
+    // The exact-0.29.1 temp-binary `bun run smoke:real` was GREEN: 10 pass /
+    // 0 fail, 43 assertions in 339.80s. Review/challenge/ask/review_gate forced
+    // writes were denied; the asserted KIMI_CODE_EXPERIMENTAL_FLAG=1 lane emitted
+    // the v2 signal and denied through the new veto path; pursue hit its finite
+    // budget with zero writes; read swarm denied a spawned subagent write;
+    // write-swarm stayed confined (patchBytes=306, userTreeClean=true,
+    // worktreeCleaned=true); and the non-vacuous out-of-root absolute write was
+    // denied. No auth/quota/hook-bypass/user-tree-write blocker occurred.
+    // Headless goal resume remains absent: parseHeadlessGoalCreate and both print
+    // drivers still expose create only; resumeGoal stays TUI/RPC-only. Daily
+    // monitors: 2026-07-23 and 2026-07-24. Tag:
+    // compat-verified-kimi-code-0.29.1.
+    { major: 0, minor: 29 },
 ];
 /**
  * Spawn `<kimi-bin> --version` and parse the output. Never throws;

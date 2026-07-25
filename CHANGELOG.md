@@ -2,6 +2,17 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.8.8 — 2026-07-25
+
+**Certifies kimi-code 0.29.0 + 0.29.1.** Verdict **COMPAT-PRESERVED**; `KIMI_TESTED_MINORS` extended with `{0,29}`.
+
+- **V1 safety chain unchanged.** Across 0.28.1→0.29.1, `02-permission` and `03-hooks` are 0-byte diffs. The index-0 hook, first-approve ordering, any-block-wins aggregation, exit-2 denial, empty-matcher behavior, `Bash.command` / `Write.path` / `Edit.path`, `-p` auto/headless behavior, configured+plugin hook merge, swarm subagent stack, and hard concurrency gate remain intact.
+- **Scoped non-empty changes are compatible.** 0.29.0 adds opt-in v2 custom-agent flags the plugin does not pass plus session/provider/model-capability and replay plumbing. 0.29.1 adds MCP timeout defaults and web endpoint/env configuration. None changes PromptJsonWriter output, `session.resume_hint`, permission-context construction, or workspace-write policy.
+- **Experimental v2 refactor preserves the deny seam.** 0.29.1 replaces ordered pre-execution hook slots with an awaited veto event. External PreToolUse registers after veto-only dedupe but before permission/plan approval for every main agent and subagent; the app hook runner and exit-2/any-block-wins command engine are unchanged.
+- **Exact-binary smoke GREEN on latest.** The temp-installed exact-0.29.1 `bun run smoke:real` passed **10 / 0 / 43 in 339.80s**: all read-only forced writes denied, asserted-v2 denial passed through the new veto path, pursue reached its finite budget with zero writes, read swarm denied a subagent write, write swarm stayed confined (`patchBytes=306`, `userTreeClean=true`, `worktreeCleaned=true`), and the non-vacuous out-of-root absolute write was denied. Exact 0.29.0 had already passed the same 10/0/43 matrix.
+- **Headless pursue resume remains upstream-blocked.** Both print drivers still use create-only goal parsing; `resumeGoal()` remains TUI/RPC-only.
+- Edits: `runtime/kimi-version-probe.ts` (`{0,29}` + audit proof), `runtime/stream-json.ts` (verified-through range), version/docs/tests, re-pinned Claude hashes, and regenerated `dist/` + `plugins/kimi-codex/`. Tags: `v1.8.8` and `compat-verified-kimi-code-0.29.1`. Evidence: daily-monitor reports 2026-07-23 and 2026-07-24.
+
 ## 1.8.7 — 2026-07-21
 
 **Certifies kimi-code 0.27.0 + 0.28.1** — a chained two-minor catch-up (the minors shipped since the v1.8.4-certified 0.26.0). Verdict **COMPAT-PRESERVED** on both; `KIMI_TESTED_MINORS` extended with `{0,27}` and `{0,28}`.
