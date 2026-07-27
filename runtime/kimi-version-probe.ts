@@ -874,6 +874,32 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   // drivers still expose create only; resumeGoal stays TUI/RPC-only. Daily
   // monitors: 2026-07-23 and 2026-07-24. Tag:
   // compat-verified-kimi-code-0.29.1.
+  //
+  // 0.29.2 patch checkup (2026-07-27) verified COMPAT-PRESERVED inside the
+  // already-tested 0.29.x minor. Scoped 0.29.1→0.29.2 diffs were:
+  // 01-cli-prompt-mode 0 B, 02-permission 0 B, 03-hooks 0 B,
+  // 04-wire-records 757 B, and 05-session-bootstrap 0 B. The sole canonical
+  // delta makes a main-agent `steer` refresh prompt metadata like `prompt`;
+  // it does not alter stream-json output, session pinning, hook matching or
+  // aggregation, permission construction, or tool dispatch. V1 goal pursuit
+  // now treats `loop_control.max_steps_per_turn` as a continuation boundary
+  // instead of pausing the goal; the plugin's mandatory finite wall-clock
+  // AbortController budget remains the hard bound.
+  //
+  // Experimental v2 replaced its hand-maintained eager-service startup list
+  // with dependency-driven `ScopeActivation.OnScopeCreated` construction and
+  // moved mutable service state into agent/session state containers.
+  // `AgentExternalHooksService` still awaits configured/plugin PreToolUse and
+  // vetoes on block; `run-v2-print.ts`, `BeforeToolExecuteEmitter`, the hook
+  // aggregation runner, and the hook command runner are all 0-byte diffs.
+  // The exact-0.29.2 temp-binary `bun run smoke:real` was GREEN: 10 pass /
+  // 0 fail, 43 assertions in 502.40s. It non-vacuously denied the asserted-v2
+  // forced write, kept pursue at zero writes through its finite-budget abort,
+  // denied a read-swarm subagent write, confined write-swarm
+  // (patchBytes=278, userTreeClean=true, worktreeCleaned=true), and denied the
+  // out-of-root absolute write. Headless goal resume remains absent because
+  // both print drivers are byte-identical across the patch. Daily monitor:
+  // 2026-07-27. Tag: compat-verified-kimi-code-0.29.2.
   { major: 0, minor: 29 },
 ];
 
