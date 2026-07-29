@@ -364,6 +364,146 @@ suite("real-binary smoke: agent-core-v2 still denies writes (KIMI_CODE_EXPERIMEN
   );
 });
 
+// v2 + POPULATED home: kimi-code 0.30.0 activates the KAP global search service
+// in EVERY agent-core-v2 App bootstrap, not just the server (upstream fix:
+// MoonshotAI/kimi-code#2376 makes it App-scope OnDemand). Under a v2 `kimi -p`
+// that means an unasked-for cross-session index pass over <KIMI_CODE_HOME>.
+//
+// The prior smoke could not see this: every isolated KIMI_CODE_HOME starts
+// EMPTY, and the indexer short-circuits on zero sessions, so the path never ran
+// and the suite was green for a reason unrelated to the contract. A green test
+// whose precondition never held is worse than a red one — so this test ASSERTS
+// ITS OWN PRECONDITION (indexable wire files exist before the measured run) and
+// fails loudly if the home is unrepresentative.
+//
+// What is asserted is the INVARIANT, not the side effect: writes stay denied
+// under a populated home, and nothing resembling a search index ever appears in
+// the WORKSPACE. Whether <kimiHome>/search-index exists is version-dependent
+// (present on 0.30.0, absent once the upstream fix ships), so it is RECORDED,
+// never asserted — this test stays correct on both sides of that release.
+const SEARCH_INDEX_DIR = "search-index";
+
+suite("real-binary smoke: a populated home keeps the v2 search index out of the workspace", () => {
+  test(
+    "[review/v2] a cross-session index pass never escapes KIMI_CODE_HOME and writes stay denied",
+    async () => {
+      const kimiHome = await createTestPluginDataRoot("smoke-home-v2-populated");
+      const workspace = await createTestPluginDataRoot("smoke-ws-v2-populated");
+      const pluginData = await createTestPluginDataRoot("smoke-data-v2-populated");
+      try {
+        await seedKimiHome(SEED_HOME, kimiHome);
+        const setupEnv: NodeJS.ProcessEnv = {
+          ...process.env,
+          KIMI_CODE_HOME: kimiHome,
+          CLAUDE_PLUGIN_DATA: pluginData,
+          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        };
+        const setupResult = await runSetup([], makeContext(workspace, setupEnv));
+        expect(
+          setupResult.probe,
+          `managed-block install probe failed: ${setupResult.probeError ?? ""}`,
+        ).toBe("ok");
+
+        const { command, prefixArgs } = resolveKimiCliCommand(process.env);
+        const runV2 = async (prompt: string) => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), PER_RUN_BUDGET_MS);
+          timer.unref?.();
+          try {
+            return await runCliPrompt({
+              cwd: workspace,
+              env: {
+                ...process.env,
+                KIMI_CODE_HOME: kimiHome,
+                KIMI_CODE_EXPERIMENTAL_FLAG: "1",
+              },
+              command,
+              prefixArgs,
+              commandLabel: "review",
+              prompt,
+              signal: controller.signal,
+            });
+          } finally {
+            clearTimeout(timer);
+          }
+        };
+
+        // Run 1 — populate the home. Trivial prompt; its only job is to leave a
+        // persisted session (and its wire.jsonl) behind for run 2 to index.
+        await runV2("Reply with the single word: ok.");
+
+        // PRECONDITION — the entire point of this test. `syncSession` reads each
+        // session's wire.jsonl, so wire files are the precise thing the indexer
+        // needs. With none, the measured run short-circuits exactly like the old
+        // vacuous smoke, so fail HERE rather than report a meaningless green.
+        const sessionsDir = path.join(kimiHome, "sessions");
+        const wireFiles = existsSync(sessionsDir)
+          ? (await readdir(sessionsDir, { recursive: true }))
+              .map((entry) => String(entry))
+              .filter((entry) => entry.endsWith("wire.jsonl"))
+          : [];
+        expect(
+          wireFiles.length,
+          `precondition failed: no wire.jsonl under ${sessionsDir} after a v2 run — ` +
+            "the measured run would hit the indexer's zero-session short-circuit and " +
+            "this test would be vacuous, which is the exact failure mode of the " +
+            "0.30.0 smoke it replaces",
+        ).toBeGreaterThan(0);
+
+        // Measured run — the home now has prior sessions, so 0.30.0's eager
+        // global-search activation actually reaches the indexer.
+        const result = await runV2(WRITE_PROMPT);
+
+        // INVARIANT 1: the read-only label still denies the write.
+        const wrote = await fileExists(path.join(workspace, TARGET_FILENAME));
+        expect(
+          wrote,
+          `read-only "review" under v2 with a populated home must NOT create ${TARGET_FILENAME}`,
+        ).toBe(false);
+
+        // EVIDENCE the hook fired on a write attempt, not that the model declined.
+        const haystack = `${JSON.stringify(result.records)}\n${result.stderrTail}`;
+        expect(
+          haystack,
+          `expected the hook deny marker "${DENY_MARKER}" under v2 with a populated home ` +
+            `(exit=${result.exitCode}, aborted=${result.aborted})`,
+        ).toContain(DENY_MARKER);
+
+        // INVARIANT 2: v2 actually served the run — the flag did not silently no-op.
+        expect(
+          result.systemVersion,
+          "expected a system.version banner proving agent-core-v2 served the run " +
+            "under KIMI_CODE_EXPERIMENTAL_FLAG=1",
+        ).toBeDefined();
+
+        // INVARIANT 3 (the new one): the index is a KIMI_CODE_HOME-scoped side
+        // effect and must never materialize in the user's working directory.
+        const strayIndex = (await readdir(workspace)).filter((entry) =>
+          entry.includes(SEARCH_INDEX_DIR),
+        );
+        expect(
+          strayIndex,
+          `a search index must never appear in the workspace (${workspace})`,
+        ).toEqual([]);
+
+        // RECORDED, never asserted — version-dependent, see the note above.
+        const indexed = existsSync(path.join(kimiHome, SEARCH_INDEX_DIR));
+        console.warn(
+          `[smoke] v2 populated-home cross-session index inside KIMI_CODE_HOME: ` +
+            `${indexed ? "PRESENT" : "absent"} (wire files=${wireFiles.length}). ` +
+            "PRESENT is expected on kimi-code 0.30.0 and is confined to KIMI_CODE_HOME; " +
+            "upstream fix MoonshotAI/kimi-code#2376 makes it absent.",
+        );
+      } finally {
+        await cleanupTestPath(kimiHome);
+        await cleanupTestPath(workspace);
+        await cleanupTestPath(pluginData);
+      }
+    },
+    PER_RUN_BUDGET_MS * 2 + 30_000,
+  );
+});
+
 // The LOAD-BEARING safety test for /kimi:pursue (autonomous goal mode): the
 // PreToolUse hook must fire on EVERY continuation turn, not just turn 1. We run
 // real headless goal mode (KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND=1 + a /goal

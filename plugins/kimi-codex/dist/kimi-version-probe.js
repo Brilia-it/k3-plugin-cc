@@ -898,6 +898,81 @@ export const KIMI_TESTED_MINORS = [
     // both print drivers are byte-identical across the patch. Daily monitor:
     // 2026-07-27. Tag: compat-verified-kimi-code-0.29.2.
     { major: 0, minor: 29 },
+    // 0.30.0 certified in v1.9.3 (2026-07-29). SCOPE NOTE, because it is easy to
+    // audit the wrong tree: the released `@moonshot-ai/kimi-code@0.30.0` tag is
+    // EIGHT commits behind `origin/main`. Everything interesting in main — v1
+    // custom agent files (#2232), plugin-contributed agents (#2365), plugin
+    // `systemPrompt` (#2314), the `secondary-model` flag — is queued for 0.31.0
+    // and is NOT in the released binary. This entry certifies the RELEASED tag;
+    // contracts were verified at main as well (the stricter state) and hold in
+    // both.
+    //
+    // Re-verified against 0.30.0 source, all byte-identical to 0.29.2 unless
+    // noted: policy queue keeps PreToolCallHookPermissionPolicy at index 0 with
+    // indices 1-4 ALL pure denies (AgentSwarmExclusiveDeny, AutoModeAskUserQuestionDeny,
+    // PlanModeGuardDeny, UserConfiguredDeny) before the first approve at index 5,
+    // so nothing auto-approves ahead of the hook; hook engine keeps
+    // first-block-wins (`engine.ts` `results.find(r => r.action === 'block')`),
+    // empty-matcher-means-all, exit-2 denial, and fail-open on internal error;
+    // `Bash` still takes `command` and `Write`/`Edit` still take `path` (NOT
+    // `file_path`) with no new write-shaped builtin tool; `-p` still defaults to
+    // the v1 driver with `permission: 'auto'` + installHeadlessHandlers, still
+    // writes stream-json via PromptJsonWriter, still emits the `session.resume_hint`
+    // meta record and the role-less `goal.summary`, and still rejects
+    // --auto/--yolo/--plan with -p; goal mode still triggers on the `/^\/goal(\s|$)/`
+    // prefix ALONE; plugin hooks still merge any-block-wins and `HookDefSchema`
+    // is still `.strict()` (no config-injection vector for per-hook cwd/env).
+    //
+    // AgentSwarm subagents still use the STANDARD permission stack:
+    // `DenyAllPermissionPolicy` has exactly ONE call site repo-wide, inside
+    // `startBtw()`, and `spawn()`/`configureChild()` never touch
+    // `permission.policies`; children still share `parent.config.cwd`. The
+    // adversarial check that matters most: `agent.hooks` is OPTIONAL, so an
+    // unwired subagent would silently fail open through index 0 — it is wired
+    // unconditionally by `createAgent`'s `config.hookEngine ?? this.hookEngine`
+    // fallback, and NO production call site supplies `config.hookEngine`. Every
+    // swarm subagent therefore fires the session hook engine.
+    //
+    // KNOWN CAVEAT, characterized not hand-waved: 0.30.0 activates the KAP
+    // global search service in EVERY agent-core-v2 App bootstrap, not just the
+    // server, so an experimental-v2 run (`KIMI_CODE_EXPERIMENTAL_FLAG` truthy,
+    // which the plugin inherits) performs an unasked-for cross-session index
+    // pass and creates `<KIMI_CODE_HOME>/search-index`. It is NOT a hook bypass,
+    // NOT a user-worktree write, and NOT a credential read: the index is engine
+    // -internal (never a tool call) and confined to KIMI_CODE_HOME. The DEFAULT
+    // v1 engine is unaffected (`sdk-rpc-client.ts` bootstraps no App scope).
+    // Upstream fix: MoonshotAI/kimi-code#2376 (App-scope OnDemand), which removes
+    // the caveat in a later release.
+    //
+    // The exact-0.30.0 `bun run smoke:real` was GREEN: 11 pass / 0 fail, 49
+    // assertions in 348.05s. It denied review/challenge/ask/review_gate forced
+    // writes; the asserted KIMI_CODE_EXPERIMENTAL_FLAG=1 lane emitted the v2
+    // signal and still denied; pursue hit its finite budget with zero writes;
+    // read swarm denied a spawned subagent write; write-swarm stayed confined
+    // (patchBytes=334, userTreeClean=true, worktreeCleaned=true); and the
+    // out-of-root absolute write was denied. NEW this release, and the reason the
+    // previous 0.30.0 smoke was green for the wrong reason: every isolated
+    // KIMI_CODE_HOME starts EMPTY and the indexer short-circuits on zero
+    // sessions, so the caveat path never ran. The populated-home case now asserts
+    // its OWN precondition (wire files > 0) and failed-loudly-or-proved rather
+    // than passing vacuously — it recorded index PRESENT with wire files=1 while
+    // writes stayed denied and no search index ever appeared in the workspace.
+    //
+    // RESIDUAL: write-swarm still runs against a session-less home, so "an
+    // un-awaited index sync cannot race the patch capture" is COMPOSED from two
+    // tests (index confined to KIMI_CODE_HOME; patch capture reads the ephemeral
+    // worktree) rather than observed end to end in one.
+    //
+    // BEFORE CERTIFYING 0.31.0: v1 custom agent files auto-scan project roots
+    // (`<git-root>/.kimi-code/agents`, `<git-root>/.agents/agents`) with NO flag
+    // gating, and an `override: true` file can replace the default `agent`
+    // profile. `AgentFileDefinition` carries no permission/hook/cwd field, so it
+    // reshapes the system prompt and the tool list only — every call still hits
+    // policy index 0, and our label allowlist fails closed on an unknown tool.
+    // It is a PROMPT-INJECTION surface for repo-scoped rescue/swarm-write, not a
+    // hook bypass, and it needs a docs/safety.md paragraph before 0.31 lands.
+    // Daily monitor: 2026-07-29. Tag: compat-verified-kimi-code-0.30.0.
+    { major: 0, minor: 30 },
 ];
 /**
  * Spawn `<kimi-bin> --version` and parse the output. Never throws;
