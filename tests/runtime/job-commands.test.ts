@@ -773,7 +773,7 @@ describe("job-backed ask/status/result", () => {
     const repoRoot = await createTestPluginDataRoot("job-store-review-gate-sigkill-repo");
     const paths = resolvePluginPaths({ ...process.env, CLAUDE_PLUGIN_DATA: pluginDataRoot });
     const env = { ...process.env, CLAUDE_PLUGIN_DATA: pluginDataRoot };
-    const child = spawnSigtermIgnoringProcess();
+    const child = await spawnSigtermIgnoringProcess();
 
     try {
       await mkdir(paths.pluginRoot, { recursive: true });
@@ -916,15 +916,49 @@ function spawnLongRunningProcess(): ChildProcess {
   });
 }
 
-function spawnSigtermIgnoringProcess(): ChildProcess {
+async function spawnSigtermIgnoringProcess(): Promise<ChildProcess> {
   // Long-running child that explicitly traps SIGTERM. Used to verify that
   // /kimi:cancel of a review_gate job escalates to SIGKILL when SIGTERM is
-  // ignored — the v0.2.4 fix for the wait-loop-skips-escalation bug.
-  return spawn(
+  // ignored — the v0.2.4 fix for the wait-loop-skips-escalation bug. Wait for
+  // an IPC ready signal so cancellation cannot race handler installation.
+  const child = spawn(
     process.execPath,
-    ["-e", "process.on('SIGTERM', () => {}); setTimeout(() => {}, 30_000);"],
-    { stdio: "ignore" },
+    [
+      "-e",
+      "process.on('SIGTERM', () => {}); process.send?.('ready'); setTimeout(() => {}, 30_000);",
+    ],
+    { stdio: ["ignore", "ignore", "ignore", "ipc"] },
   );
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timed out waiting for child pid ${child.pid ?? "<unknown>"} to become ready.`));
+    }, 2_000);
+    timer.unref();
+
+    child.once("message", (message) => {
+      clearTimeout(timer);
+      if (message === "ready") {
+        resolve();
+        return;
+      }
+      reject(new Error(`Unexpected readiness message from child pid ${child.pid ?? "<unknown>"}.`));
+    });
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once("exit", (code, signal) => {
+      clearTimeout(timer);
+      reject(
+        new Error(
+          `Child pid ${child.pid ?? "<unknown>"} exited before readiness (code=${String(code)}, signal=${String(signal)}).`,
+        ),
+      );
+    });
+  });
+
+  return child;
 }
 
 async function waitForChildExit(child: ChildProcess): Promise<void> {
