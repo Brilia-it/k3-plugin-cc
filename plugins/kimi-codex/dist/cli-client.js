@@ -46,6 +46,22 @@ export async function runCliPrompt(opts) {
     if (opts.signal?.aborted === true) {
         throw new RuntimeError("CLI_ABORTED", "kimi subprocess request cancelled before spawn", "cli-client.pre-spawn", { details: { command: opts.command } });
     }
+    // agent-core-v2 registers its plan-file guard before external PreToolUse
+    // hooks. An active-plan Write/Edit to the exact KIMI_CODE_HOME plan file calls
+    // final `allow()`, preventing the later managed hook from running. This is
+    // reachable even on a fresh session when user config has
+    // `default_plan_mode=true`; resume also restores persisted plan state. Refuse
+    // the experimental engine before spawn until upstream gives external hooks a
+    // guaranteed veto position ahead of that final allow. Match kimi-code's own
+    // env parser exactly; values such as "0" and "false" still select v1.
+    if (isKimiV2Enabled(opts.env)) {
+        throw new RuntimeError("CLI_V2_HOOK_ORDER_UNSAFE", "Refusing kimi-code agent-core-v2 because plan-mode writes can final-allow before external PreToolUse hooks run. Unset KIMI_CODE_EXPERIMENTAL_FLAG to use the default v1 engine.", "cli-client.pre-spawn", {
+            details: {
+                refusal_kind: "v2-hook-order-unsafe",
+                experimental_v2: true,
+            },
+        });
+    }
     const args = buildArgs(opts);
     const env = buildEnv(opts);
     if (opts.logPath !== undefined) {
@@ -577,6 +593,10 @@ export async function runCliPromptWithBudget(opts, budgetMs, stage) {
             clearTimeout(timer);
         opts.signal?.removeEventListener("abort", onParentAbort);
     }
+}
+const KIMI_V2_TRUTHY_VALUES = new Set(["1", "true", "yes", "on"]);
+function isKimiV2Enabled(env) {
+    return KIMI_V2_TRUTHY_VALUES.has((env.KIMI_CODE_EXPERIMENTAL_FLAG ?? "").trim().toLowerCase());
 }
 function buildArgs(opts) {
     const args = [...(opts.prefixArgs ?? [])];

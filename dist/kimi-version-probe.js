@@ -849,15 +849,16 @@ export const KIMI_TESTED_MINORS = [
     //
     // 0.29.1 substantially refactors experimental agent-core-v2 tool
     // adjudication from ordered hook slots to an awaited BeforeToolExecuteEmitter.
-    // Source tracing confirmed the safety order for every main agent and subagent:
-    // dedupe registers first but is veto-only; AgentExternalHooksService registers
-    // second and awaits configured/plugin PreToolUse, vetoing on any block;
-    // permission adjudication registers after it; goal/plan listeners that can
-    // finally allow register later. The app hook runner and hook command/config
-    // engine are byte-identical across the patch, so empty-matcher, exit-2 denial,
-    // and first-block-wins aggregation are preserved. New custom-agent/tool-policy
-    // and secondary-model paths are restrictive/model-selection plumbing, not a
-    // hook bypass; run-v2-print still forces auto on fresh and resumed sessions.
+    // The 2026-07-24 audit correctly proved the ordinary awaited external-hook
+    // veto and the smoke below, but its production-order conclusion was wrong.
+    // 2026-07-31 correction: global service registration actually orders
+    // permission gate → plan → swarm → external hooks. Active plan mode can
+    // final-allow the exact KIMI_CODE_HOME plan-file Write/Edit before the hook.
+    // The app hook runner and hook command/config engine are byte-identical across
+    // the patch, so empty-matcher, exit-2 denial, and first-block-wins aggregation
+    // remain true for calls that reach them; they do not prove every v2 call does.
+    // v1.9.4 therefore refuses experimental-v2 across the tested range pending an
+    // upstream ordering guarantee. See the 0.31 entry for reachability/mitigation.
     //
     // The exact-0.29.1 temp-binary `bun run smoke:real` was GREEN: 10 pass /
     // 0 fail, 43 assertions in 339.80s. Review/challenge/ask/review_gate forced
@@ -963,16 +964,63 @@ export const KIMI_TESTED_MINORS = [
     // tests (index confined to KIMI_CODE_HOME; patch capture reads the ephemeral
     // worktree) rather than observed end to end in one.
     //
-    // BEFORE CERTIFYING 0.31.0: v1 custom agent files auto-scan project roots
+    // 0.31 FOLLOW-UP (completed in v1.9.4): v1 custom agent files auto-scan project roots
     // (`<git-root>/.kimi-code/agents`, `<git-root>/.agents/agents`) with NO flag
     // gating, and an `override: true` file can replace the default `agent`
     // profile. `AgentFileDefinition` carries no permission/hook/cwd field, so it
     // reshapes the system prompt and the tool list only — every call still hits
     // policy index 0, and our label allowlist fails closed on an unknown tool.
     // It is a PROMPT-INJECTION surface for repo-scoped rescue/swarm-write, not a
-    // hook bypass, and it needs a docs/safety.md paragraph before 0.31 lands.
+    // hook bypass. v1.9.4 documents this trust boundary in docs/safety.md.
     // Daily monitor: 2026-07-29. Tag: compat-verified-kimi-code-0.30.0.
     { major: 0, minor: 30 },
+    // 0.31.0 certified in v1.9.4 (2026-07-31) with one fail-closed runtime
+    // mitigation. Immutable tag audit: bc28e9d802fbec29395a7aed85e880679a050145.
+    // Canonical 0.30.0→0.31.0 scoped diffs were CLI 4,025 B, permission 0 B,
+    // hooks 0 B, wire/session 37,804 B, bootstrap/config 22,220 B, and the
+    // previously-audited v2 denial path 0 B. V1 keeps the index-0 hook, all-deny
+    // gap before first approve, any-block-wins hook aggregation, tool-input keys,
+    // standard swarm child stack, consumed argv, PromptJsonWriter shapes, terminal
+    // session hint, and create-only headless goal behavior. Parser/client tests
+    // passed 98/0/247 against the unchanged wire envelope.
+    //
+    // New v1 trust surface, documented rather than flattened: 0.31 discovers
+    // user/project/plugin custom agents and plugin system-prompt contributions.
+    // Project `override: true` can replace builtin `agent` or `coder` instructions
+    // and tool availability; the bound profile persists with the session. Profile
+    // schema cannot set hooks/permission/cwd or widen this plugin's allowlist, so
+    // this is prompt/task-fidelity risk, not a confinement bypass. Write-capable
+    // use in an untrusted repo must inspect those files first.
+    //
+    // CORRECTION to the 0.30.0 v2 judgement: external PreToolUse is awaited on
+    // ordinary calls, but production service order is permission gate → plan →
+    // swarm → external hooks. While plan mode is active, AgentPlanService
+    // final-allows a Write/Edit whose accesses target only the exact plan file;
+    // final allow stops listener iteration before our hook. The path is confined
+    // to KIMI_CODE_HOME, not the worktree, but violates the every-tool managed
+    // hook contract. It is reachable fresh via user `default_plan_mode=true` and
+    // on resume via restored PlanModel. The code is byte-identical in 0.30/0.31,
+    // so this is newly discovered inherited evidence, not a new 0.31 regression.
+    //
+    // v1.9.4 therefore refuses upstream-equivalent truthy
+    // KIMI_CODE_EXPERIMENTAL_FLAG values before spawn with
+    // CLI_V2_HOOK_ORDER_UNSAFE / refusal_kind `v2-hook-order-unsafe`; unset/false
+    // values preserve fresh and resumed default-v1 behavior. EnterPlanMode is
+    // also explicitly denied for every managed label as defense in depth. Do not
+    // re-enable v2 until an exact released tag orders external-hook veto before
+    // every final allow and non-vacuous fresh-default-plan + restored-plan smoke
+    // cases both prove the hook blocks the exact plan-file write.
+    //
+    // Exact-0.31.0 pre-mitigation smoke was GREEN 11/0/49 in 944.47s: all default
+    // v1 forced writes, pursue budget, read-swarm child denial, write-swarm patch
+    // capture/cleanup, and out-of-root denial passed; the populated-home case had
+    // wire files=1 and kept the eager KAP index inside KIMI_CODE_HOME. The
+    // ordinary fresh-v2 forced-write lane also denied, but did not cover
+    // default_plan_mode and is not v2 certification. v1.9.4 replaces that lane
+    // with an exact pre-spawn refusal assertion. The released 0.31.0 still
+    // contains the KAP eager-index behavior; it is unreachable from plugin flows
+    // while v2 is refused. MoonshotAI/kimi-code#2376 remains unmerged.
+    { major: 0, minor: 31 },
 ];
 /**
  * Spawn `<kimi-bin> --version` and parse the output. Never throws;

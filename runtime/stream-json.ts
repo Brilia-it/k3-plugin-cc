@@ -127,7 +127,12 @@
 //     exact-binary smoke 10/0, 43 assertions, on each of exact 0.27.0,
 //     0.28.1, 0.29.0, 0.29.1, and 0.29.2; the 0.29.1 veto-event refactor
 //     and 0.29.2 automatic scope-activation refactor preserved the modeled
-//     system.version signal and terminal session pinning).
+//     system.version signal and terminal session pinning), 2026-07-29 covered
+//     0.30.0, and 2026-07-31 covered 0.31.0. The 0.31 writer and goal-prompt
+//     blobs are identical to 0.30; custom profiles can change content/tools but
+//     not the NDJSON envelope. v1.9.4 refuses v2 before spawn for a separate
+//     plan-listener-order safety issue, while retaining this parser model for a
+//     future safe re-enable.
 //     NB: from 0.6.0 run-prompt.ts
 //     is no longer a whole-file zero-byte diff — at 0.6.0 it gained a
 //     resume-session workDir guard, and at 0.8.0 it gained headless goal
@@ -224,18 +229,20 @@ export interface TurnStepRetryingRecord {
 
 /**
  * Version banner emitted by kimi-code's experimental agent-core-v2 print driver
- * (selected by a truthy ambient `KIMI_CODE_EXPERIMENTAL_FLAG`, which the plugin
- * inherits) once per `-p` run, before the assistant/tool stream. The default v1
- * driver does not emit it. Like the other meta records it is wrapper metadata,
- * not consumer prose, so cli-client filters it through the same meta-record
- * boundary as session.resume_hint (role === "meta" → skipped from records[]).
+ * once per `-p` run, before the assistant/tool stream. Upstream selects it with
+ * a truthy `KIMI_CODE_EXPERIMENTAL_FLAG`; v1.9.4 refuses that engine before
+ * spawn because plan-mode final allow can precede external hooks. The default
+ * v1 driver emits no banner. This model remains for historical logs and a
+ * future safe re-enable; cli-client filters it through the meta-record boundary
+ * (role === "meta" → skipped from records[]).
  *
  * Modeled explicitly since v1.8.5: previously an unknown meta.type routed to the
  * malformed/diagnostic channel (non-fatal, records[] and the terminal
  * session.resume_hint were never affected). Recognizing it keeps a benign,
- * expected v2 line out of the diagnostics log and makes an eventual v2
- * default-flip a non-event rather than a diagnostic-noise surprise. Observed at
- * @moonshot-ai/kimi-code 0.24.x → 0.29.2; `version` is the kimi-code semver.
+ * expected v2 line out of the diagnostics log. An upstream default flip is now
+ * a release-blocking safety event, not a parser-only non-event: the refusal gate
+ * and plan-order audit must be revisited first. Observed at
+ * @moonshot-ai/kimi-code 0.24.x → 0.31.0; `version` is the kimi-code semver.
  */
 export interface SystemVersionRecord {
   readonly role: "meta";

@@ -175,10 +175,11 @@ export interface CliClientResult {
   /**
    * kimi-code version reported by agent-core-v2's `system.version` meta record,
    * emitted once before the stream when a truthy ambient
-   * KIMI_CODE_EXPERIMENTAL_FLAG selects v2. Undefined on the default v1 driver
-   * (which emits no such record). Captured first-announce-wins and filtered from
-   * records[], mirroring the resume-hint. Diagnostic/observability only — not
-   * load-bearing; a caller can use it to tell which engine served the run.
+   * KIMI_CODE_EXPERIMENTAL_FLAG selects v2 upstream. v1.9.4 refuses that engine
+   * before spawn because of its plan-listener ordering; the parser field remains
+   * for historical logs and a future safe re-enable. Undefined on the default
+   * v1 driver (which emits no such record). Captured first-announce-wins and
+   * filtered from records[], mirroring the resume-hint. Diagnostic only.
    */
   systemVersion?: string;
   /** Lines that failed parsing. Diagnostics only — not load-bearing. */
@@ -199,6 +200,28 @@ export async function runCliPrompt(opts: CliClientOptions): Promise<CliClientRes
       "kimi subprocess request cancelled before spawn",
       "cli-client.pre-spawn",
       { details: { command: opts.command } },
+    );
+  }
+
+  // agent-core-v2 registers its plan-file guard before external PreToolUse
+  // hooks. An active-plan Write/Edit to the exact KIMI_CODE_HOME plan file calls
+  // final `allow()`, preventing the later managed hook from running. This is
+  // reachable even on a fresh session when user config has
+  // `default_plan_mode=true`; resume also restores persisted plan state. Refuse
+  // the experimental engine before spawn until upstream gives external hooks a
+  // guaranteed veto position ahead of that final allow. Match kimi-code's own
+  // env parser exactly; values such as "0" and "false" still select v1.
+  if (isKimiV2Enabled(opts.env)) {
+    throw new RuntimeError(
+      "CLI_V2_HOOK_ORDER_UNSAFE",
+      "Refusing kimi-code agent-core-v2 because plan-mode writes can final-allow before external PreToolUse hooks run. Unset KIMI_CODE_EXPERIMENTAL_FLAG to use the default v1 engine.",
+      "cli-client.pre-spawn",
+      {
+        details: {
+          refusal_kind: "v2-hook-order-unsafe",
+          experimental_v2: true,
+        },
+      },
     );
   }
 
@@ -831,6 +854,14 @@ export async function runCliPromptWithBudget(
     if (timer !== undefined) clearTimeout(timer);
     opts.signal?.removeEventListener("abort", onParentAbort);
   }
+}
+
+const KIMI_V2_TRUTHY_VALUES = new Set(["1", "true", "yes", "on"]);
+
+function isKimiV2Enabled(env: Readonly<NodeJS.ProcessEnv>): boolean {
+  return KIMI_V2_TRUTHY_VALUES.has(
+    (env.KIMI_CODE_EXPERIMENTAL_FLAG ?? "").trim().toLowerCase(),
+  );
 }
 
 function buildArgs(opts: CliClientOptions): string[] {

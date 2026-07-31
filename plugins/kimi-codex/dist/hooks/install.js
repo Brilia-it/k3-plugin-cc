@@ -229,9 +229,10 @@ export function formatHookMissingWarning(status, commandLabel) {
         "  verifier pins the absolute Node binary path and a switch invalidates",
         "  the previously-installed block by design. See docs/safety.md.",
         "",
-        "  KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 explicitly bypasses every refusal",
-        "  gate and restores un-enforced `permission: auto` execution. Reserve",
-        "  it for tests or diagnostics where that risk is intentional.",
+        "  KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 explicitly bypasses hook-verification",
+        "  refusals and restores un-enforced `permission: auto` execution. It does",
+        "  NOT bypass the experimental-v2 safety refusal. Reserve it for tests or",
+        "  diagnostics where the hook risk is intentional.",
         "",
     ].join("\n");
 }

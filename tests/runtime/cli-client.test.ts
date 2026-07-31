@@ -814,6 +814,74 @@ describe("runCliPrompt", () => {
     }
   });
 
+  test.each(["1", "true", "TRUE", " yes ", "On"])(
+    "refuses experimental-v2 value %j before spawning kimi",
+    async (flag) => {
+      const root = await createTestPluginDataRoot("cli-client-v2-refusal");
+      try {
+        const opts = mockOptions({ cwd: root, records: [] });
+        opts.env.KIMI_CODE_EXPERIMENTAL_FLAG = flag;
+        await expect(runCliPrompt(opts)).rejects.toMatchObject({
+          code: "CLI_V2_HOOK_ORDER_UNSAFE",
+          stage: "cli-client.pre-spawn",
+          details: {
+            refusal_kind: "v2-hook-order-unsafe",
+            experimental_v2: true,
+          },
+        });
+      } finally {
+        await cleanupTestPath(root);
+      }
+    },
+  );
+
+  test.each([undefined, "", "0", "false", "no", "off"])(
+    "keeps the default v1 engine available for value %j",
+    async (flag) => {
+      const root = await createTestPluginDataRoot("cli-client-v1-flag-matrix");
+      try {
+        const opts = mockOptions({ cwd: root, records: [] });
+        if (flag === undefined) delete opts.env.KIMI_CODE_EXPERIMENTAL_FLAG;
+        else opts.env.KIMI_CODE_EXPERIMENTAL_FLAG = flag;
+        const result = await runCliPrompt({ ...opts, resumeSessionId: "session_v1" });
+        expect(result.exitCode).toBe(0);
+      } finally {
+        await cleanupTestPath(root);
+      }
+    },
+  );
+
+  test("the v2 refusal applies to fresh and resumed sessions", async () => {
+    const root = await createTestPluginDataRoot("cli-client-v2-fresh-resume");
+    try {
+      const opts = mockOptions({ cwd: root, records: [] });
+      opts.env.KIMI_CODE_EXPERIMENTAL_FLAG = "1";
+      await expect(runCliPrompt(opts)).rejects.toMatchObject({
+        code: "CLI_V2_HOOK_ORDER_UNSAFE",
+      });
+      await expect(
+        runCliPrompt({ ...opts, resumeSessionId: "session_changed_out_of_band" }),
+      ).rejects.toMatchObject({ code: "CLI_V2_HOOK_ORDER_UNSAFE" });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("KIMI_PLUGIN_CC_SKIP_HOOK_CHECK cannot bypass the independent v2 refusal", async () => {
+    const root = await createTestPluginDataRoot("cli-client-v2-skip-hook-check");
+    try {
+      const opts = mockOptions({ cwd: root, records: [] });
+      opts.env.KIMI_CODE_EXPERIMENTAL_FLAG = "1";
+      opts.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK = "1";
+      await expect(runCliPrompt(opts)).rejects.toMatchObject({
+        code: "CLI_V2_HOOK_ORDER_UNSAFE",
+        details: { refusal_kind: "v2-hook-order-unsafe" },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
   test("onRecord fires per record before the run completes", async () => {
     const root = await createTestPluginDataRoot("cli-client-onrecord");
     try {

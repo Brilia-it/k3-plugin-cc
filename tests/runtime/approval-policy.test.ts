@@ -20,6 +20,32 @@ describe("decideHookOutcome", () => {
     });
   });
 
+  test.each([
+    "ask",
+    "review",
+    "challenge",
+    "review_gate",
+    "rescue",
+    "swarm",
+    "swarm-write",
+  ])("denies EnterPlanMode for the %s label before any write evaluator", async (label) => {
+    let evaluatorCalled = false;
+    const decision = await decideHookOutcome(
+      { tool_name: "EnterPlanMode", tool_input: {} },
+      {
+        commandLabel: label,
+        swarmWriteWorkspaceRoot: "/wt",
+        rescueEvaluator: async () => {
+          evaluatorCalled = true;
+          return { decision: "allow" };
+        },
+      },
+    );
+    expect(decision.decision).toBe("deny");
+    expect(decision.reason).toContain("EnterPlanMode");
+    expect(evaluatorCalled).toBe(false);
+  });
+
   describe.each(["ask", "review", "challenge", "review_gate"] as const)("%s label", (label) => {
     test("allows read-only tools", async () => {
       for (const tool of ["Read", "Grep", "Glob"]) {

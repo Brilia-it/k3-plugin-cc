@@ -32,7 +32,7 @@ Core modules:
 Behavior notes:
 
 - Read-only commands (review/challenge/review_gate/ask) are enforced by the PreToolUse hook — kimi-code's `-p` mode auto-approves every tool call without it. Review/challenge/ask refuse before spawning Kimi when verification fails; the review gate skips. The hook is installed by `/kimi:setup` or `$kimi-setup`.
-- Every write-capable command also refuses when the hook is not installed. `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses all refusal gates and is reserved for tests and diagnostics.
+- Every write-capable command also refuses when the hook is not installed. `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook-verification refusals only and is reserved for tests and diagnostics; it does not bypass the independent experimental-v2 safety refusal.
 - Long-running commands wrap their subprocess in `runCliPromptWithBudget`; cancellation does not settle until identity-checked descendants receive SIGTERM/SIGKILL and a bounded post-kill quiescence check completes.
 - The Stop hook is disabled by default and reads `reviewGateEnabled` from plugin config; enable via `/kimi:setup --enable-review-gate`.
 - `review`/`challenge`/`ask`/`rescue` are prose pass-through — Kimi's raw final output is stored verbatim and rendered as-is; only empty output is a hard failure. `review_gate` is the lone command that still parses Kimi output (JSON allow/block decision) and is warn-allow on parse failure.

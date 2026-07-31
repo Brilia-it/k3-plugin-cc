@@ -57,6 +57,14 @@ export const READ_ONLY_TOOLS = new Set([
  */
 const AGENT_SWARM_TOOL = "AgentSwarm";
 /**
+ * agent-core-v2 plan mode can final-allow writes to its KIMI_CODE_HOME plan
+ * file before later external hooks run. cli-client therefore refuses the v2
+ * engine entirely while this ordering exists. Keep the model-reachable entry
+ * tool denied as defense in depth and as an explicit invariant for the day v2
+ * can safely be re-enabled.
+ */
+const ENTER_PLAN_MODE_TOOL = "EnterPlanMode";
+/**
  * Recognized command labels. Sole source of truth; keep in sync with
  * the strings emitted by `runCliPrompt` callers in
  * `runtime/commands/*.ts`.
@@ -78,6 +86,12 @@ export async function decideHookOutcome(input, ctx) {
         return { decision: "allow" };
     }
     const toolName = typeof input.tool_name === "string" ? input.tool_name : "";
+    if (toolName === ENTER_PLAN_MODE_TOOL) {
+        return {
+            decision: "deny",
+            reason: `kimi-plugin-cc safety hook: tool "${ENTER_PLAN_MODE_TOOL}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks.`,
+        };
+    }
     switch (label) {
         case "ask":
         case "review":

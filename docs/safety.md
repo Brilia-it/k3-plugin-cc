@@ -6,7 +6,7 @@ How kimi-plugin-cc v1.0 enforces the difference between "Kimi can answer my ques
 
 kimi-code's `kimi -p` mode hard-codes `permission: 'auto'` and registers an auto-approve handler for every tool call. There is no argv flag to disable this — `-p` is a non-interactive batch mode and assumes the caller wants tools to run unattended. That's a sensible default for a coding agent invoked directly from a terminal. It's the wrong default when a plugin is forwarding a read-only review request and the user expects no shell or file mutations to happen.
 
-The plugin therefore enforces per-command safety **outside** kimi-code's permission system, using the PreToolUse hook mechanism that kimi-code itself supports. A single hook entry in `~/.kimi-code/config.toml` runs before every tool call. The hook reads an env var the plugin sets per spawn (`KIMI_PLUGIN_CC_CMD=ask|review|challenge|review_gate|rescue`) and answers `allow` or `deny` according to a per-command policy.
+The plugin therefore enforces per-command safety **outside** kimi-code's permission system, using the PreToolUse hook mechanism that kimi-code itself supports. A single hook entry in `~/.kimi-code/config.toml` runs before every tool call on the supported default-v1 path. The hook reads an env var the plugin sets per spawn (`KIMI_PLUGIN_CC_CMD=ask|review|challenge|review_gate|rescue|swarm|swarm-write`) and answers `allow` or `deny` according to a per-command policy. Experimental agent-core-v2 is refused before spawn because its plan-file final allow can run before external hooks; see below.
 
 ```
 ┌──────────────────────┐    KIMI_PLUGIN_CC_CMD=review     ┌──────────────────────┐
@@ -26,7 +26,7 @@ The plugin therefore enforces per-command safety **outside** kimi-code's permiss
                                                           └──────────────────────┘
 ```
 
-If the hook is missing or invalid, **every model-spawning command fails closed before Kimi starts**: rescue/pursue/swarm already refused, and v1.8 extends the same rule to ask/review/challenge. The review gate cannot safely block a host Stop event without enforcement, so it skips visibly instead of spawning an un-enforced Kimi turn. `/kimi:setup` also runs a two-layer probe before reporting success so missing-Node-on-PATH and broken-quoting failures surface up front instead of at first tool call. `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` remains an explicit tests/diagnostics escape hatch; it bypasses every refusal gate and accepts kimi-code's unsafe `permission: auto` posture.
+If the hook is missing or invalid, **every model-spawning command fails closed before Kimi starts**: rescue/pursue/swarm already refused, and v1.8 extends the same rule to ask/review/challenge. The review gate cannot safely block a host Stop event without enforcement, so it skips visibly instead of spawning an un-enforced Kimi turn. `/kimi:setup` also runs a two-layer probe before reporting success so missing-Node-on-PATH and broken-quoting failures surface up front instead of at first tool call. `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` remains an explicit tests/diagnostics escape hatch for hook verification; it accepts kimi-code's unsafe `permission: auto` posture but **does not** bypass `CLI_V2_HOOK_ORDER_UNSAFE` and is never a repair path.
 
 ## The managed block
 
@@ -129,9 +129,21 @@ uninstalls only its **own** block.
 | `ask` | `Read`, `Grep`, `Glob`, `ReadMediaFile`, `TaskList`, `TaskOutput` | everything else, including `Bash`, `Write`, `Edit` |
 | `review`, `challenge`, `review_gate` | same as `ask` | same as `ask` |
 | `rescue` | governed by [`evaluateRescueHookRequest`](../runtime/rescue-approval.ts) — workspace-bound shell allowlist, symlink-aware path containment, mutating-flag detection on `git`/`find`/`sed`, etc. | every shell command, file edit, or write that the allowlist rejects |
+| `swarm` | same read-only set as `ask`, plus exact `AgentSwarm` | everything else, including singular `Agent`, shell, and writes |
+| `swarm-write` | read-only set + `AgentSwarm`; `Write`/`Edit`/`Bash` only through the rescue evaluator against the trusted ephemeral-worktree root | singular `Agent`, missing-root writes, and everything the rescue evaluator rejects |
 | unknown label | `Read`, `Grep`, `Glob`, `ReadMediaFile`, `TaskList`, `TaskOutput` | everything else (conservative-deny for stale/misconfigured callers) |
 
-Denied tool calls exit the hook with code 2 and write a reason to stderr. kimi-code surfaces the reason to the model, which can adapt and try a different approach (e.g., use `Read` instead of `Bash cat`).
+`EnterPlanMode` is explicitly denied before any per-label write evaluator for every managed label. Denied tool calls exit the hook with code 2 and write a reason to stderr. kimi-code surfaces the reason to the model, which can adapt and try a different approach (e.g., use `Read` instead of `Bash cat`).
+
+### Experimental agent-core-v2 refusal
+
+v1.9.4 corrects an earlier audit claim: agent-core-v2 external PreToolUse hooks are awaited on ordinary calls, but they are **not** registered ahead of every final allow. Production listener order puts `AgentPlanService` before `AgentExternalHooksService`. While plan mode is active, a `Write` or `Edit` whose write accesses target only the exact current plan file calls final `event.allow()`; listener iteration stops and the managed hook is never invoked.
+
+The permitted path is confined to `<KIMI_CODE_HOME>/sessions/<workspace>/<session>/agents/<agent>/plans/<plan>.md`, not the user worktree. That confinement does not make the path compatible: the plugin's load-bearing promise is that every model tool call reaches its managed policy. The path is reachable on a **fresh** session when user config has `default_plan_mode=true`, and on a resumed session through restored plan state. Denying the model's `EnterPlanMode` tool alone is therefore insufficient.
+
+`runtime/cli-client.ts` fails closed before process creation whenever `KIMI_CODE_EXPERIMENTAL_FLAG` has one of upstream's truthy values (`1`, `true`, `yes`, `on`, trimmed and case-insensitive). The refusal is `CLI_V2_HOOK_ORDER_UNSAFE` with `refusal_kind:"v2-hook-order-unsafe"`. It is **not** hook-install drift and `/kimi:setup` is not the remedy; unset the experimental flag to use the default v1 engine. Values upstream treats as false (`0`, `false`, `no`, `off`, empty/unset) keep v1 fresh and resume behavior unchanged. The plugin refuses explicitly instead of silently deleting the flag so engine selection never changes invisibly.
+
+Re-enable v2 only after an exact released kimi-code tag guarantees external-hook veto before any final plan allow. The release gate must then cover both a fresh `default_plan_mode=true` session and a session whose plan state was persisted out of band, proving the hook fires and blocks the plan-file write in each case.
 
 ## The rescue allowlist
 
@@ -151,6 +163,12 @@ For `/kimi:rescue`, the hook delegates to [`evaluateRescueHookRequest`](../runti
 `/kimi:rescue` intentionally allows test/build runners (`go test`, `cargo test`, `pytest`, `python -m pytest`, `<pm> test`). **Running tests runs the workspace's own code** — test functions, `build.rs`, `conftest.py`, fixtures. The allowlist stops these from writing *outside* the workspace (their report-writing flags are rejected, above), but it cannot and does not sandbox the code they execute. This is the same trust the developer already extends to their own repo. If you run `/kimi:rescue` in a workspace you do not trust, assume any allowed test runner can execute arbitrary code from that workspace.
 
 The full table lives in `runtime/rescue-approval.ts`. Test coverage is in `tests/runtime/rescue-approval.test.ts` — every accept-shape and every reject-shape has at least one regression test.
+
+### Trust boundary: kimi-code 0.31 custom agents and system prompts
+
+kimi-code 0.31.0 brings custom-agent discovery and plugin system-prompt contributions to the default v1 print engine. It discovers project profiles under `<git-root>/.kimi-code/agents` and `<git-root>/.agents/agents` as well as user and enabled-plugin sources. A profile declaring `override: true` can replace a builtin name such as `agent` or `coder`; `~/.kimi-code/SYSTEM.md` can replace the default main-agent prompt, and enabled plugins can append system instructions. The bound catalog/profile is snapshotted into the upstream session, so resume preserves the selected instructions rather than proving the current repository files are unchanged.
+
+Treat these files as **trusted model instructions** before using write-capable rescue, pursue, or swarm-write in an unfamiliar repository. They can redirect the task, remove expected tools, or replace the builtin `coder` prompt; the exact-0.31 smoke proves confinement, not task fidelity. Agent-profile fields and system-prompt text cannot themselves set hook definitions, permission mode, or cwd, cannot enlarge `runtime/hooks/approval-policy.ts`, and cannot escape swarm-write's env-pinned ephemeral root. Enabled plugins may separately contribute hooks; kimi-code's any-block-wins aggregation lets those hooks add denials but not override this plugin's managed denial. Read-only labels remain write-denying even under a hostile profile. This is an intent/prompt-injection boundary, not authority to skip the managed hook or widen the write allowlist.
 
 ## Autonomous goal mode (`/kimi:pursue`, experimental)
 

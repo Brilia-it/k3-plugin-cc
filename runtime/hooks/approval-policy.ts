@@ -73,6 +73,14 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
  * deliberately NOT allowlisted: swarm is specifically the fan-out surface.
  */
 const AGENT_SWARM_TOOL = "AgentSwarm";
+/**
+ * agent-core-v2 plan mode can final-allow writes to its KIMI_CODE_HOME plan
+ * file before later external hooks run. cli-client therefore refuses the v2
+ * engine entirely while this ordering exists. Keep the model-reachable entry
+ * tool denied as defense in depth and as an explicit invariant for the day v2
+ * can safely be re-enabled.
+ */
+const ENTER_PLAN_MODE_TOOL = "EnterPlanMode";
 
 /**
  * Rescue evaluator signature. PR 3 wires
@@ -140,6 +148,14 @@ export async function decideHookOutcome(
   }
 
   const toolName = typeof input.tool_name === "string" ? input.tool_name : "";
+
+  if (toolName === ENTER_PLAN_MODE_TOOL) {
+    return {
+      decision: "deny",
+      reason:
+        `kimi-plugin-cc safety hook: tool "${ENTER_PLAN_MODE_TOOL}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks.`,
+    };
+  }
 
   switch (label) {
     case "ask":
