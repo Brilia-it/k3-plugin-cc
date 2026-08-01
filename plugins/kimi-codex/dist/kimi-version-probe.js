@@ -1020,6 +1020,30 @@ export const KIMI_TESTED_MINORS = [
     // with an exact pre-spawn refusal assertion. The released 0.31.0 still
     // contains the KAP eager-index behavior; it is unreachable from plugin flows
     // while v2 is refused. MoonshotAI/kimi-code#2376 remains unmerged.
+    //
+    // 0.31.1 patch checkup (2026-08-01) verified COMPAT-PRESERVED inside the
+    // already-tested 0.31.x minor. Scoped 0.31.0→0.31.1 diffs were:
+    // 01-cli-prompt-mode 0 B, 02-permission 0 B, 03-hooks 0 B,
+    // 04-wire-records 1,850 B, and 05-session-bootstrap 0 B. The sole canonical
+    // delta adds a helper that strips the disabled no-op `model` parameter from
+    // the Agent/AgentSwarm schemas. AgentSwarm keeps its exact tool name and
+    // executor; the standard child permission stack, hook inheritance, cwd,
+    // concurrency/timeout plumbing, and dispatch path are unchanged.
+    //
+    // The patch carries a large experimental-v2 refactor, but the print-mode
+    // selection file and upstream truth table are byte-identical. The plugin
+    // therefore still refuses every upstream-truthy KIMI_CODE_EXPERIMENTAL_FLAG
+    // before spawn. The release supplies no external-hook-before-every-final-
+    // allow guarantee, so it is not evidence for re-enabling v2. KAP global
+    // search also remains App-scoped OnScopeCreated; #2376 is still unmerged.
+    //
+    // Exact-0.31.1 temp-binary smoke was GREEN: 10 pass / 0 fail, 42 assertions
+    // in 349.27s. It denied every forced-write label, refused v2 before spawn,
+    // kept pursue at zero writes through its finite-budget abort, denied a real
+    // read-swarm child write, confined write-swarm (patchBytes=278,
+    // userTreeClean=true, worktreeCleaned=true), and denied the non-vacuous
+    // out-of-root coder write. Daily monitor: 2026-08-01. Tag:
+    // compat-verified-kimi-code-0.31.1.
     { major: 0, minor: 31 },
 ];
 /**

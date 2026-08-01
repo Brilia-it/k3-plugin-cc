@@ -128,11 +128,12 @@
 //     0.28.1, 0.29.0, 0.29.1, and 0.29.2; the 0.29.1 veto-event refactor
 //     and 0.29.2 automatic scope-activation refactor preserved the modeled
 //     system.version signal and terminal session pinning), 2026-07-29 covered
-//     0.30.0, and 2026-07-31 covered 0.31.0. The 0.31 writer and goal-prompt
-//     blobs are identical to 0.30; custom profiles can change content/tools but
-//     not the NDJSON envelope. v1.9.4 refuses v2 before spawn for a separate
-//     plan-listener-order safety issue, while retaining this parser model for a
-//     future safe re-enable.
+//     0.30.0, 2026-07-31 covered 0.31.0, and 2026-08-01 covered 0.31.1. The
+//     0.31 writer and goal-prompt blobs are identical to 0.30, and 0.31.1 keeps
+//     the CLI prompt scope byte-identical; custom profiles can change
+//     content/tools but not the NDJSON envelope. v1.9.4 refuses v2 before spawn
+//     for a separate plan-listener-order safety issue, while retaining this
+//     parser model for a future safe re-enable.
 //     NB: from 0.6.0 run-prompt.ts
 //     is no longer a whole-file zero-byte diff — at 0.6.0 it gained a
 //     resume-session workDir guard, and at 0.8.0 it gained headless goal
