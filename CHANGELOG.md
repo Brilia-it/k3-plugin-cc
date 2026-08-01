@@ -2,6 +2,14 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.9.5 — 2026-08-01
+
+**Publishes the already-verified kimi-code 0.31.1 patch boundary as an installable plugin release.** There is no runtime safety-policy, permission, concurrency, budget, allowlist, or `KIMI_TESTED_MINORS` change; experimental-v2 remains fail-closed refused.
+
+- **Default-v1 compatibility remains intact.** The scoped 0.31.0→0.31.1 audit found 0-byte CLI, permission, hook, and bootstrap/config diffs. The only canonical wire/session delta removes the disabled no-op `model` parameter from Agent/AgentSwarm schemas; the AgentSwarm tool name/executor and all load-bearing hook invariants are unchanged.
+- **Exact released-binary evidence is green.** A temp-installed `@moonshot-ai/kimi-code@0.31.1` binary passed the final release-candidate `bun run smoke:real` with **10 pass / 0 fail / 42 assertions in 305.60s**, covering forced-write denials, pre-spawn v2 refusal, pursue's finite budget, read-swarm child denial, write-swarm confinement/cleanup, and out-of-root denial.
+- **Release scope is distribution-only.** The prior `compat-verified-kimi-code-0.31.1` marker already recorded the audit at immutable upstream commit `6b56c11697771fe596099b38bafae539820309a4`. v1.9.5 refreshes plugin/cache version metadata and generated mirrors without changing executable policy.
+
 ## 1.9.4 — 2026-07-31
 
 **Certifies kimi-code 0.31.0 for the default-v1 engine and fail-closes experimental-v2 after correcting an inherited hook-order overclaim.** `KIMI_TESTED_MINORS` gains `{0,31}`; the setup warning stops firing for 0.31.x. This is a patch release because the safe outcome requires runtime refusal, not only documentation.
