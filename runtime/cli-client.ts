@@ -174,12 +174,12 @@ export interface CliClientResult {
   goalSummary?: GoalSummaryRecord;
   /**
    * kimi-code version reported by agent-core-v2's `system.version` meta record,
-   * emitted once before the stream when a truthy ambient
-   * KIMI_CODE_EXPERIMENTAL_FLAG selects v2 upstream. v1.9.4 refuses that engine
-   * before spawn because of its plan-listener ordering; the parser field remains
-   * for historical logs and a future safe re-enable. Undefined on the default
-   * v1 driver (which emits no such record). Captured first-announce-wins and
-   * filtered from records[], mirroring the resume-hint. Diagnostic only.
+   * emitted once before the stream on the native v2 engine. v1.9.4 refused the
+   * old opt-in v2 route; after kimi-code 0.33.0 inverted the upstream default,
+   * every plugin spawn explicitly pins the legacy-v1 driver instead. The parser
+   * field remains for historical logs and a future safe re-enable. Undefined on
+   * v1 (which emits no such record). Captured first-announce-wins and filtered
+   * from records[], mirroring the resume-hint. Diagnostic only.
    */
   systemVersion?: string;
   /** Lines that failed parsing. Diagnostics only — not load-bearing. */
@@ -208,13 +208,15 @@ export async function runCliPrompt(opts: CliClientOptions): Promise<CliClientRes
   // final `allow()`, preventing the later managed hook from running. This is
   // reachable even on a fresh session when user config has
   // `default_plan_mode=true`; resume also restores persisted plan state. Refuse
-  // the experimental engine before spawn until upstream gives external hooks a
-  // guaranteed veto position ahead of that final allow. Match kimi-code's own
-  // env parser exactly; values such as "0" and "false" still select v1.
+  // the unsafe experimental selector before spawn until upstream gives external
+  // hooks a guaranteed veto position ahead of that final allow. Match
+  // kimi-code's truth table exactly. Since 0.33.0 this flag enables experimental
+  // features without selecting the engine; we still refuse it conservatively,
+  // while buildEnv independently pins every accepted spawn to legacy-v1.
   if (isKimiV2Enabled(opts.env)) {
     throw new RuntimeError(
       "CLI_V2_HOOK_ORDER_UNSAFE",
-      "Refusing kimi-code agent-core-v2 because plan-mode writes can final-allow before external PreToolUse hooks run. Unset KIMI_CODE_EXPERIMENTAL_FLAG to use the default v1 engine.",
+      "Refusing kimi-code experimental features because native-v2 plan-mode writes can final-allow before external PreToolUse hooks run. Unset KIMI_CODE_EXPERIMENTAL_FLAG; kimi-plugin-cc pins accepted runs to the legacy-v1 engine.",
       "cli-client.pre-spawn",
       {
         details: {
@@ -300,6 +302,7 @@ export async function runCliPrompt(opts: CliClientOptions): Promise<CliClientRes
     cwd: opts.cwd,
     command_label: opts.commandLabel ?? null,
     swarm_max_concurrency: opts.swarmMaxConcurrency ?? null,
+    legacy_v1_forced: env.KIMI_CODE_LEGACY_FLAG === KIMI_LEGACY_FORCED_VALUE,
   });
 
   const invokeOnRecord = (record: StreamJsonRecord) => {
@@ -857,6 +860,8 @@ export async function runCliPromptWithBudget(
 }
 
 const KIMI_V2_TRUTHY_VALUES = new Set(["1", "true", "yes", "on"]);
+const KIMI_LEGACY_ENV = "KIMI_CODE_LEGACY_FLAG";
+const KIMI_LEGACY_FORCED_VALUE = "1";
 
 function isKimiV2Enabled(env: Readonly<NodeJS.ProcessEnv>): boolean {
   return KIMI_V2_TRUTHY_VALUES.has(
@@ -893,6 +898,14 @@ function buildArgs(opts: CliClientOptions): string[] {
 
 function buildEnv(opts: CliClientOptions): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...opts.env };
+  // kimi-code 0.33.0 inverted its CLI engine default: an unflagged `kimi -p`
+  // now selects native agent-core-v2, while this upstream-documented flag pins
+  // the legacy-v1 path. Native v2 still has a final-allow plan-file path that
+  // can skip our later external PreToolUse hook, so the engine choice must be a
+  // plugin-owned spawn invariant rather than ambient operator state. Older
+  // kimi-code releases ignore the unknown flag. Always overwrite ambient false
+  // values; accepting one would silently reopen v2 on 0.33+.
+  env[KIMI_LEGACY_ENV] = KIMI_LEGACY_FORCED_VALUE;
   env.KIMI_CODE_HOME = resolveKimiHome(opts.env, opts.cwd);
   if (opts.commandLabel !== undefined) {
     env.KIMI_PLUGIN_CC_CMD = opts.commandLabel;

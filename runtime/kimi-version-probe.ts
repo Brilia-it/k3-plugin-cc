@@ -1048,6 +1048,30 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   // out-of-root coder write. Daily monitor: 2026-08-01. Tag:
   // compat-verified-kimi-code-0.31.1.
   { major: 0, minor: 31 },
+  // 0.32–0.34 added in v1.9.6 (2026-08-08) after
+  // auditing the cumulative 0.31.1→0.34.0 jump at immutable upstream commit
+  // f0614c53e59f7e1e257412063b059b9eb82764cf. The scoped legacy-v1 permission,
+  // hook, and bootstrap/config trees are 0-byte diffs; wire/session adds 55
+  // internal v2-to-v1 resume lines without changing the consumed v1 envelope.
+  //
+  // The audit corrected a scope omission: 0.33.0 changed the selector in
+  // experimental-v2.ts so unflagged print mode defaults to native v2. That
+  // engine is still unsafe for this plugin because plan-file final allow can
+  // stop listener iteration before the external PreToolUse hook. The runtime
+  // containment therefore overwrites KIMI_CODE_LEGACY_FLAG=1 in every accepted
+  // fresh/resumed child environment; truthy KIMI_CODE_EXPERIMENTAL_FLAG stays
+  // an independent pre-spawn refusal. Older upstream releases ignore the
+  // legacy flag. Native v2 is not certified or re-enabled by these entries.
+  //
+  // Exact-0.34.0 temp-binary smoke was GREEN: 11 pass / 0 fail, 54 assertions
+  // in 460.09s. It proved fresh default_plan_mode=true and resumed sessions
+  // remained on v1 with non-vacuous hook denials, denied every forced-write
+  // label, bounded pursue, denied a real read-swarm child write, confined
+  // write-swarm (patchBytes=278; user tree clean; worktree removed), and denied
+  // the out-of-root coder write. Daily monitor: 2026-08-08.
+  { major: 0, minor: 32 },
+  { major: 0, minor: 33 },
+  { major: 0, minor: 34 },
 ];
 
 export interface KimiVersionProbeOk {

@@ -111,8 +111,8 @@
 //     minor (Phase-1 reports 97-100; permission and the live session/hooks
 //     surfaces 0-byte; default-v1 writer/resume/retry/goal shapes compatible;
 //     GREEN exact-binary v1 smoke 9/0, 39 assertions in 261.33s). A truthy
-//     ambient KIMI_CODE_EXPERIMENTAL_FLAG selects native v2, which shares the
-//     writer shapes and terminal session.resume_hint but prepends one new
+//     native v2 shares the writer shapes and terminal session.resume_hint but
+//     prepends one new
 //     role:"meta", type:"system.version" record. Unknown meta is intentionally
 //     non-fatal: it becomes diagnostic-only, never enters records[]/onRecord,
 //     and cannot affect prose or session pinning. A targeted exact-v2 review
@@ -128,12 +128,14 @@
 //     0.28.1, 0.29.0, 0.29.1, and 0.29.2; the 0.29.1 veto-event refactor
 //     and 0.29.2 automatic scope-activation refactor preserved the modeled
 //     system.version signal and terminal session pinning), 2026-07-29 covered
-//     0.30.0, 2026-07-31 covered 0.31.0, and 2026-08-01 covered 0.31.1. The
-//     0.31 writer and goal-prompt blobs are identical to 0.30, and 0.31.1 keeps
-//     the CLI prompt scope byte-identical; custom profiles can change
-//     content/tools but not the NDJSON envelope. v1.9.4 refuses v2 before spawn
-//     for a separate plan-listener-order safety issue, while retaining this
-//     parser model for a future safe re-enable.
+//     0.30.0, 2026-07-31 covered 0.31.0, 2026-08-01 covered 0.31.1, and
+//     2026-08-08 covered 0.32.0 through 0.34.0. The legacy-v1 writer remains
+//     compatible through 0.34.0; custom profiles can change content/tools but
+//     not the NDJSON envelope. In 0.33.0 native v2 became the unflagged default,
+//     so v1.9.6 forces KIMI_CODE_LEGACY_FLAG=1 in every accepted child while
+//     retaining the old experimental-selector refusal. This parser continues
+//     to model v2's system.version record for diagnostics and a future safe
+//     re-enable; absence of that record is now a legacy-pin smoke assertion.
 //     NB: from 0.6.0 run-prompt.ts
 //     is no longer a whole-file zero-byte diff — at 0.6.0 it gained a
 //     resume-session workDir guard, and at 0.8.0 it gained headless goal

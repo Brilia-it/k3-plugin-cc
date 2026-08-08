@@ -3,18 +3,20 @@
 // Everything else in the suite mocks the kimi binary. This file is the
 // ONE test that spawns the *real* `kimi -p --output-format stream-json`
 // against a real PreToolUse hook and asserts the safety contract end to
-// end, across five suites:
+// end, across seven suites:
 //   1. read-only single-turn (review / challenge / ask / review_gate) — a
 //      forced write attempt is denied and no file lands.
-//   2. autonomous goal mode (/kimi:pursue) — the hook fires on EVERY
+//   2. explicit experimental features refuse before spawn.
+//   3. 0.33+ default-v2 routing is pinned to legacy-v1 for fresh/resume.
+//   4. autonomous goal mode (/kimi:pursue) — the hook fires on EVERY
 //      continuation turn (zero files across a multi-turn run).
-//   3. read-only swarm (/kimi:swarm) — a SPAWNED SUBAGENT's forced write is
+//   5. read-only swarm (/kimi:swarm) — a SPAWNED SUBAGENT's forced write is
 //      denied (zero files across the fan-out).
-//   4. write-swarm POSITIVE (/kimi:swarm --write) — a coder subagent's edits
+//   6. write-swarm POSITIVE (/kimi:swarm --write) — a coder subagent's edits
 //      LAND in the throwaway worktree (captured as a patch), the user's real
 //      tree is untouched, and the worktree is cleaned up. The first POSITIVE
 //      proof (1-3 only assert denial) — it caught the v1.4.1 path-field bug.
-//   5. write-swarm NEGATIVE (/kimi:swarm --write) — a subagent's absolute-path
+//   7. write-swarm NEGATIVE (/kimi:swarm --write) — a subagent's absolute-path
 //      write OUTSIDE the trusted worktree root is hook-denied.
 //
 // Why it exists (the latent finding behind it):
@@ -146,6 +148,26 @@ async function seedKimiHome(seedHome: string, destHome: string): Promise<void> {
   }
 }
 
+// Set the top-level kimi-code plan default in the isolated home without ever
+// printing or retaining the credential-bearing config. Replace an existing
+// assignment when present; otherwise prepend the one load-bearing test value.
+async function setDefaultPlanMode(kimiHome: string, enabled: boolean): Promise<void> {
+  const configPath = path.join(kimiHome, "config.toml");
+  let contents = "";
+  try {
+    contents = await readFile(configPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    // CI's env-model auth deliberately starts without config.toml. The
+    // isolated home already exists, so create the one-field config below.
+  }
+  const assignment = `default_plan_mode = ${enabled ? "true" : "false"}`;
+  const next = /^\s*default_plan_mode\s*=\s*(?:true|false)\s*$/m.test(contents)
+    ? contents.replace(/^\s*default_plan_mode\s*=\s*(?:true|false)\s*$/m, assignment)
+    : `${assignment}\n${contents}`;
+  await writeFile(configPath, next, "utf8");
+}
+
 async function fileExists(target: string): Promise<boolean> {
   try {
     await access(target, fsConstants.F_OK);
@@ -154,6 +176,18 @@ async function fileExists(target: string): Promise<boolean> {
     return false;
   }
 }
+
+test("setDefaultPlanMode creates config for env-model auth homes", async () => {
+  const kimiHome = await createTestPluginDataRoot("smoke-home-plan-config");
+  try {
+    await setDefaultPlanMode(kimiHome, true);
+    expect(await readFile(path.join(kimiHome, "config.toml"), "utf8")).toBe(
+      "default_plan_mode = true\n",
+    );
+  } finally {
+    await cleanupTestPath(kimiHome);
+  }
+});
 
 // Always present so an operator who opted in but is misconfigured gets a
 // loud reason instead of a silent skip. When disabled, this just warns.
@@ -267,6 +301,10 @@ suite("real-binary smoke: read-only commands cannot write (H7)", () => {
             `expected the hook deny marker "${DENY_MARKER}" in the run output — ` +
               `the model may not have attempted a write (exit=${result.exitCode}, aborted=${result.aborted})`,
           ).toContain(DENY_MARKER);
+          expect(
+            result.systemVersion,
+            "plugin-spawned kimi must stay on legacy-v1; a system.version record proves native v2 ran",
+          ).toBeUndefined();
         } finally {
           await cleanupTestPath(kimiHome);
           await cleanupTestPath(workspace);
@@ -278,13 +316,16 @@ suite("real-binary smoke: read-only commands cannot write (H7)", () => {
   }
 });
 
-// v2 refusal lane (v1.9.4): 0.31.0 source review corrected the earlier claim
+// v2 containment lane (v1.9.4, extended for 0.34.0): 0.31.0 source review corrected the earlier claim
 // that external PreToolUse is always ahead of plan approval. AgentPlanService is
 // registered first and final-allows exact plan-file Write/Edit calls; user
 // `default_plan_mode=true` makes that reachable on a fresh session before the
 // model calls any tool. Until upstream guarantees the hook veto first, the
-// plugin refuses the same truthy values kimi-code uses to select v2. This smoke
-// proves refusal happens before the exact binary can start or write anywhere.
+// plugin refuses the same experimental truthy values conservatively. Since
+// 0.33.0 made v2 the unflagged default; runCliPrompt also pins every accepted
+// child to KIMI_CODE_LEGACY_FLAG=1. This smoke proves the explicit refusal still
+// happens before the exact binary can start; the next suite proves fresh and
+// resumed unflagged runs stay on v1 even with default plan mode configured.
 suite("real-binary smoke: agent-core-v2 is refused before spawn", () => {
   test(
     "[review/v2] the unsafe engine is refused before any file can land",
@@ -339,6 +380,75 @@ suite("real-binary smoke: agent-core-v2 is refused before spawn", () => {
       }
     },
     PER_RUN_BUDGET_MS + 30_000,
+  );
+});
+
+suite("real-binary smoke: 0.33+ default-v2 routing stays pinned to legacy-v1", () => {
+  test(
+    "fresh default-plan and resumed runs remain v1 and hook-deny writes",
+    async () => {
+      const kimiHome = await createTestPluginDataRoot("smoke-home-legacy-plan");
+      const workspace = await createTestPluginDataRoot("smoke-ws-legacy-plan");
+      const pluginData = await createTestPluginDataRoot("smoke-data-legacy-plan");
+      try {
+        await seedKimiHome(SEED_HOME, kimiHome);
+        await setDefaultPlanMode(kimiHome, true);
+        const setupEnv: NodeJS.ProcessEnv = {
+          ...process.env,
+          KIMI_CODE_HOME: kimiHome,
+          CLAUDE_PLUGIN_DATA: pluginData,
+          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        };
+        const setupResult = await runSetup([], makeContext(workspace, setupEnv));
+        expect(
+          setupResult.probe,
+          `managed-block install probe failed: ${setupResult.probeError ?? ""}`,
+        ).toBe("ok");
+
+        const { command, prefixArgs } = resolveKimiCliCommand(process.env);
+        let resumeSessionId: string | undefined;
+        for (const phase of ["fresh-default-plan", "resumed"] as const) {
+          const result = await runCliPrompt({
+            cwd: workspace,
+            env: {
+              ...process.env,
+              KIMI_CODE_HOME: kimiHome,
+              // Adversarial ambient false value: buildEnv must overwrite it.
+              KIMI_CODE_LEGACY_FLAG: "0",
+            },
+            command,
+            prefixArgs,
+            commandLabel: "review",
+            prompt: WRITE_PROMPT,
+            ...(resumeSessionId === undefined ? {} : { resumeSessionId }),
+          });
+
+          expect(
+            result.systemVersion,
+            `${phase} emitted system.version, proving the unsafe native-v2 engine ran`,
+          ).toBeUndefined();
+          const haystack = `${JSON.stringify(result.records)}\n${result.stderrTail}`;
+          expect(
+            haystack,
+            `${phase} must non-vacuously reach the managed hook denial`,
+          ).toContain(DENY_MARKER);
+          expect(
+            await fileExists(path.join(workspace, TARGET_FILENAME)),
+            `${phase} must not create ${TARGET_FILENAME}`,
+          ).toBe(false);
+
+          if (resumeSessionId === undefined) {
+            expect(result.sessionId, "fresh default-plan run must yield a resumable session id").toBeDefined();
+            resumeSessionId = result.sessionId;
+          }
+        }
+      } finally {
+        await cleanupTestPath(kimiHome);
+        await cleanupTestPath(workspace);
+        await cleanupTestPath(pluginData);
+      }
+    },
+    PER_RUN_BUDGET_MS * 2 + 30_000,
   );
 });
 

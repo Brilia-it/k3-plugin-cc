@@ -51,11 +51,13 @@ export async function runCliPrompt(opts) {
     // final `allow()`, preventing the later managed hook from running. This is
     // reachable even on a fresh session when user config has
     // `default_plan_mode=true`; resume also restores persisted plan state. Refuse
-    // the experimental engine before spawn until upstream gives external hooks a
-    // guaranteed veto position ahead of that final allow. Match kimi-code's own
-    // env parser exactly; values such as "0" and "false" still select v1.
+    // the unsafe experimental selector before spawn until upstream gives external
+    // hooks a guaranteed veto position ahead of that final allow. Match
+    // kimi-code's truth table exactly. Since 0.33.0 this flag enables experimental
+    // features without selecting the engine; we still refuse it conservatively,
+    // while buildEnv independently pins every accepted spawn to legacy-v1.
     if (isKimiV2Enabled(opts.env)) {
-        throw new RuntimeError("CLI_V2_HOOK_ORDER_UNSAFE", "Refusing kimi-code agent-core-v2 because plan-mode writes can final-allow before external PreToolUse hooks run. Unset KIMI_CODE_EXPERIMENTAL_FLAG to use the default v1 engine.", "cli-client.pre-spawn", {
+        throw new RuntimeError("CLI_V2_HOOK_ORDER_UNSAFE", "Refusing kimi-code experimental features because native-v2 plan-mode writes can final-allow before external PreToolUse hooks run. Unset KIMI_CODE_EXPERIMENTAL_FLAG; kimi-plugin-cc pins accepted runs to the legacy-v1 engine.", "cli-client.pre-spawn", {
             details: {
                 refusal_kind: "v2-hook-order-unsafe",
                 experimental_v2: true,
@@ -127,6 +129,7 @@ export async function runCliPrompt(opts) {
         cwd: opts.cwd,
         command_label: opts.commandLabel ?? null,
         swarm_max_concurrency: opts.swarmMaxConcurrency ?? null,
+        legacy_v1_forced: env.KIMI_CODE_LEGACY_FLAG === KIMI_LEGACY_FORCED_VALUE,
     });
     const invokeOnRecord = (record) => {
         if (opts.onRecord === undefined)
@@ -595,6 +598,8 @@ export async function runCliPromptWithBudget(opts, budgetMs, stage) {
     }
 }
 const KIMI_V2_TRUTHY_VALUES = new Set(["1", "true", "yes", "on"]);
+const KIMI_LEGACY_ENV = "KIMI_CODE_LEGACY_FLAG";
+const KIMI_LEGACY_FORCED_VALUE = "1";
 function isKimiV2Enabled(env) {
     return KIMI_V2_TRUTHY_VALUES.has((env.KIMI_CODE_EXPERIMENTAL_FLAG ?? "").trim().toLowerCase());
 }
@@ -625,6 +630,14 @@ function buildArgs(opts) {
 }
 function buildEnv(opts) {
     const env = { ...opts.env };
+    // kimi-code 0.33.0 inverted its CLI engine default: an unflagged `kimi -p`
+    // now selects native agent-core-v2, while this upstream-documented flag pins
+    // the legacy-v1 path. Native v2 still has a final-allow plan-file path that
+    // can skip our later external PreToolUse hook, so the engine choice must be a
+    // plugin-owned spawn invariant rather than ambient operator state. Older
+    // kimi-code releases ignore the unknown flag. Always overwrite ambient false
+    // values; accepting one would silently reopen v2 on 0.33+.
+    env[KIMI_LEGACY_ENV] = KIMI_LEGACY_FORCED_VALUE;
     env.KIMI_CODE_HOME = resolveKimiHome(opts.env, opts.cwd);
     if (opts.commandLabel !== undefined) {
         env.KIMI_PLUGIN_CC_CMD = opts.commandLabel;

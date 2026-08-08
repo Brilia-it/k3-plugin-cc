@@ -2,6 +2,12 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.9.6 — 2026-08-08
+
+- **Fix-first engine pin.** kimi-code 0.33.0 inverted unflagged `kimi -p` from v1 to native v2 (unchanged in 0.34.0), while v1.9.5's refusal still recognized only the old `KIMI_CODE_EXPERIMENTAL_FLAG` selector. Every accepted child spawn now overwrites `KIMI_CODE_LEGACY_FLAG=1`, including resumed sessions and ambient false-value cases; older binaries ignore the unknown flag. Truthy experimental values remain an independent pre-spawn `CLI_V2_HOOK_ORDER_UNSAFE` refusal.
+- **Why the pin is load-bearing.** Exact 0.34.0 source still lets the plan service final-allow its exact KIMI_CODE_HOME plan-file Write/Edit before the later external PreToolUse listener. The path is outside the user worktree but violates the every-tool managed-hook contract. Native v2 remains uncertified; this candidate does not relax hook, permission, concurrency, budget, confinement, or allowlist policy.
+- **Certification evidence is green.** Unit tests prove the forced legacy flag reaches fresh and resumed children even when ambient state says `0`/`false`; the exact-0.34.0 temp binary passed `bun run smoke:real` with **11 pass / 0 fail / 54 assertions in 460.09s**. The non-vacuous `default_plan_mode=true` fresh+resume lane stayed on v1 (no `system.version`) and both writes reached the managed hook and were denied. `KIMI_TESTED_MINORS` gains `{0,32}`, `{0,33}`, and `{0,34}`. Release tags: `v1.9.6` and `compat-verified-kimi-code-0.34.0`.
+
 ## 1.9.5 — 2026-08-01
 
 **Publishes the already-verified kimi-code 0.31.1 patch boundary as an installable plugin release.** There is no runtime safety-policy, permission, concurrency, budget, allowlist, or `KIMI_TESTED_MINORS` change; experimental-v2 remains fail-closed refused.

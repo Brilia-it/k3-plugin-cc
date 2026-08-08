@@ -135,13 +135,17 @@ uninstalls only its **own** block.
 
 `EnterPlanMode` is explicitly denied before any per-label write evaluator for every managed label. Denied tool calls exit the hook with code 2 and write a reason to stderr. kimi-code surfaces the reason to the model, which can adapt and try a different approach (e.g., use `Read` instead of `Bash cat`).
 
-### Experimental agent-core-v2 refusal
+### Native agent-core-v2 refusal and legacy-v1 pin
 
 v1.9.4 corrects an earlier audit claim: agent-core-v2 external PreToolUse hooks are awaited on ordinary calls, but they are **not** registered ahead of every final allow. Production listener order puts `AgentPlanService` before `AgentExternalHooksService`. While plan mode is active, a `Write` or `Edit` whose write accesses target only the exact current plan file calls final `event.allow()`; listener iteration stops and the managed hook is never invoked.
 
 The permitted path is confined to `<KIMI_CODE_HOME>/sessions/<workspace>/<session>/agents/<agent>/plans/<plan>.md`, not the user worktree. That confinement does not make the path compatible: the plugin's load-bearing promise is that every model tool call reaches its managed policy. The path is reachable on a **fresh** session when user config has `default_plan_mode=true`, and on a resumed session through restored plan state. Denying the model's `EnterPlanMode` tool alone is therefore insufficient.
 
-`runtime/cli-client.ts` fails closed before process creation whenever `KIMI_CODE_EXPERIMENTAL_FLAG` has one of upstream's truthy values (`1`, `true`, `yes`, `on`, trimmed and case-insensitive). The refusal is `CLI_V2_HOOK_ORDER_UNSAFE` with `refusal_kind:"v2-hook-order-unsafe"`. It is **not** hook-install drift and `/kimi:setup` is not the remedy; unset the experimental flag to use the default v1 engine. Values upstream treats as false (`0`, `false`, `no`, `off`, empty/unset) keep v1 fresh and resume behavior unchanged. The plugin refuses explicitly instead of silently deleting the flag so engine selection never changes invisibly.
+`runtime/cli-client.ts` fails closed before process creation whenever `KIMI_CODE_EXPERIMENTAL_FLAG` has one of the truthy values `1`, `true`, `yes`, or `on` (trimmed and case-insensitive). The refusal is `CLI_V2_HOOK_ORDER_UNSAFE` with `refusal_kind:"v2-hook-order-unsafe"`. It is **not** hook-install drift and `/kimi:setup` is not the remedy; unset the experimental flag.
+
+kimi-code 0.33.0 changed the other half of the routing contract: native v2 is now the unflagged `kimi -p` default, and `KIMI_CODE_LEGACY_FLAG=1` is the upstream-supported v1 opt-out. The plugin does not trust ambient engine state. After accepting the explicit-experimental check, `buildEnv` overwrites the child process's legacy flag to `1` for every fresh or resumed run. Older kimi-code releases ignore the unknown flag. Ambient false values are deliberately overwritten; preserving one would silently reopen native v2 on 0.33+. Unit tests prove the flag reaches both fresh and resumed children, and the exact-binary smoke asserts no v2 `system.version` record appears even when the isolated config enables default plan mode.
+
+This is a visible engine-selection policy, not a general license to rewrite operator configuration: only the spawned child env changes; the user's shell and `config.toml` are untouched. The experimental flag remains an explicit refusal rather than being deleted silently.
 
 Re-enable v2 only after an exact released kimi-code tag guarantees external-hook veto before any final plan allow. The release gate must then cover both a fresh `default_plan_mode=true` session and a session whose plan state was persisted out of band, proving the hook fires and blocks the plan-file write in each case.
 

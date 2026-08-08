@@ -535,6 +535,30 @@ describe("runCliPrompt", () => {
     }
   });
 
+  test.each([undefined, "", "0", "false", "off", "1"])(
+    "forces KIMI_CODE_LEGACY_FLAG=1 for fresh and resumed sessions over ambient value %j",
+    async (ambient) => {
+      const root = await createTestPluginDataRoot("cli-client-legacy-v1-pin");
+      try {
+        const opts = mockOptions({ cwd: root, records: [] });
+        if (ambient === undefined) delete opts.env.KIMI_CODE_LEGACY_FLAG;
+        else opts.env.KIMI_CODE_LEGACY_FLAG = ambient;
+        opts.env.KIMI_MOCK_ECHO_ENV = "KIMI_CODE_LEGACY_FLAG";
+
+        for (const resumeSessionId of [undefined, "session_plan_state_restored_out_of_band"]) {
+          const result = await runCliPrompt({ ...opts, resumeSessionId });
+          expect(result.exitCode).toBe(0);
+          expect(result.records).toContainEqual({
+            role: "assistant",
+            content: "KIMI_CODE_LEGACY_FLAG=1",
+          });
+        }
+      } finally {
+        await cleanupTestPath(root);
+      }
+    },
+  );
+
   test("canonicalizes relative KIMI_CODE_HOME against the spawned cwd", async () => {
     const root = await createTestPluginDataRoot("cli-kimi-home-relative");
     try {
@@ -836,7 +860,7 @@ describe("runCliPrompt", () => {
   );
 
   test.each([undefined, "", "0", "false", "no", "off"])(
-    "keeps the default v1 engine available for value %j",
+    "accepts non-experimental values on the forced legacy-v1 path for value %j",
     async (flag) => {
       const root = await createTestPluginDataRoot("cli-client-v1-flag-matrix");
       try {
