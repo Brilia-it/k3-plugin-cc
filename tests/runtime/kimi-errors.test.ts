@@ -158,12 +158,79 @@ describe("classifyManagedCommandFailure", () => {
     const gateResult = classifyManagedCommandFailure(inner, "review_gate", "job-xyz");
     expect((gateResult as RuntimeError).stage).toBe("review_gate.runtime");
   });
+
+  test("auth.login_required in the stderr tail maps to AUTH_UNAVAILABLE with a kimi-login next step", () => {
+    // The real 2026-08-08 incident shape: kimi 0.34.0 exits 1 before any
+    // records, its stderr tail (embedded in the CLI_NONZERO_EXIT message by
+    // assertCliResultSuccess) names the logged-out OAuth provider. The
+    // classifier must recognize it BEFORE the generic CLI_NONZERO_EXIT
+    // startup_failed branch, whose /kimi:setup advice cannot repair auth.
+    const inner = new RuntimeError(
+      "CLI_NONZERO_EXIT",
+      'kimi subprocess exited with code 1:\nerror: failed to run prompt: auth.login_required: OAuth provider "managed:kimi-code" requires login before it can be used.',
+      "ask.runtime",
+    );
+    const result = classifyManagedCommandFailure(inner, "ask", "job-xyz") as RuntimeError;
+    expect(result.code).toBe("ASK_KIMI_AUTH_UNAVAILABLE");
+    expect(result.message).toContain("kimi login");
+    expect(result.message).not.toContain("startup");
+  });
+
+  test("wrapped errors carry availability, cause_code, and cause_message in details", () => {
+    const inner = new RuntimeError(
+      "CLI_NONZERO_EXIT",
+      "kimi subprocess exited with code 1:\nsome stderr tail",
+      "ask.runtime",
+    );
+    const result = classifyManagedCommandFailure(inner, "ask", "job-xyz") as RuntimeError;
+    expect(result.details.availability).toBe("startup_failed");
+    expect(result.details.cause_code).toBe("CLI_NONZERO_EXIT");
+    expect(result.details.cause_message).toBe(
+      "kimi subprocess exited with code 1:\nsome stderr tail",
+    );
+    expect(result.cause).toBe(inner);
+  });
+
+  test("plain Error causes carry cause_message but no cause_code", () => {
+    const result = classifyManagedCommandFailure(
+      new Error("LLM is not set"),
+      "rescue",
+      "job-xyz",
+    ) as RuntimeError;
+    expect(result.details.availability).toBe("auth_unavailable");
+    expect(result.details.cause_code).toBeUndefined();
+    expect(result.details.cause_message).toBe("LLM is not set");
+  });
+
+  test("oversized cause messages are tail-truncated for details", () => {
+    // The informative lines of a crashed subprocess (kimi's own `error:`
+    // output) are the TRAILING bytes of stderr, so truncation keeps the end.
+    const filler = "x".repeat(5000);
+    const inner = new RuntimeError(
+      "CLI_NONZERO_EXIT",
+      `${filler}\nerror: the part that matters`,
+      "ask.runtime",
+    );
+    const result = classifyManagedCommandFailure(inner, "ask", "job-xyz") as RuntimeError;
+    const causeMessage = result.details.cause_message as string;
+    expect(causeMessage.startsWith("…")).toBe(true);
+    expect(causeMessage.endsWith("error: the part that matters")).toBe(true);
+    expect(causeMessage.length).toBeLessThanOrEqual(2001);
+  });
 });
 
 describe("summarizeKimiAvailabilityWarning", () => {
   test.each([
     {
       error: new Error("LLM is not set"),
+      expected: "Kimi review gate is not configured for model access; allowing stop.",
+    },
+    {
+      error: new RuntimeError(
+        "CLI_NONZERO_EXIT",
+        'kimi subprocess exited with code 1:\nerror: failed to run prompt: auth.login_required: OAuth provider "managed:kimi-code" requires login before it can be used.',
+        "review_gate.runtime",
+      ),
       expected: "Kimi review gate is not configured for model access; allowing stop.",
     },
     {

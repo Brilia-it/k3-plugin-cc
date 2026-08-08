@@ -8,7 +8,34 @@ export function classifyManagedCommandFailure(error, commandType, jobId, options
     const stage = options?.preserveStage && error instanceof RuntimeError
         ? error.stage
         : `${commandType}.runtime`;
-    return new RuntimeError(mapAvailabilityCode(classification.kind, commandType), `${label} could not run because ${classification.summary} ${classification.nextStep} Job ${jobId} was persisted as failed.`, stage, error instanceof Error ? { cause: error } : undefined);
+    // Thread the cause's code and message into `details` so the underlying
+    // failure survives the wrap on every channel (formatError renders details
+    // as a JSON line; normalizeJobError persists them in the job row). Without
+    // this, a CLI_NONZERO_EXIT whose message embeds kimi's stderr tail (e.g.
+    // `auth.login_required` on 2026-08-08) was reduced to the generic
+    // "run /kimi:setup" advice with the real cause reachable only as `cause`,
+    // which no output channel serializes — an LLM caller could not diagnose it.
+    const details = { availability: classification.kind };
+    if (error instanceof RuntimeError) {
+        details.cause_code = error.code;
+    }
+    if (error instanceof Error && error.message.length > 0) {
+        details.cause_message = truncateCauseMessageForDetails(error.message);
+    }
+    return new RuntimeError(mapAvailabilityCode(classification.kind, commandType), `${label} could not run because ${classification.summary} ${classification.nextStep} Job ${jobId} was persisted as failed.`, stage, error instanceof Error ? { cause: error, details } : { details });
+}
+/**
+ * Cap the cause message carried in `details` so a large stderr tail cannot
+ * bloat the SQLite job row or the rendered details JSON line. Keep the TAIL
+ * end: for a crashed subprocess the informative lines (kimi's own `error:`
+ * output) are the trailing bytes of stderr, which cli-helpers appends last.
+ */
+const CAUSE_MESSAGE_DETAILS_MAX = 2000;
+function truncateCauseMessageForDetails(message) {
+    if (message.length <= CAUSE_MESSAGE_DETAILS_MAX) {
+        return message;
+    }
+    return `…${message.slice(-CAUSE_MESSAGE_DETAILS_MAX)}`;
 }
 export function summarizeKimiAvailabilityWarning(error, commandType) {
     const classification = classifyKimiAvailability(error);
@@ -42,6 +69,23 @@ export function classifySetupFailure(error) {
 }
 function classifyKimiAvailability(error) {
     const message = formatError(error);
+    // kimi-code's managed OAuth store emits `auth.login_required: OAuth
+    // provider "managed:kimi-code" requires login…` on stderr when the token
+    // is missing or expired (observed on 0.34.0 after an out-of-band binary
+    // upgrade invalidated the token). The line reaches us inside the
+    // CLI_NONZERO_EXIT message because cli-helpers embeds the stderr tail.
+    // This MUST precede the code-based CLI_NONZERO_EXIT branch below, which
+    // would otherwise misclassify a logged-out CLI as startup_failed and
+    // point the user at /kimi:setup — which cannot fix auth.
+    if (message.includes("auth.login_required")) {
+        return {
+            kind: "auth_unavailable",
+            summary: "the local Kimi CLI is logged out (its OAuth login is missing or expired).",
+            nextStep: "Run `kimi login` to re-authenticate, then retry. `/kimi:setup` does not repair auth.",
+            runtimeProbe: "ok",
+            authProbe: "failed",
+        };
+    }
     if (message.includes("LLM is not set") || message.includes("LLM service error")) {
         return {
             kind: "auth_unavailable",

@@ -19,6 +19,7 @@ import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { startBackgroundJob } from "../background-spawn.js";
 import {
   hookRefusalDetails,
+  hookRefusalRetryProtocol,
   maybeWarnHookMissing,
   verifyHookInstalled,
 } from "../hooks/install.js";
@@ -299,6 +300,7 @@ async function requireAskHookInstalled(context: CommandContext): Promise<void> {
       `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
       "Run /kimi:setup or $kimi-setup to install or repair this host's managed block.",
       "Set KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
+      hookRefusalRetryProtocol(context.env),
     ].join(" "),
     "ask.hook-check",
     { details: hookRefusalDetails(installStatus) },

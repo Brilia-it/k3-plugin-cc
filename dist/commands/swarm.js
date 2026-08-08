@@ -15,7 +15,7 @@ import { writeInvocationLogHeader } from "../logging.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import { MAX_DURATION_MS, parseSwarmArgs } from "../parsing.js";
 import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.js";
-import { hookRefusalDetails, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
+import { hookRefusalDetails, hookRefusalRetryProtocol, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 // /kimi:swarm — READ-ONLY parallel fan-out (kimi-code 0.12.0 AgentSwarm tool).
@@ -447,6 +447,7 @@ writeMode) {
                 "one of them read-only, so a missing hook means no enforcement across the fan-out.",
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
                 "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
+                hookRefusalRetryProtocol(context.env),
             ].join(" "), "swarm.hook-check", { details: hookRefusalDetails(installStatus) });
             try {
                 return await markJobFailed(store, paths, job, classified, "Swarm failed.", { phase: "failed" });

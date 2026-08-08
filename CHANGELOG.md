@@ -2,6 +2,15 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.9.7 — 2026-08-08
+
+**Makes hook refusals self-healing for every caller and startup failures self-diagnosing.** No safety-policy, permission, concurrency, budget, allowlist, or `KIMI_TESTED_MINORS` change; experimental-v2 remains fail-closed refused.
+
+- **The re-pin protocol rides the refusal message.** Every `*_HOOK_NOT_INSTALLED` refusal now appends a single-source caller protocol (`hookRefusalRetryProtocol`, `runtime/hooks/install.ts`, consumed at all five model-spawning refusal sites): on `retryable_after_setup: true`, run the embedded resolved `companion.sh setup` and retry the refused command once only on exit 0; anything else — or a second refusal — surfaces. Slash-command callers now self-heal after a plugin update exactly like the agents (whose `agents/*.md` contract is unchanged), completing step 3 of the hook-pin durability spec's recommended path for all surfaces with zero duplication in the 13 surface files — an earlier draft that pasted the paragraph into each command was reverted for exactly that bloat.
+- **`auth.login_required` is classified as auth, not startup.** kimi-code's logged-out OAuth store (`auth.login_required: OAuth provider "managed:kimi-code" requires login…`) reaches the classifier inside the `CLI_NONZERO_EXIT` message (cli-helpers embeds the stderr tail); a new branch ahead of the generic nonzero-exit case maps it to `*_KIMI_AUTH_UNAVAILABLE` with a "Run `kimi login`… `/kimi:setup` does not repair auth" remedy. Trigger incident: 2026-08-08, an out-of-band kimi background auto-upgrade (0.31.1→0.34.0) invalidated the token and the plugin's startup-failed advice misdirected to setup.
+- **Wrapped startup failures keep their cause.** `classifyManagedCommandFailure` threads `availability`, `cause_code`, and a tail-truncated (2 KB) `cause_message` into `RuntimeError.details`, so the underlying stderr survives on the foreground `details:` JSON line and in the SQLite job row. Previously the cause lived only on the unserialized `cause` chain — invisible to LLM callers on every channel (LLM-caller discipline).
+- Tests: login classification, details threading, tail truncation, and the review-gate warning path; full `bun run check` green (692 pass / 0 fail).
+
 ## 1.9.6 — 2026-08-08
 
 - **Fix-first engine pin.** kimi-code 0.33.0 inverted unflagged `kimi -p` from v1 to native v2 (unchanged in 0.34.0), while v1.9.5's refusal still recognized only the old `KIMI_CODE_EXPERIMENTAL_FLAG` selector. Every accepted child spawn now overwrites `KIMI_CODE_LEGACY_FLAG=1`, including resumed sessions and ambient false-value cases; older binaries ignore the unknown flag. Truthy experimental values remain an independent pre-spawn `CLI_V2_HOOK_ORDER_UNSAFE` refusal.

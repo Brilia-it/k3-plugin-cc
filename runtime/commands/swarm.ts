@@ -28,6 +28,7 @@ import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.j
 import type { CommandContext } from "../types.js";
 import {
   hookRefusalDetails,
+  hookRefusalRetryProtocol,
   maybeWarnHookMissing,
   verifyHookInstalled,
 } from "../hooks/install.js";
@@ -551,6 +552,7 @@ async function executeSwarmJob(
           "one of them read-only, so a missing hook means no enforcement across the fan-out.",
           `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
           "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
+          hookRefusalRetryProtocol(context.env),
         ].join(" "),
         "swarm.hook-check",
         { details: hookRefusalDetails(installStatus) },

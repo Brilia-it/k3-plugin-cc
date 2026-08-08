@@ -178,6 +178,24 @@ function resolveKimiCodeConfigPath(env) {
  * retryable (run /kimi:setup for this host, retry once). Its absence means the
  * refusal is not a moved-path problem and re-running setup will not fix it.
  */
+/**
+ * Caller-facing self-heal protocol, appended to every hook-refusal message.
+ *
+ * The slash-command wrappers are deliberately thin, so the retry protocol
+ * rides the refusal itself — the LLM caller reads it on stdout at exactly the
+ * moment it applies, and one source here serves both hosts and all surfaces
+ * (commands, agents, Codex skills) without duplicating it in each file.
+ * Mirrors the fuller contract in agents/*.md: re-pin via setup, retry ONCE,
+ * only on `retryable_after_setup: true` AND a zero setup exit; never the
+ * skip env. Embeds the resolved plugin root so the command is runnable as-is.
+ */
+export function hookRefusalRetryProtocol(env) {
+    const root = env.CLAUDE_PLUGIN_ROOT ?? env.PLUGIN_ROOT ?? "${CLAUDE_PLUGIN_ROOT}";
+    return (`If details shows retryable_after_setup:true (routine after a plugin update — the ` +
+        `version-stamped hook path moved), run \`${root}/scripts/companion.sh setup\` and, only ` +
+        `if it exits 0, retry the refused command once. Anything else — or a second refusal — ` +
+        `surface the refusal instead of retrying.`);
+}
 export function hookRefusalDetails(status) {
     return {
         config_path: status.configPath,

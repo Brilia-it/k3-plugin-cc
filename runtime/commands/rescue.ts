@@ -19,6 +19,7 @@ import type { CommandContext } from "../types.js";
 import { startBackgroundJob } from "../background-spawn.js";
 import {
   hookRefusalDetails,
+  hookRefusalRetryProtocol,
   maybeWarnHookMissing,
   verifyHookInstalled,
 } from "../hooks/install.js";
@@ -183,6 +184,7 @@ export async function executeRescueJob(
           `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
           "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
           "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
+          hookRefusalRetryProtocol(context.env),
         ].join(" "),
         "rescue.hook-check",
         { details: hookRefusalDetails(installStatus) },
