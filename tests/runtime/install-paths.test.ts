@@ -11,6 +11,8 @@ import {
   describeHookCommandDrift,
   hostIdFromHookScript,
   isOurApprovalHookCommand,
+  normalizeHookPathSeparators,
+  resolveHookScriptPath,
   parseHookShellCommand,
   resolveNodeBinary,
   shellSingleQuote,
@@ -548,5 +550,42 @@ describe("preferStableNodePath", () => {
     const chosen = preferStableNodePath(process.execPath);
     expect(path.isAbsolute(chosen)).toBe(true);
     expect(realpathSync(chosen)).toBe(realpathSync(process.execPath));
+  });
+});
+
+describe("normalizeHookPathSeparators", () => {
+  const isWin = process.platform === "win32";
+  const BACKSLASH = String.fromCharCode(92);
+  const winPath = ["C:", "Users", "x", ".claude", "plugins", "kimi", "dist", "hooks", "approval-hook.js"].join(
+    BACKSLASH,
+  );
+
+  test("converts separators on Windows and is a no-op elsewhere", () => {
+    const out = normalizeHookPathSeparators(winPath);
+    if (isWin) {
+      expect(out).toBe("C:/Users/x/.claude/plugins/kimi/dist/hooks/approval-hook.js");
+      expect(out.includes(BACKSLASH)).toBe(false);
+    } else {
+      expect(out).toBe(winPath);
+    }
+  });
+
+  test("leaves an already-normalized path untouched on every platform", () => {
+    const posix = "/home/u/.claude/plugins/kimi/dist/hooks/approval-hook.js";
+    expect(normalizeHookPathSeparators(posix)).toBe(posix);
+  });
+
+  test("is idempotent", () => {
+    const once = normalizeHookPathSeparators(winPath);
+    expect(normalizeHookPathSeparators(once)).toBe(once);
+  });
+
+  test("the derived hook path carries no separator the TOML check rejects", () => {
+    // This is the regression the change exists for: on Windows the derived path
+    // used to contain backslashes and assertHookPathTomlSafe rejected it, which
+    // forced every user into a machine-specific KIMI_PLUGIN_CC_HOOK_SCRIPT.
+    const derived = resolveHookScriptPath({} as NodeJS.ProcessEnv);
+    if (isWin) expect(derived.includes(BACKSLASH)).toBe(false);
+    expect(path.isAbsolute(derived)).toBe(true);
   });
 });

@@ -208,7 +208,7 @@ export function resolveHookScriptPath(env) {
                 `Use an absolute path so the verifier and the runtime spawn refer to the same file.`,
             ].join(" "), "setup.hook-script-path", { details: { override } });
         }
-        return override;
+        return normalizeHookPathSeparators(override);
     }
     const here = fileURLToPath(import.meta.url);
     const parts = here.split(path.sep);
@@ -224,7 +224,35 @@ export function resolveHookScriptPath(env) {
         throw resolveHookFailure(here);
     }
     const pluginRoot = parts.slice(0, parts.length - 3).join(path.sep) || path.sep;
-    return path.join(pluginRoot, "dist", "hooks", "approval-hook.js");
+    return normalizeHookPathSeparators(path.join(pluginRoot, "dist", "hooks", "approval-hook.js"));
+}
+/**
+ * On Windows, express the hook script path with forward slashes.
+ *
+ * Why this exists at all: without it the plugin is not installable on Windows.
+ * `resolveHookScriptPath` derives the path from CLAUDE_PLUGIN_ROOT, so on
+ * Windows it comes back with backslashes, and `assertHookPathTomlSafe` rejects
+ * backslashes outright (SETUP_HOOK_PATH_UNSAFE). Every Windows user therefore
+ * had to set KIMI_PLUGIN_CC_HOOK_SCRIPT by hand to a forward-slash path — a
+ * machine-specific workaround that cannot ship.
+ *
+ * Why normalize rather than relax the validator: the backslash is TOML's escape
+ * character, so accepting it means owning BOTH cmd.exe quoting and TOML escaping
+ * instead of neither. Normalizing removes the character from the problem
+ * entirely, and the safety check stays exactly as strict as it was.
+ *
+ * Why forward slashes are safe here: Node accepts them on Windows for every
+ * filesystem API, and cmd.exe treats them literally inside a double-quoted
+ * argument (the "forward slash means a switch" behaviour belongs to shell
+ * builtins like `dir`, not to a quoted argument handed to `node.exe`).
+ *
+ * No-op off Windows, where paths never contain backslashes as separators and a
+ * literal backslash in a filename must stay untouched.
+ */
+export function normalizeHookPathSeparators(hookScriptPath) {
+    if (process.platform !== "win32")
+        return hookScriptPath;
+    return hookScriptPath.replace(/\\/g, "/");
 }
 function resolveHookFailure(here) {
     return new RuntimeError("SETUP_RESOLVE_HOOK_FAILED", `Could not infer plugin root from install-paths module path ${here}. Set KIMI_PLUGIN_CC_HOOK_SCRIPT to the absolute path of dist/hooks/approval-hook.js.`, "setup.resolve-hook", { details: { here } });
