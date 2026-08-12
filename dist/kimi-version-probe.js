@@ -1069,6 +1069,26 @@ export const KIMI_TESTED_MINORS = [
     { major: 0, minor: 32 },
     { major: 0, minor: 33 },
     { major: 0, minor: 34 },
+    // 0.35 added in v1.9.8 (2026-08-12) after the scoped source audit and
+    // exact-binary smoke against immutable upstream commit
+    // f6ee44e42641498f26635eec2e6799d13372885c. The canonical CLI, v1
+    // permission, hook, and consumed wire/session surfaces were 0-byte diffs.
+    // The 3,347-byte bootstrap diff only adds global MCP OAuth-status RPC
+    // helpers; it does not alter -p session construction, hook merging,
+    // permission context, cwd, or workspace-local config loading.
+    //
+    // Native v2 remains fail-closed: 0.35.0 still allows the plan listener to
+    // final-allow exact plan-file writes before external hooks, so accepted
+    // children stay pinned to legacy v1 and truthy experimental selectors still
+    // refuse before spawn. The builtin coder profile also removes nested
+    // Agent/AgentSwarm by default and builtin profiles are cloned per session;
+    // neither change widens the plugin's write surface.
+    //
+    // Exact-0.35.0 temp-binary smoke was GREEN: 12 pass / 0 fail, 55 assertions
+    // in 525.01s. Fresh/resumed default-plan runs stayed on v1 with hook-denied
+    // writes; forced-write labels, pursue, read-swarm, write-swarm confinement,
+    // and out-of-root denial all passed. Daily monitor: 2026-08-12.
+    { major: 0, minor: 35 },
 ];
 /**
  * Spawn `<kimi-bin> --version` and parse the output. Never throws;

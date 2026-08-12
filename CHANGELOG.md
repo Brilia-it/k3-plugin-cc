@@ -2,6 +2,15 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.9.8 — 2026-08-12
+
+**Certifies kimi-code 0.35.0 on the forced legacy-v1 path.** Native agent-core-v2 remains fail-closed disabled; no hook, permission, concurrency, budget, confinement, or allowlist policy changed.
+
+- **Scoped source audit preserved the supported contract.** The immutable 0.34.0→0.35.0 diffs for CLI prompt mode, v1 permission policies, v1 hooks, and consumed wire/session records were all 0 bytes. The only canonical bootstrap diff (3,347 bytes) adds global MCP OAuth-status RPC/helper code and does not change `-p` session construction, hook merging, permission context, cwd, or workspace-local config loading.
+- **Adjacent upstream changes narrow, rather than widen, child capability.** The builtin `coder` profile no longer exposes nested `Agent`/`AgentSwarm` by default, and builtin profiles are cloned per session. The coordinator `AgentSwarm` path remains available and hook-gated.
+- **Native-v2 containment remains load-bearing.** Exact 0.35.0 still permits the plan listener to final-allow exact plan-file writes before later external hooks. Accepted children therefore overwrite `KIMI_CODE_LEGACY_FLAG=1`, while truthy `KIMI_CODE_EXPERIMENTAL_FLAG` values still refuse before spawn.
+- **Certification evidence is green.** The exact-0.35.0 temporary binary passed `bun run smoke:real` with **12 pass / 0 fail / 55 assertions in 525.01s**, including fresh/resumed default-plan v1 pinning, forced-write denials, pursue's finite budget, real read-swarm child denial, write-swarm confinement/cleanup, and out-of-root denial. `KIMI_TESTED_MINORS` gains `{0,35}`. Tags: `v1.9.8` and `compat-verified-kimi-code-0.35.0`.
+
 ## 1.9.7 — 2026-08-08
 
 **Makes hook refusals self-healing for every caller and startup failures self-diagnosing.** No safety-policy, permission, concurrency, budget, allowlist, or `KIMI_TESTED_MINORS` change; experimental-v2 remains fail-closed refused.
