@@ -98,22 +98,36 @@ export function resolveNodeBinary(env) {
     return override;
 }
 /**
- * Build the exact shell command string that `/bin/sh -c "<command>"`
- * needs to spawn the hook. Single source of truth for:
+ * Build the exact shell command string that the host shell needs to spawn
+ * the hook. Single source of truth for:
  *
  *   - what `/kimi:setup` writes into kimi-code's config
  *     (`command = "..."` inside [[hooks]])
- *   - what the shell probe runs via `spawn("/bin/sh", ["-c", ...])`
+ *   - what the shell probe runs
  *   - what the verifier (`evaluateInstalled`) equality-checks the
  *     installed `command = "..."` against on every command spawn
  *
- * Single-quoting both tokens means a path containing spaces or
- * apostrophes round-trips cleanly. The probe and managed block ARE the
- * same byte string — drift between them would break safety.
+ * WINDOWS FIX (BRILIA fork). Upstream single-quotes both tokens, which is
+ * correct for `/bin/sh -c` and WRONG for `cmd.exe`: single quotes are not
+ * quoting characters there, so the command fails to launch. Because the hook
+ * protocol treats every exit code other than 2 as ALLOW, a hook that cannot
+ * launch degrades to fail-open SILENTLY, while `/kimi:setup --check` still
+ * reports "Probe: ok". Measured on Windows 11 with kimi-code 0.30.0:
+ *
+ *   | quoting                | /bin/sh | cmd.exe        |
+ *   |------------------------|---------|----------------|
+ *   | single quotes (upstream) | exit 2 (deny) | exit 255 (fail-open) |
+ *   | double quotes            | exit 2 (deny) | exit 2 (deny)        |
+ *
+ * Double quotes are therefore the only form that holds in BOTH shells, and
+ * they are safe on Windows because `"` is an illegal character in NTFS paths.
+ * On POSIX the historical single-quote form is preserved verbatim, so this
+ * change is a no-op off Windows.
  */
 export function buildHookShellCommand(hookScriptPath, env) {
     const nodeBin = resolveNodeBinary(env);
-    return `${shellSingleQuote(nodeBin)} ${shellSingleQuote(hookScriptPath)}`;
+    const quote = process.platform === "win32" ? shellDoubleQuote : shellSingleQuote;
+    return `${quote(nodeBin)} ${quote(hookScriptPath)}`;
 }
 /**
  * POSIX shell single-quote a string. Inner `'` are escaped as `'\''`
@@ -123,6 +137,48 @@ export function buildHookShellCommand(hookScriptPath, env) {
 export function shellSingleQuote(value) {
     return `'${value.replaceAll("'", "'\\''")}'`;
 }
+/**
+ * Double-quote a string for `cmd.exe` (and, incidentally, for POSIX shells,
+ * where backslashes inside double quotes are literal unless followed by
+ * `$`, a backtick, `"` or `\`).
+ *
+ * No escaping of the value is performed, by design: `"` is not a legal
+ * character in a Windows path, and `setup` already refuses hook paths
+ * containing quotes, control characters or newlines
+ * (SETUP_HOOK_PATH_UNSAFE). If one ever reached here it would produce an
+ * ambiguous command, so we fail loudly instead of emitting something that
+ * might silently degrade to fail-open.
+ */
+export function shellDoubleQuote(value) {
+    const offending = CMD_UNSAFE_CHARS.filter((ch) => value.includes(ch));
+    if (offending.length > 0) {
+        throw new Error(`kimi-plugin-cc: refusing to build a hook command from a path containing ${offending
+            .map((ch) => JSON.stringify(ch))
+            .join(", ")}: ${JSON.stringify(value)}. ` +
+            "Double quotes do not neutralize these in cmd.exe, so the resulting command would be " +
+            "ambiguous, and an ambiguous hook command degrades to fail-open (any exit code other " +
+            "than 2 is treated as ALLOW). Move the plugin to a path without these characters, or " +
+            "set KIMI_PLUGIN_CC_HOOK_SCRIPT to one.");
+    }
+    return `"${value}"`;
+}
+/**
+ * Characters that survive double quotes in cmd.exe and would make the hook
+ * command ambiguous.
+ *
+ *   `"` closes the quote.
+ *   `%` still expands (`%VAR%`) INSIDE double quotes.
+ *   `!` expands when delayed expansion is enabled (`cmd /V:ON`), also inside quotes.
+ *
+ * All three are legal in NTFS filenames, so a plugin installed under, say,
+ * `C:\builds\100%\...` would silently produce a broken command. Failing loudly
+ * is the only safe option here: the consequence of getting it wrong is not a
+ * crash but a silently disabled security gate.
+ *
+ * `^ & < > |` are deliberately NOT listed: double quotes DO neutralize them in
+ * cmd.exe, so rejecting them would be a false positive on legal paths.
+ */
+const CMD_UNSAFE_CHARS = ['"', "%", "!"];
 /**
  * Resolve the absolute path to the compiled hook script.
  *
@@ -214,7 +270,19 @@ function parseSingleQuotedTokens(input) {
         let consumedAny = false;
         while (i < n && input[i] !== " ") {
             const ch = input[i];
-            if (ch === "'") {
+            if (ch === '"') {
+                // BRILIA fork: a "..." quoted segment, the form emitted on Windows by
+                // buildHookShellCommand. The value can never contain a literal `"`
+                // (illegal in Windows paths, and rejected by shellDoubleQuote), so the
+                // next `"` is always the real close.
+                const close = input.indexOf('"', i + 1);
+                if (close === -1)
+                    return null; // unterminated quote
+                token += input.slice(i + 1, close);
+                i = close + 1;
+                consumedAny = true;
+            }
+            else if (ch === "'") {
                 // A '...'  quoted segment. Single-quoted content can never contain a
                 // literal "'", so the next "'" is always the real close.
                 const close = input.indexOf("'", i + 1);
