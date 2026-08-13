@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// Changes are Windows-only and gated behind `process.platform === "win32"`.
+// See NOTICE and README.md. Section 4(b) of the License requires this notice.
+
 // Managed-block installer for the kimi-code PreToolUse hook.
 //
 // Replaces the v0.4 Wire-based setup probe. In v1.0 the load-bearing

@@ -1,3 +1,6 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// Changes are Windows-only and gated behind `process.platform === "win32"`.
+// See NOTICE and README.md. Section 4(b) of the License requires this notice.
 // Shared canonical-path helpers for the kimi-plugin-cc PreToolUse hook.
 //
 // Why a separate module:

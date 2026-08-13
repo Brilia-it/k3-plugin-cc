@@ -1,172 +1,131 @@
-# kimi-plugin-cc
+# K3 plugin for Claude Code
 
-Use [Kimi](https://kimi.ai) as Claude Code's second reviewer, independent thinker, and delegated worker — without building your own multi-agent stack.
+Use Kimi K3 from inside Claude Code for code reviews or to delegate tasks to K3.
 
-This is a [Claude Code](https://claude.ai/code) plugin that drives the [kimi-code](https://kimi.com/code/docs) CLI (the Node.js successor to Kimi CLI) as a subprocess. Claude can ask Kimi for a structured code review, delegate a bug hunt, or have Kimi double-check its own work before stopping — all through slash commands, with persistent job state, session resume, and per-command safety enforced by a [PreToolUse hook](./docs/safety.md) installed in `~/.kimi-code/config.toml`.
+This plugin is for Claude Code users who already pay for a Kimi Code subscription and want to reach
+it from the workflow they already have.
 
-- **Independent model, independent perspective.** Kimi reasons differently from Claude. A second opinion from a different model catches things self-review misses.
-- **No orchestration layer required.** No ACP, no cloud broker, no shared API keys. The plugin talks directly to a locally-installed `kimi` binary using `kimi -p --output-format stream-json`.
-- **Full agent capabilities, safely bounded.** Kimi can read files, write code, run shell commands, and resume where it left off — all bounded by a [workspace allowlist](./runtime/rescue-approval.ts) invoked via the PreToolUse hook. Read-only commands enforce read-only at the hook layer, not the prompt.
+> ### This is an unofficial fork
+>
+> **Not affiliated with, endorsed by, or supported by Moonshot AI**, the makers of Kimi and the
+> `kimi-code` CLI. Official product: **[kimi.com/code](https://www.kimi.com/code/)**.
+>
+> **Not the original project either.** This is a fork of
+> **[linxule/kimi-plugin-cc](https://github.com/linxule/kimi-plugin-cc)** (Apache-2.0) by Xule Lin,
+> who wrote everything that makes this work. Our changes are three Windows fixes, listed below.
+>
+> Maintained by [BRILIA](https://brilia.it) on a best-effort basis. If something breaks, open an
+> issue **here**, not with Moonshot AI and not with the upstream author.
 
-> **Migrating from v0.4?** v0.4.x targeted the Python [Kimi CLI](https://github.com/MoonshotAI/kimi-cli) and stays available at the [`v0.4.0`](https://github.com/linxule/kimi-plugin-cc/releases/tag/v0.4.0) tag (`v0.4-maintenance` branch is cut from that tag for ongoing fixes — see the linked tag if the branch is not yet pushed). v1.0 is a hard cut to kimi-code — install kimi-code first, then `/plugin update kimi` will upgrade you in place. See [docs/migration.md](./docs/migration.md) for the step-by-step upgrade.
+## What You Get
 
-## Try it in 60 seconds
+- `/k3:review` for a normal read-only K3 review
+- `/k3:challenge` for a steerable adversarial review
+- `/k3:ask` for a free-form question about the repository
+- `/k3:rescue`, `/k3:status`, `/k3:result` and `/k3:cancel` to delegate work and manage background jobs
 
-```
-# Prerequisite: install kimi-code from https://kimi.com/code/docs
-/plugin marketplace add linxule/kimi-plugin-cc
-/plugin install kimi@kimi-marketplace
-/kimi:setup
-/kimi:review "review my current diff"
-```
+## Requirements
 
-Kimi reads your working-tree diff and returns a review as markdown:
-
-```markdown
-## Verdict: concern
-
-One high-confidence issue in the auth middleware; the rest looks fine.
-
-### src/middleware/auth.ts:42-47 — JWT expiry not checked before token refresh
-
-The refresh handler calls `getNewToken()` without first checking whether the
-current token has actually expired. On a slow-clock client this triggers a
-refresh on every request.
-
-Suggested fix: add an expiry check before the refresh call.
-```
-
-Claude reads the review and can act on it directly. For programmatic access to the same content plus job metadata, `companion.sh result <jobId> --json` returns a structured envelope `{job_id, kind, status, summary, error, artifact_path, body, ...}` where `body` is the full markdown. To go further:
-
-```
-/kimi:rescue "fix the top review finding"
-```
-
-Kimi opens the file, writes the fix, runs the relevant tests, and reports back. The session persists — if you restart Claude Code, `/kimi:rescue --resume` picks up where it left off.
-
-## When to use what
-
-| Command | What it does | Kimi can write? | Session persists? |
-|---------|-------------|-----------------|-------------------|
-| `/kimi:ask` | Free-form Q&A — "explain this module"; supports `--background` / `--wait` like rescue | No | Fresh by default, `-r` to resume |
-| `/kimi:review` | Structured code review of your diff | No | Fresh each time |
-| `/kimi:challenge` | Adversarial review with a custom focus | No | Fresh each time |
-| `/kimi:rescue` | Delegate real work — bug hunts, refactors, fixes | Yes (allowlisted) | Persists + resumable |
-| `/kimi:pursue` | **Experimental** — pursue an objective *autonomously* across turns, bounded by a hard `--budget` | Yes (allowlisted, every turn) | No detached-worker flag (callers detach the shell call); resume not yet exposed |
-| `/kimi:swarm` | Fan out a review across files/modules in parallel (via AgentSwarm), bounded by a hard `--budget`. `--write` (v1.4) fans out *edits* in a throwaway worktree and returns a reviewable patch | No by default; `--write` confines edits to a throwaway worktree | No detached-worker flag (callers detach the shell call) |
-| Review gate | Kimi checks Claude's work before stopping | No | Per-stop-event |
-
-The plugin ships seven Claude Code **subagents** — one per delegated capability — that the main thread can dispatch via the Agent tool: the read-only `kimi-review`, `kimi-challenge`, `kimi-ask`, and `kimi-swarm` (parallel review fan-out), plus the write-capable `kimi-rescue` (a bounded delegated task), `kimi-pursue` (experimental autonomous goal mode), and `kimi-swarm-write` (a parallel **edit** fan-out that returns a reviewable patch — the plugin never applies it). The heavy modes — `kimi-swarm`, `kimi-pursue`, and `kimi-swarm-write` — carry a mandatory `--budget` ceiling. Safety does not widen on the agent path: the index-0 PreToolUse hook fires on every tool call of every turn — read-only labels deny writes; rescue/pursue/swarm-write apply the workspace allowlist and cannot mutate git state (write-swarm confines edits to a throwaway worktree and hands back a patch the human merges). Each agent's description is Kimi's own statement of what it's good for — Claude matches the moment and dispatches; no prescriptive skill manual in between.
-
-## How it works
-
-The architecture is modeled after OpenAI's [codex-plugin-cc](https://github.com/openai/codex-plugin-cc). Both follow the same pattern: thin plugin shell, rich local runtime, one process per job.
-
-```
-  /kimi:review "check the auth flow"
-       │
-       └─ companion.sh → node dist/companion.js
-               │
-               ├─ spawns: kimi --output-format stream-json -p "<prompt>"
-               │            with KIMI_PLUGIN_CC_CMD=review in the env block
-               ├─ parses OpenAI-shaped NDJSON records (assistant content + tool_calls)
-               ├─ PreToolUse hook (installed by /kimi:setup) enforces the
-               │   per-command policy: review/challenge/review_gate/ask are
-               │   read-only; rescue uses the workspace allowlist
-               ├─ persists job + stream log to SQLite (node:sqlite, zero native deps)
-               └─ returns structured result to Claude
-```
-
-**Subprocess-first transport.** v1.0 drives `kimi -p --output-format stream-json` as a one-process-per-job subprocess. kimi-code mints the session id and announces it via a `role:"meta", type:"session.resume_hint"` record on stdout (kimi-code 0.2.0+) — earlier 0.1.x announced on stderr instead. The runtime consumes both channels (first-announce-wins) and round-trips the captured token verbatim via `--resume`. The v0.4 Wire JSON-RPC client is gone (kimi-code dropped it); the v0.4-maintenance branch keeps the Wire path alive for Kimi CLI users.
-
-**Safety via PreToolUse hook.** kimi-code's `kimi -p` mode hard-codes `permission: auto` and auto-approves every tool call. The plugin's safety contract therefore lives in a [PreToolUse hook](./docs/safety.md) that `/kimi:setup` or `$kimi-setup` installs as a host-scoped managed block in `~/.kimi-code/config.toml`. The hook reads `KIMI_PLUGIN_CC_CMD` from the env block we set per spawn and applies the right policy — read-only for review/challenge/review_gate/ask, workspace allowlist for rescue. Without a verified hook, every model-spawning command refuses before Kimi starts; the review gate skips rather than running un-enforced.
-
-**Workspace allowlist.** Rescue's allowlist ([`runtime/rescue-approval.ts`](./runtime/rescue-approval.ts)) is the security boundary — not the prompt. Symlink-aware path containment, `.git/` exclusion, a curated set of read-only check tools, mutating-flag detection on `git`/`find`/`sed`, and explicit rejection of `package-manager run <script>` (opaque scripts are a supply-chain risk). The hook calls `evaluateRescueHookRequest` for every rescue tool call.
-
-**Job lifecycle.** Every job gets a SQLite record, a stream-json diagnostic log, and a `kimi_session_id` captured from kimi's stream-json meta record (0.2.0+) or stderr announce (0.1.x fallback). Jobs go through `running` → `completed`/`failed`/`cancelled`. Use `/kimi:status`, `/kimi:result`, `/kimi:cancel`, `/kimi:replay` to manage them.
-
-**Kimi Code session titles.** For plugin-created user-command sessions, the runtime performs best-effort post-run title sync after Kimi returns a session id. Titles are deterministic (`Kimi <Command>: <summary>`), derived from plugin command metadata rather than model output, and manual/custom Kimi titles are preserved. The review gate is excluded so Stop-hook checks do not clutter the Kimi Code session list.
-
-**Zero native dependencies.** The runtime uses Node 22.5's built-in `node:sqlite` — no `better-sqlite3`, no `node-gyp`, no compilation step. `dist/` is precompiled and committed, so installed plugins work immediately with just `node` on PATH.
-
-**490+ tests, drift gate.** The test suite covers the stream-json parser (including the kimi-code 0.2.0 session-meta record and the 0.8.0 `goal.summary` record), cli-client lifecycle, approval policy, approval hook entry script, rescue allowlist, command handlers (incl. `/kimi:pursue` goal-mode parsing/exit-mapping), job lifecycle, setup managed-block installer, kimi version probe, Codex surface generation/lock (subfolder layout, runtime-mirror + orphan checks, Claude/Codex surface separation), and more. `bun run check` rebuilds `dist/`, typechecks, runs the suite, and fails if the rebuild produces uncommitted changes — forgotten rebuilds can't ship. Opt-in real-binary smokes (`bun run smoke:real`) spawn the actual `kimi -p` and prove the read-only commands' write denial end-to-end, plus that autonomous goal mode is hook-gated on every continuation turn; they're skipped by default (they need a real kimi binary + authenticated home).
-
-**CI** ([`.github/workflows/`](./.github/workflows/), see [docs/ci.md](./docs/ci.md)). `bun run check` runs on every push to `main` and every PR (`ci.yml`) — free, no secrets, smokes auto-skip. The real-binary smokes (including the `/kimi:pursue` goal-mode safety gate) run on **manual dispatch** (`smoke.yml`), authenticated via an API-key secret so they don't depend on the expiry-prone OAuth subscription; the workflow is inert until that secret is added.
-
-**Also surfaces in Codex desktop.** The Codex plugin is a self-contained subfolder, `plugins/kimi-codex/` (its own `.codex-plugin/plugin.json`, `skills/`, and a byte-mirror of the runtime), with the Codex repo marketplace at `.agents/plugins/marketplace.json` pointing into it. It lives in a subfolder — not at the repo root beside the Claude files — so Claude Code does not auto-discover the Codex skills (the Claude Code surface stays commands + agents). Codex skills call the same shell companion runtime as Claude commands; there is no MCP server or second execution path. The `plugins/kimi-codex/` tree is generated by `bun run generate:surfaces`.
+- **A Kimi Code subscription.** [Get one at kimi.com/code](https://www.kimi.com/code/).
+  - **Yours, not somebody else's.** The plugin never carries a credential: it drives the
+    `kimi-code` CLI that is already logged in on your machine. Each person installs and
+    authenticates their own.
+  - Usage contributes to your own Kimi Code limits.
+- **The `kimi-code` CLI, installed and authenticated.** Run `kimi login` once, then check with
+  `kimi --version`.
+- **Node.js 22.5 or later** (the runtime uses the built-in `node:sqlite`).
 
 ## Install
 
-### Via the Claude Code marketplace (recommended)
-
-```
-/plugin marketplace add linxule/kimi-plugin-cc
-/plugin install kimi@kimi-marketplace
-/kimi:setup
-```
-
-`/kimi:setup` writes the PreToolUse hook to `~/.kimi-code/config.toml` and probes it both directly and through `/bin/sh -c` so launch-from-GUI/LaunchAgent setups (where `node` may not be on the shell's PATH) get caught up front rather than silently auto-approving every tool call. As of v1.8, setup also parses the complete TOML, validates every configured hook, and serializes the read-modify-write transaction with a private adjacent lock; malformed foreign config or simultaneous Claude/Codex setup fails safely instead of silently dropping or overwriting enforcement.
-
-### From a local clone
+Add the marketplace in Claude Code:
 
 ```bash
-git clone https://github.com/linxule/kimi-plugin-cc ~/kimi-plugin-cc
-claude --plugin-dir ~/kimi-plugin-cc
+/plugin marketplace add Brilia-it/k3-plugin-cc
 ```
 
-Then run `/kimi:setup` to install the safety hook.
-
-### Via the Codex repo marketplace
-
-The Codex marketplace sidecar lives at `.agents/plugins/marketplace.json` and points at the self-contained plugin root `plugins/kimi-codex/` (`source.path: "./plugins/kimi-codex"`). Add the marketplace and install the `kimi` plugin:
+Install the plugin:
 
 ```bash
-codex plugin marketplace add linxule/kimi-plugin-cc
-codex plugin add kimi@kimi-marketplace
+/plugin install k3@brilia-k3-marketplace
 ```
 
-Then run the `$kimi-setup` skill to install/check the kimi-code safety hook. The Codex skills mirror the Claude surfaces: `$kimi-review`, `$kimi-challenge`, `$kimi-ask`, `$kimi-rescue`, `$kimi-pursue`, `$kimi-swarm`, `$kimi-swarm-write`, `$kimi-status`, `$kimi-result`, `$kimi-cancel`, and `$kimi-replay`.
-
-### Using both Claude Code and Codex
-
-Both hosts share one `~/.kimi-code/config.toml`. As of **v1.7.0** each host manages its **own** host-scoped PreToolUse block, so run **`/kimi:setup` in Claude Code and `$kimi-setup` in Codex** once each — they coexist and no longer overwrite each other. (Before v1.7.0 a single shared block was clobbered whenever you switched hosts, forcing a re-setup.) See [docs/safety.md § Host scoping](./docs/safety.md#host-scoping-claude-code--codex-share-one-config).
-
-### Removing the integration
-
-```
-/kimi:setup --uninstall        # removes THIS host's block only
-/kimi:setup --uninstall --all  # removes every host's block from the shared config
-```
-
-Removes the managed block(s) from `~/.kimi-code/config.toml`. The plugin itself can be uninstalled via `/plugin uninstall kimi`.
-
-## Prerequisites
-
-- **[kimi-code](https://kimi.com/code/docs)** installed and authenticated. The plugin spawns `kimi -p`; set `KIMI_PLUGIN_CC_KIMI_BIN` to override the binary location.
-- **Node >= 22.5** — for built-in `node:sqlite`. Set `KIMI_PLUGIN_CC_NODE_BIN` to override.
-- **bun** — only for contributor tooling. Not required at runtime.
-
-Still on Python Kimi CLI? Stay on the [v0.4.0 tag](https://github.com/linxule/kimi-plugin-cc/releases/tag/v0.4.0) (or its `v0.4-maintenance` branch, once published) — see [docs/migration.md](./docs/migration.md).
-
-## Development
+Restart Claude Code, then bootstrap the safety hook once:
 
 ```bash
-bun run check    # rebuild dist/, typecheck, run the full test suite, drift gate
-bun test <path>  # run a single test file
+/k3:setup
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributor workflow and [AGENTS.md](./AGENTS.md) for the architecture invariants coding agents should preserve.
+Verify it is actually enforcing, not just installed:
 
-## How this was built
+```bash
+/k3:setup --check
+```
 
-This plugin was built through the same multi-model collaboration it enables — Claude, Kimi, and Codex working together at every stage from design through pre-public audit. The v1.0 cutover (PRs 1-5) used the same pattern: each PR landed with paired Claude code-reviewer + Codex codex-rescue adversarial reviews, contradictions resolved against the kimi-code source, and convergent findings applied before commit.
+### Coexistence with the upstream plugin
+
+The commands live under `/k3:*` and the upstream plugin uses `/kimi:*`, so both can be installed
+side by side without colliding.
+
+## Platform support
+
+| Platform | Status |
+|---|---|
+| Windows 11 | **Tested.** Enforcement verified end to end inside a real `kimi-code` session |
+| macOS | **Supported, not tested by us.** Every change we made is gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream v1.9.8, which upstream certifies against `kimi-code` 0.30.0 |
+| Linux | Same as macOS |
+
+If you are the first to run this on macOS or Linux, we would like to hear about it either way.
+
+## Known limits, stated plainly
+
+**The hook fails open.** Enforcement is an external hook process, and the contract treats any exit
+code other than 2 as "allow". If that process crashes or times out, the operation goes through.
+This is upstream debt (`H1`) and it is not fixed here. The root cause is outside both projects:
+`kimi -p` hard-codes `permission: auto` and exposes no sandbox flag, so an external hook is the only
+lever available. For contrast, the official Codex plugin passes `sandbox: "read-only"` as a protocol
+parameter, so a failed call yields no review rather than an unguarded one.
+
+**Read-only means "does not write", not "reads only what you handed it".** The hook blocks writes.
+It does not confine what the model may read, and whatever is read is sent to the vendor. This is
+equally true of every plugin of this kind, including the official Codex one.
+
+**So: point it at a working directory, not at a tree that holds secrets or client data.**
+
+See [SECURITY.md](./SECURITY.md) for the details and for what we did verify.
+
+## What this fork changes
+
+Three Windows fixes, all gated behind `win32`, none of which alter behaviour on macOS or Linux:
+
+1. **The hook command is double-quoted.** It was quoted POSIX-style with single quotes, which
+   `cmd.exe` does not recognise, so the hook never launched. Since any exit code other than 2 means
+   "allow", enforcement was silently inert while `/kimi:setup --check` still reported `Probe: ok`.
+   Measured with the same command string: `/bin/sh` exits 2, `cmd.exe` exits 255.
+2. **Hook paths are normalised.** The path derived from `CLAUDE_PLUGIN_ROOT` contains backslashes on
+   Windows, and the TOML safety check rejects backslashes, so every Windows user had to set
+   `KIMI_PLUGIN_CC_HOOK_SCRIPT` by hand. Setup now works with no override.
+3. **The Windows shell probe runs.** It used to return "skipped (Windows)" as a *success*. We
+   measured how `kimi-code` actually spawns the hook on Windows (`node.exe <- cmd.exe <- kimi.exe`,
+   via `ComSpec`) and the probe now reproduces that path.
+
+These are offered upstream as pull requests. If they land there, use the upstream plugin.
+
+## Uninstall
+
+```bash
+/k3:setup --uninstall
+/plugin uninstall k3@brilia-k3-marketplace
+```
+
+`--uninstall` removes the managed hook block from `~/.kimi-code/config.toml`. Your Kimi Code login
+is untouched.
 
 ## Acknowledgments
 
-- **[Kimi](https://kimi.ai)** (Moonshot AI) — the reasoning model this plugin delegates to, and a design/review collaborator throughout development
-- **[Codex](https://openai.com/index/codex/)** (OpenAI) — architecture consults, parallel implementation, and independent pre-ship reviews via the [codex-plugin-cc](https://github.com/openai/codex-plugin-cc) companion plugin
-- **[Claude Code](https://claude.ai/code)** (Anthropic) — the host environment, primary development agent, and the platform this plugin extends
+All the engineering here is [Xule Lin](https://github.com/linxule)'s. The job store, the cancellation
+handling, the approval policy, the stream parser and the safety architecture are his work. We fixed
+three Windows papercuts and wrote this README.
 
 ## License
 
-[Apache-2.0](./LICENSE)
+Apache-2.0, same as upstream. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).

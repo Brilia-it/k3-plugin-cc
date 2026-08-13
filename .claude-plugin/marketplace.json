@@ -1,15 +1,15 @@
 {
-  "name": "kimi-marketplace",
+  "name": "brilia-k3-marketplace",
   "owner": {
-    "name": "linxule"
+    "name": "BRILIA"
   },
   "metadata": {
-    "description": "Single-plugin marketplace for kimi-plugin-cc. v1.x targets kimi-code; v0.4.x users who need the Python Kimi CLI Wire transport should pin to the v0.4.0 tag (or the v0.4-maintenance branch cut from that tag, once published).",
-    "version": "1.9.8"
+    "description": "UNOFFICIAL community fork of linxule/kimi-plugin-cc, maintained by BRILIA. Not affiliated with, endorsed by, or supported by Moonshot AI or the upstream author. Adds Windows fixes: the hook command is quoted for cmd.exe, hook paths are normalised so setup works without a manual override, and the Windows shell probe runs instead of reporting success without running.",
+    "version": "1.9.8-brilia.1"
   },
   "plugins": [
     {
-      "name": "kimi",
+      "name": "k3",
       "source": "./"
     }
   ]

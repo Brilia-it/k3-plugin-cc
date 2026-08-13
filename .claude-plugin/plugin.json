@@ -1,13 +1,13 @@
 {
-  "name": "kimi",
-  "description": "Claude Code plugin that delegates read-only review, challenge, free-form ask, and write-capable rescue work to the local kimi-code CLI. Includes an opt-in stop-time review gate and a PreToolUse hook that enforces per-command safety.",
-  "version": "1.9.8",
-  "homepage": "https://github.com/linxule/kimi-plugin-cc",
-  "repository": "https://github.com/linxule/kimi-plugin-cc",
+  "name": "k3",
+  "description": "UNOFFICIAL fork by BRILIA. Use Kimi K3 from inside Claude Code for code reviews or to delegate tasks, through your own Kimi Code subscription. Not affiliated with or endorsed by Moonshot AI. Forked from linxule/kimi-plugin-cc (Apache-2.0) with Windows fixes.",
+  "version": "1.9.8-brilia.1",
+  "homepage": "https://github.com/Brilia-it/k3-plugin-cc",
+  "repository": "https://github.com/Brilia-it/k3-plugin-cc",
   "license": "Apache-2.0",
-  "keywords": ["kimi", "kimi-code", "review", "code-review", "delegation", "multi-model"],
+  "keywords": ["k3", "kimi-code", "review", "code-review", "delegation", "multi-model", "unofficial-fork"],
   "author": {
-    "name": "linxule"
+    "name": "BRILIA"
   },
   "commands": [
     "./commands/ask.md",
