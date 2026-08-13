@@ -208,7 +208,13 @@ export function resolveHookScriptPath(env) {
                 `Use an absolute path so the verifier and the runtime spawn refer to the same file.`,
             ].join(" "), "setup.hook-script-path", { details: { override } });
         }
-        return normalizeHookPathSeparators(override);
+        // Deliberately NOT normalized. The override is supplied verbatim by the
+        // operator and is compared byte-for-byte against the managed block by the
+        // verifier; rewriting it here would make a block written with the operator's
+        // own spelling read as drift. Normalization exists to fix the path WE
+        // derive (below), which is the one that made the plugin uninstallable on
+        // Windows. An operator using the override can spell it unambiguously.
+        return override;
     }
     const here = fileURLToPath(import.meta.url);
     const parts = here.split(path.sep);
