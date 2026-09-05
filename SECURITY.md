@@ -14,7 +14,8 @@ model makes is auto-approved. The hook is not defence in depth. **It is the only
 
 ## What we verified, and how
 
-Measured on Windows 11, `kimi-code` 0.30.0, Node v22.20.0.
+Measured on Windows 11, `kimi-code` 0.30.0, Node v22.20.0. Last re-run on **2026-09-05**,
+against the exact commit published here.
 
 **Nine write vectors, all denied**, on `cmd.exe` and on `sh`: write via the file tool, via `Bash`,
 via PowerShell, via shell redirection, from a child process, edit, rename, delete, and an absolute
@@ -74,5 +75,14 @@ granted to a third-party model, because that is what they are.
 
 ## Reporting
 
-Open an issue. If it involves credentials or client data, describe the shape of the problem without
-pasting the data: a log pasted in a hurry is the most common way sensitive paths leak.
+**If it is a vulnerability, report it privately**, through
+[GitHub private vulnerability reporting](https://github.com/Brilia-it/k3-plugin-cc/security/advisories/new)
+on this repository. Do not open a public issue for one: a public issue tells everyone else first.
+
+For anything that is not a vulnerability, a normal issue is the right place.
+
+Either way, if it involves credentials or client data, describe the **shape** of the problem without
+pasting the data. A log pasted in a hurry is the most common way sensitive paths leak.
+
+This is an unofficial fork: report here, not to Moonshot AI and not to the upstream author. If the
+problem turns out to be in upstream code, we will take it there ourselves and credit you.

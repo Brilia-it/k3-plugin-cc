@@ -35,6 +35,33 @@ it from the workflow they already have.
   `kimi --version`.
 - **Node.js 22.5 or later** (the runtime uses the built-in `node:sqlite`).
 
+### Before you install: what Moonshot's terms say about this
+
+Read this first, because it is your account, not ours.
+
+This plugin drives the CLI in **print mode** (`kimi -p`), which is non-interactive. Moonshot's
+[Kimi Code Community Guidelines](https://www.kimi.com/code/docs/en/kimi-code/community-guidelines.html)
+say, verbatim:
+
+> Kimi Code subscriptions are for personal interactive use only. Using it for non-interactive
+> purposes - such as scripted batch execution or data annotation pipelines - goes beyond normal use.
+
+The stated consequence for going beyond normal use is that Moonshot "will review the situation
+first and take appropriate action - such as limiting concurrent access", which surfaces as a
+`You've reached your concurrent request limit` error. (The guidelines also describe account
+suspension, but that clause is about buying through unauthorised channels, not about this.)
+
+**The vendor's own documentation points the other way**, and we report that because it is true, not
+because it settles anything: the CLI reference says that "when running a single prompt in a script
+or CI environment, use `-p`", and that in that mode permissions default to `auto`. So the product
+documents the flag for exactly the use the guidelines call abnormal.
+
+**Our reading, which is ours and not legal advice**: driving one review at a time, by hand, from
+your own editor is a long way from a batch pipeline, and that is how this plugin is meant to be
+used. Wrapping it in a cron job, a queue or a fan-out is not, and we do not support it. Verify the
+guidelines yourself before deciding: they can change, and the version above was checked on
+2026-09-05.
+
 ## Install
 
 Add the marketplace in Claude Code:
@@ -92,6 +119,39 @@ equally true of every plugin of this kind, including the official Codex one.
 **So: point it at a working directory, not at a tree that holds secrets or client data.**
 
 See [SECURITY.md](./SECURITY.md) for the details and for what we did verify.
+
+## What to expect in practice
+
+Notes from running this daily since 2026-08-14, on **Windows 11, `kimi-code` 0.30.0, Node 22.20**.
+Each item says how well we know it. Behaviour tied to a version will drift as that version moves.
+
+| What happens | How we know |
+|---|---|
+| **The monthly quota runs out.** `403 You've reached your usage limit for this billing cycle`, and it stays until the cycle rolls over. It is not the hook, not your `PATH`, not a truncated reply: it is billing. | reproduced |
+| **`review` dies on a dirty tree** with `CLI_SPAWN_FAILED` / `spawn ENAMETOOLONG`. The companion puts the whole diff in the spawn arguments, and Windows has a command-line length limit. Point `ask` at the files instead, or commit and stash first. | reproduced |
+| **A run can stop early and still look finished.** Two ways: the host that spawned it hits its own timeout, or `API Error: Connection closed mid-response`. Either way the partial output is well-formed and reads like an answer. **Treat a reply as valid only if it reaches the last section you asked for.** Ask for seven numbered points and count them. | reproduced, both ways |
+| **`-p` and `--auto` refuse to combine**: `Cannot combine --prompt with --auto`. Matches the vendor's CLI reference. | reproduced |
+| **`KIMI_BINARY_UNAVAILABLE` blames your `PATH` and is usually wrong.** The common cause is the hook not being installed. Run `/k3:setup` once per machine. | reproduced |
+| **Long prompts can produce the answer twice** in one stdout. The second pass is usually the more complete one. | observed, cause unknown |
+| **stderr carries the reasoning trace** (tens of KB), **stdout carries the answer.** Read the wrong stream and it looks like it said nothing. | reproduced |
+| **Sessions resume.** Every run ends with `To resume this session: kimi -r session_...`. | reproduced |
+
+### What it is actually good for
+
+Adversarial review. On one product review it found a real arithmetic error and two hidden
+assumptions that neither Claude nor three subagents had caught. **In that same review, 2 of its 6
+claims did not survive checking.**
+
+Both halves are the point: it is a second pair of eyes, not an oracle. Every claim it makes is worth
+checking, and roughly a third of them will not hold. Used that way it earns its keep. Used as an
+authority it will cost you.
+
+### Which versions this is
+
+This fork is built on upstream **v1.9.8** (commit `145cf80`). Upstream has since moved to **v1.9.13**,
+so you are not getting their latest: you are getting v1.9.8 plus three Windows fixes. Enforcement was
+last measured against `kimi-code` **0.30.0** on **2026-09-05**. If you run a newer CLI, the measurements
+above still describe 0.30.0, not what you have.
 
 ## What this fork changes
 
