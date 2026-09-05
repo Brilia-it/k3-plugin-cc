@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// Changes are Windows-only and gated behind `process.platform === "win32"`.
+// See NOTICE and README.md. Section 4(b) of the License requires this notice.
+
 import { describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { realpathSync } from "node:fs";

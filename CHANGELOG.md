@@ -2,6 +2,26 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.9.8-brilia.1 — 2026-09-05 (fork)
+
+**Unofficial BRILIA fork.** Forked from upstream v1.9.8 (commit `145cf80`). Everything below this
+entry is upstream history by Xule Lin; this entry covers only what the fork adds. Three Windows
+fixes, all gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream:
+
+- **The hook command is double-quoted** so `cmd.exe` can launch it. It was quoted POSIX-style, so on
+  Windows the hook never started; since any exit code other than 2 means "allow", enforcement was
+  silently inert while `--check` still reported `Probe: ok`.
+- **Hook paths are normalised.** `CLAUDE_PLUGIN_ROOT` yields backslashes on Windows and the TOML
+  safety check rejects them, so setup previously required setting `KIMI_PLUGIN_CC_HOOK_SCRIPT` by hand.
+- **The Windows shell probe runs** instead of returning "skipped (Windows)" as a success.
+
+Also: fork identity in `.claude-plugin/` (plugin `k3`, marketplace `brilia-k3-marketplace`), `NOTICE`
+with upstream attribution, Apache-2.0 section 4(b) modification notices in every changed source file,
+and a rewritten `README.md`/`SECURITY.md`. No behaviour change on macOS or Linux, and no change to any
+hook, permission, concurrency, budget, confinement or allowlist policy.
+
+Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the upstream plugin.
+
 ## 1.9.8 — 2026-08-12
 
 **Certifies kimi-code 0.35.0 on the forced legacy-v1 path.** Native agent-core-v2 remains fail-closed disabled; no hook, permission, concurrency, budget, confinement, or allowlist policy changed.

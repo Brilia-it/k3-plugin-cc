@@ -108,7 +108,11 @@ Three Windows fixes, all gated behind `win32`, none of which alter behaviour on 
    measured how `kimi-code` actually spawns the hook on Windows (`node.exe <- cmd.exe <- kimi.exe`,
    via `ComSpec`) and the probe now reproduces that path.
 
-These are offered upstream as pull requests. If they land there, use the upstream plugin.
+These have **not** been proposed upstream yet, so the upstream project is not aware of them and
+is not responsible for them. We intend to open them as pull requests against
+[linxule/kimi-plugin-cc](https://github.com/linxule/kimi-plugin-cc). If they land there, use the
+upstream plugin instead of this fork: it is the same code with one fewer maintainer between you
+and it.
 
 ## Uninstall
 
