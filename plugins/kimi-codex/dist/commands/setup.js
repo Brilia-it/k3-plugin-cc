@@ -1,3 +1,6 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// Changes are Windows-only and gated behind `process.platform === "win32"`.
+// See NOTICE and README.md. Section 4(b) of the License requires this notice.
 // Managed-block installer for the kimi-code PreToolUse hook.
 //
 // Replaces the v0.4 Wire-based setup probe. In v1.0 the load-bearing
@@ -852,18 +855,40 @@ async function probeHookDirect(hookScriptPath, env) {
     return await spawnProbe(nodeBin, [hookScriptPath], env, `direct probe via ${nodeBin}`);
 }
 async function probeHookViaShell(hookScriptPath, env) {
-    if (process.platform === "win32") {
-        // The hook runner shells out via `/bin/sh -c` per agent-core; on
-        // Windows the entire kimi-code launcher is unsupported. Skip the
-        // shell probe so we don't false-fail on a platform we don't run on.
-        return { ok: true, reason: "shell probe skipped (Windows)" };
-    }
     // Reuse the exact command string the managed block wrote into
     // kimi-code's config so probe and runtime cannot drift.
     const shellCommand = buildHookShellCommand(hookScriptPath, env);
+    if (process.platform === "win32") {
+        // BRILIA fork: this branch used to `return { ok: true, reason: "shell probe
+        // skipped (Windows)" }`, on the stated assumption that kimi-code shells out
+        // via `/bin/sh -c` and that "on Windows the entire kimi-code launcher is
+        // unsupported". That assumption is stale, and returning `ok: true` for a
+        // check that never ran is a false positive by construction: it reported
+        // "Probe: ok" while enforcement was inert.
+        //
+        // Measured on kimi-code 0.30.0 / Windows 11 by instrumenting the hook and
+        // walking the process tree during a REAL session:
+        //
+        //   parent_chain: node.exe <- cmd.exe <- kimi.exe
+        //   ComSpec:      C:\WINDOWS\system32\cmd.exe
+        //
+        // kimi-code spawns the hook through ComSpec on Windows. `shell: true`
+        // resolves to exactly that, so this reproduces the production path rather
+        // than approximating it. Passing the pre-quoted command as an argv element
+        // instead would make Node re-escape an already-quoted string and fail for a
+        // reason that belongs to the probe, not to the install.
+        return await spawnProbe(shellCommand, [], env, `shell probe via ComSpec (${env.ComSpec ?? "cmd.exe"})`, {
+            shell: true,
+        });
+    }
     return await spawnProbe("/bin/sh", ["-c", shellCommand], env, `shell probe via /bin/sh -c`);
 }
-function spawnProbe(command, args, env, label) {
+function spawnProbe(command, args, env, label, 
+/**
+ * Extra spawn options. Used by the Windows shell probe to run the command
+ * string through ComSpec, which is how kimi-code invokes the hook there.
+ */
+spawnOptions = {}) {
     const payload = JSON.stringify({
         hook_event_name: "PreToolUse",
         session_id: "kimi-plugin-cc-setup-probe",
@@ -882,6 +907,7 @@ function spawnProbe(command, args, env, label) {
                     KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
                 },
                 stdio: ["pipe", "pipe", "pipe"],
+                ...spawnOptions,
             });
         }
         catch (err) {
@@ -924,7 +950,9 @@ function spawnProbe(command, args, env, label) {
             else {
                 resolve({
                     ok: false,
-                    reason: `${label}: expected exit 2 with deny reason, got exit ${code ?? "<null>"}. stdout=${truncate(stdout, 120)} stderr=${truncate(stderrTrimmed, 200)}`,
+                    reason: `${label}: expected exit 2 with deny reason, got exit ${code ?? "<null>"}` +
+                        ` [${classifyProbeExit(code)}].` +
+                        ` stdout=${truncate(stdout, 120)} stderr=${truncate(stderrTrimmed, 200)}`,
                 });
             }
         });
@@ -942,6 +970,34 @@ function truncate(value, max) {
     if (value.length <= max)
         return value;
     return `${value.slice(0, max)}…`;
+}
+/**
+ * Name the likely cause behind a non-2 probe exit.
+ *
+ * Every non-2 exit already fails the probe, and that stays true: the hook
+ * contract treats anything other than 2 as ALLOW, so a probe that cannot prove
+ * a deny must never report success. What was missing is WHY. An operator (or an
+ * external tester filing an issue) staring at `exit 9009` has nothing to act on;
+ * "the shell could not find the interpreter" is actionable.
+ *
+ * The codes are the ones that actually occur in this path:
+ *   127   POSIX "command not found"
+ *   9009  the cmd.exe equivalent
+ *   1     the hook ran but errored, or the shell rejected the command shape
+ *   255   command malformed for the shell - the original single-quote bug
+ *   null  no exit code: killed by the timeout, i.e. a hang
+ */
+function classifyProbeExit(code) {
+    if (code === null)
+        return "hang: no exit code, killed by the probe timeout";
+    if (code === 127 || code === 9009) {
+        return "environment: the shell could not resolve the interpreter or the hook path";
+    }
+    if (code === 255)
+        return "command shape: the shell could not parse the managed command (quoting)";
+    if (code === 0)
+        return "no deny: the hook allowed a tool that the read-only policy must refuse";
+    return "unclassified: read stderr below";
 }
 // ----- Permission rules scan --------------------------------------------
 /**
