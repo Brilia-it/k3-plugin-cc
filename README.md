@@ -35,32 +35,38 @@ it from the workflow they already have.
   `kimi --version`.
 - **Node.js 22.5 or later** (the runtime uses the built-in `node:sqlite`).
 
-### Before you install: what Moonshot's terms say about this
+### Before you install: the terms, and an open question
 
-Read this first, because it is your account, not ours.
-
-This plugin drives the CLI in **print mode** (`kimi -p`), which is non-interactive. Moonshot's
+This plugin drives the CLI in print mode (`kimi -p`), which is non-interactive. Moonshot's
 [Kimi Code Community Guidelines](https://www.kimi.com/code/docs/en/kimi-code/community-guidelines.html)
-say, verbatim:
+say:
 
 > Kimi Code subscriptions are for personal interactive use only. Using it for non-interactive
-> purposes - such as scripted batch execution or data annotation pipelines - goes beyond normal use.
+> purposes — such as scripted batch execution or data annotation pipelines — goes beyond normal use.
 
-The stated consequence for going beyond normal use is that Moonshot "will review the situation
-first and take appropriate action - such as limiting concurrent access", which surfaces as a
-`You've reached your concurrent request limit` error. (The guidelines also describe account
-suspension, but that clause is about buying through unauthorised channels, not about this.)
+The stated consequence for going beyond normal use is that Moonshot will "review the situation first
+and take appropriate action — such as limiting concurrent access", which surfaces as a
+`You've reached your concurrent request limit` error. The guidelines also describe account
+suspension, but that clause is about buying through unauthorised channels and does not apply here.
 
-**The vendor's own documentation points the other way**, and we report that because it is true, not
-because it settles anything: the CLI reference says that "when running a single prompt in a script
-or CI environment, use `-p`", and that in that mode permissions default to `auto`. So the product
-documents the flag for exactly the use the guidelines call abnormal.
+**We cannot tell you whether your use of this plugin counts as interactive.** Moonshot's own CLI
+reference documents `-p` for running "a single prompt in a script or CI environment", and says that
+mode defaults to the `auto` permission policy. So one page documents the flag and another calls
+non-interactive use abnormal. The technical mode is not in doubt: `-p` is non-interactive. What is unclear is how a
+human-initiated plugin invocation is classified under a subscription, and only Moonshot can settle that, and we are not going to settle it for them by reading it in our favour.
 
-**Our reading, which is ours and not legal advice**: driving one review at a time, by hand, from
-your own editor is a long way from a batch pipeline, and that is how this plugin is meant to be
-used. Wrapping it in a cron job, a queue or a fan-out is not, and we do not support it. Verify the
-guidelines yourself before deciding: they can change, and the version above was checked on
-2026-09-05.
+What we can tell you plainly:
+
+- Every command that talks to the model goes through `kimi -p`. There is no interactive mode that
+  avoids it. (`setup`, `status`, `result`, `cancel` and `replay` never invoke `kimi -p` and never reach the
+  model.)
+- Some commands go considerably further from interactive use than a single review does. `/k3:pursue`
+  runs an autonomous multi-turn goal loop, and `/k3:swarm` fans out to parallel subagents. If the
+  distinction between interactive and automated matters to you, those are the ones to weigh.
+- If the answer matters for your account, ask Moonshot support before installing, or use an API plan
+  whose terms cover programmatic use.
+
+Checked against the live page on 2026-09-05. Terms change; check them yourself.
 
 ## Install
 
@@ -123,18 +129,18 @@ See [SECURITY.md](./SECURITY.md) for the details and for what we did verify.
 ## What to expect in practice
 
 Notes from running this daily since 2026-08-14, on **Windows 11, `kimi-code` 0.30.0, Node 22.20**.
-Each item says how well we know it. Behaviour tied to a version will drift as that version moves.
+Each item says how well we know it. Behaviour may differ on later versions.
 
 | What happens | How we know |
 |---|---|
-| **The monthly quota runs out.** `403 You've reached your usage limit for this billing cycle`, and it stays until the cycle rolls over. It is not the hook, not your `PATH`, not a truncated reply: it is billing. | reproduced |
-| **`review` dies on a dirty tree** with `CLI_SPAWN_FAILED` / `spawn ENAMETOOLONG`. The companion puts the whole diff in the spawn arguments, and Windows has a command-line length limit. Point `ask` at the files instead, or commit and stash first. | reproduced |
-| **A run can stop early and still look finished.** Two ways: the host that spawned it hits its own timeout, or `API Error: Connection closed mid-response`. Either way the partial output is well-formed and reads like an answer. **Treat a reply as valid only if it reaches the last section you asked for.** Ask for seven numbered points and count them. | reproduced, both ways |
+| **Our subscription hit its cycle quota.** `403 You've reached your usage limit for this billing cycle`, and it stayed until the cycle rolled over. When it happens it is not the hook, not your `PATH`, and not a truncated reply: it is billing. | happened to us |
+| **On Windows, `review` can fail on a large enough diff**, with `CLI_SPAWN_FAILED` / `spawn ENAMETOOLONG`. The companion puts the diff into the spawn arguments and Windows caps command-line length, so it is the size of the diff that breaks it, not the mere presence of uncommitted work. A small dirty tree is fine. Remedy: stash what is unrelated, or point `ask` at the specific files. | reproduced |
+| **A run can stop early and still look finished.** Two ways: the host that spawned it hits its own timeout, or `API Error: Connection closed mid-response`. Either way the partial output is well-formed and reads like an answer. **As a completeness check, confirm it reaches the last section you asked for.** Ask for seven numbered points and count them. Reaching the end does not make an answer right, but stopping short makes it certainly partial. | reproduced, both ways |
 | **`-p` and `--auto` refuse to combine**: `Cannot combine --prompt with --auto`. Matches the vendor's CLI reference. | reproduced |
-| **`KIMI_BINARY_UNAVAILABLE` blames your `PATH` and is usually wrong.** The common cause is the hook not being installed. Run `/k3:setup` once per machine. | reproduced |
-| **Long prompts can produce the answer twice** in one stdout. The second pass is usually the more complete one. | observed, cause unknown |
+| **`KIMI_BINARY_UNAVAILABLE` is a classification, not a diagnosis.** The wrapper maps certain spawn failures to it, normally meaning the CLI could not be found or executed; other things can fail a spawn too, `ENAMETOOLONG` above among them. We hit it once with `kimi` demonstrably on `PATH`, and `/k3:setup` cleared it. Cause never established, so: try `/k3:setup` before you go hunting your `PATH`. | one occurrence, cause unknown |
+| **Long prompts have produced the answer twice** in one stdout. Where we saw it, the second pass was the fuller one. We have not counted often enough to call that a rule. | observed a few times, cause unknown |
 | **stderr carries the reasoning trace** (tens of KB), **stdout carries the answer.** Read the wrong stream and it looks like it said nothing. | reproduced |
-| **Sessions resume.** Every run ends with `To resume this session: kimi -r session_...`. | reproduced |
+| **Sessions can be resumed.** Our runs ended with a `To resume this session: kimi -r session_...` line. | seen on every run we kept |
 
 ### What it is actually good for
 
@@ -142,16 +148,17 @@ Adversarial review. On one product review it found a real arithmetic error and t
 assumptions that neither Claude nor three subagents had caught. **In that same review, 2 of its 6
 claims did not survive checking.**
 
-Both halves are the point: it is a second pair of eyes, not an oracle. Every claim it makes is worth
-checking, and roughly a third of them will not hold. Used that way it earns its keep. Used as an
-authority it will cost you.
+That is one case and not an error rate, so do not read a percentage into it. Both halves are the
+point: it is a second pair of eyes, not an oracle. Check what it tells you. Used that way it earns
+its keep; used as an authority it will cost you.
 
 ### Which versions this is
 
 This fork is built on upstream **v1.9.8** (commit `145cf80`). Upstream has since moved to **v1.9.13**,
-so you are not getting their latest: you are getting v1.9.8 plus three Windows fixes. Enforcement was
-last measured against `kimi-code` **0.30.0** on **2026-09-05**. If you run a newer CLI, the measurements
-above still describe 0.30.0, not what you have.
+so you are not getting their latest: you are getting v1.9.8 plus three Windows fixes. Newer upstream releases have been tested
+against newer `kimi-code` builds; this fork's Windows enforcement was last exercised locally
+against `kimi-code` **0.30.0**, on **2026-09-05**. If you run a newer CLI, the measurements above still
+describe 0.30.0, not what you have.
 
 ## What this fork changes
 
