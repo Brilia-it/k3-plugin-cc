@@ -3,6 +3,8 @@
 **Approved:** 2026-08-28
 **Current production state:** native v2 disabled; every model-spawning operation is forced to `legacy-v1`.
 
+For the dated upstream evidence and follow-up, see [Native v2 status](native-v2-status.md).
+
 This contract defines what must be true before kimi-plugin-cc can route any
 production operation to kimi-code's native `agent-core-v2` engine. It also
 defines the provenance that must survive process, background-worker, job-store,

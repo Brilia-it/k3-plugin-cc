@@ -1,7 +1,7 @@
 // Stream-JSON parser for `kimi -p --output-format stream-json`.
 //
 // Canonical record shapes (verified against kimi-code source at
-// apps/kimi-code/src/cli/run-prompt.ts — `PromptJsonWriter` emits one JSON
+// apps/kimi-code/src/cli/prompt-render.ts — `PromptJsonWriter` emits one JSON
 // object per line via `JSON.stringify(message) + '\n'`):
 //
 //   {"role":"assistant","content":"..."}
@@ -135,7 +135,9 @@
 //     the MCP structured-content and error-code changes shift only prose
 //     inside opaque tool content strings), and 2026-09-02 covered 0.40.0
 //     (wire/session scope 0 bytes; run-prompt.ts absent from the diff). The
-//     legacy-v1 writer remains compatible through 0.40.0;
+//     2026-09-06 covered 0.41.0 (v1 core, prompt-render.ts, goal-prompt.ts,
+//     and prompt-session.ts unchanged; exact-binary smoke 12/0, 55 assertions).
+//     The legacy-v1 writer remains compatible through 0.41.0;
 //     custom profiles can change content/tools but
 //     not the NDJSON envelope. In 0.33.0 native v2 became the unflagged default,
 //     so v1.9.6 forces KIMI_CODE_LEGACY_FLAG=1 in every accepted child while
@@ -252,7 +254,7 @@ export interface TurnStepRetryingRecord {
  * expected v2 line out of the diagnostics log. An upstream default flip is now
  * a release-blocking safety event, not a parser-only non-event: the refusal gate
  * and plan-order audit must be revisited first. Observed at
- * @moonshot-ai/kimi-code 0.24.x → 0.40.0; `version` is the kimi-code semver.
+ * @moonshot-ai/kimi-code 0.24.x → 0.41.0; `version` is the kimi-code semver.
  */
 export interface SystemVersionRecord {
   readonly role: "meta";

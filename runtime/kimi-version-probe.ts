@@ -1237,6 +1237,23 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   // (patchBytes=306; user tree clean; worktree removed), and denied the
   // non-vacuous out-of-root coder write. Reports 117-120; monitor 2026-09-02.
   { major: 0, minor: 40 },
+  // 0.41.0 certified 2026-09-06; exact release commit 95478e8c.
+  // Compared with 0.40.0: CLI prompt mode, permission, hooks, wire/session,
+  // and bootstrap/config are 0 bytes; the entire v1 core is unchanged.
+  // SDK suggestFiles is additive (v1 returns undefined), plus a comment edit.
+  // Shared prompt-render/goal-prompt/prompt-session are also unchanged.
+  // Env-only legacy selection, the two-entry v1 flag registry, hook index 0,
+  // any-block-wins aggregation, tool input keys and trusted-root confinement
+  // remain load-bearing. No parser, permission or engine-routing change.
+  // Native v2 is NOT certified: plan still precedes external hooks
+  // (index.ts:329/341); planService.ts:110 final-allows the exact plan file.
+  // staleGuard and the old Permission.md are removed; auto-mode dangerous
+  // command checks are skipped. None establishes external-hook precedence.
+  // Exact same-day monitor smoke: 12 pass / 0 fail / 55 assertions, 383.88s.
+  // Fresh v2 reproduction: hook blocks Glob, plan Write bypasses it; v1
+  // control blocks Write. Reused evidence predates only this boundary/docs
+  // patch, not a behavior change. Reports 121-125; monitor 2026-09-06.
+  { major: 0, minor: 41 },
 ];
 
 export interface KimiVersionProbeOk {

@@ -2,15 +2,51 @@
 
 How to verify a new kimi-code release against kimi-plugin-cc without breaking the safety guarantees we ship.
 
-This document captures the routine that ran on 2026-05-27 for `@moonshot-ai/kimi-code@0.4.0` (reports 31-35 in `.claude/kimi-code-research/reports/`, commit `b67263c`, tag `compat-verified-kimi-code-0.4.0`). Repeat it whenever a new kimi-code minor or major lands. The most recent minor worked example is the 2026-09-02 0.40.0 certification (reports 117-120: two Opus reviewers, a Codex adversary, synthesis; same-day catch-up after an auth-blocked monitor smoke); the 2026-08-29 exact-0.39.1 patch check is the most recent patch-checkup example.
+This document captures the routine that ran on 2026-05-27 for `@moonshot-ai/kimi-code@0.4.0` (reports 31-35 in `.claude/kimi-code-research/reports/`, commit `b67263c`, tag `compat-verified-kimi-code-0.4.0`). Repeat it whenever a new kimi-code minor or major lands. The most recent minor worked example is the 2026-09-06 0.41.0 certification (reports 121-125: hook, stream/bootstrap, CLI, adversarial, synthesis; same-day monitor smoke reused for a boundary-only release); the 2026-08-29 exact-0.39.1 patch check is the most recent patch-checkup example.
 
-## Current certified boundary (2026-09-02)
+## Current certified boundary (2026-09-06)
 
-The plugin is certified through `@moonshot-ai/kimi-code@0.40.0` on the forced legacy-v1 path. The 0.39.1→0.40.0 comparison (48 commits) is 0 bytes for permission, hooks, and wire/session; CLI prompt mode is `--yolo`/`--auto` help text plus new top-level `fork`/`session` subcommands (off the `-p` path); bootstrap/config is one additive line (`ModelAliasBaseSchema.protocol` widens to `'anthropic' | 'openai_responses'`); v1 tools/SDK is additive telemetry/session-list/tower plumbing with tool schemas, kaos, and the v1 `createKimiHarness` entry point unchanged. The exact 0.40.0 temporary binary passed `bun run smoke:real` with **12 pass / 0 fail / 55 assertions in 383.45s** (the morning's 3/9 red was the operator-auth false alarm below — `auth.login_required`, `records=[]` — cleared once operator auth was valid again: an isolated-home `kimi -p` probe answered `OK` before the re-run). Reports 117-120; evidence in `.claude/kimi-code-research/daily-monitor/2026-09-02-upstream-monitor.md`.
+The plugin certifies `@moonshot-ai/kimi-code@0.41.0` on forced legacy-v1
+(release commit `95478e8c7ba248fd2470d5bb151555ec7fedd19d`). Compared with
+0.40.0, CLI prompt mode, permission, hooks, wire/session, and bootstrap/config
+are 0-byte diffs; the entire v1 core and kaos are unchanged. The 3,933-byte SDK
+diff adds `suggestFiles` (v1 returns `undefined`) and changes a comment.
+The shared `prompt-render.ts`, `goal-prompt.ts`, and `prompt-session.ts` are also
+unchanged. Reports 121–125 provide the independent reviews and synthesis.
 
-**Audit-checklist additions from 0.40.0 (re-verify each release):** (1) engine selection reads only `KIMI_CODE_LEGACY_FLAG` and never config — confirm no `config.toml` key (incl. `[experimental]` tables, which can enable registered v1 flags without the env master switch) reaches `isKimiV2Enabled()`; (2) the v1 flag registry stays limited to flags that cannot touch hooks/permissions/cwd (0.40.0: `tool-select`, `secondary-model`); (3) #3444 removed native-v2 `RuntimeWorkspaceView.resolve()`'s root assertion (v2 Bash may run with an out-of-workspace `cwd`) — confirm it stays v2-only with no shared code in v1 or kaos; (4) re-run `.claude/kimi-code-research/upstream-v2-hook-coverage/repro-0391/repro.ts both` on the candidate binary — a v2 run that writes the plan file with zero hook payloads proves the v2 refusal is load-bearing, not vacuous (0.40.0: still reproduces).
+The September 6 monitor ran the exact temporary 0.41.0 binary: **12 pass /
+0 fail / 55 assertions in 383.88s**, including fresh/resumed forced-v1 pinning,
+write denials, pursue/swarm enforcement, confinement, and cleanup. This release
+reuses that same-day evidence: its code changes only the certified boundary
+and version, with a known-minor assertion and comments/docs/generated updates.
+It does not introduce behavior absent from the smoke's source snapshot.
+Post-edit review and the full `bun run check` gate remain required.
 
-Native agent-core-v2 remains fail-closed disabled: accepted children force `KIMI_CODE_LEGACY_FLAG=1`, truthy `KIMI_CODE_EXPERIMENTAL_FLAG` values refuse before spawn, and the plan-file final-allow ordering gap is unchanged in exact 0.40.0 (plan feature `index.ts:330` before externalHooks `:338`; sole `event.allow()` at `planService.ts:112`; the new v2 dangerous-command ask policy is skipped under `nonInteractive` and is not an ordering fix). `packages/agent-core-v2/docs/Permission.md` still reserves `event.allow()` for the plan-file guard and lists listener ordering as an open design question; the defect is filed as MoonshotAI/kimi-code#3431 (2026-09-01, live-repro bug report; reference fix held on the local clone branch `feat/external-guard-phase-main` until a maintainer `/approve`); no released ordering API exists yet. 0.39.0's experimental tower mode and subagent fork remain v2-only and gated behind that same defect — neither adds a new final-allow listener. Track #3431 for the ordering fix (#2376, the KAP eager-index PR, was closed unlinked on 2026-09-01 and can be refiled behind an approved issue); do not use `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK` as a repair path. Operator-facing (non-contract) notes from 0.39.0: the experimental Remote Control tunnel can patch `hooks` via `POST /api/v1/config` (caught fail-closed by per-spawn byte-exact verification — altered entries refuse as drift, removed ones as not-installed) and forwards the OAuth refresh token to the hard-coded relay `wss://code-rc.kimi.com`. The detailed 0.39.0 evidence is in reports 111-116 and the 2026-08-27 daily monitor; the exact-0.39.1 patch evidence is in the 2026-08-29 daily monitor.
+**Re-verify each release:** (1) engine selection reads only
+`KIMI_CODE_LEGACY_FLAG`, with no config selector defeating the pin; (2) the v1
+flag registry remains limited to flags that cannot alter hooks, permissions,
+or cwd (0.41.0: `tool-select`, `secondary-model`); (3) native-v2 Bash's separate
+`resolve()`/`assertAllowed()` behavior remains outside v1 and kaos; (4) run the
+standing `repro-0391/repro.ts both` on the candidate. Count hook payloads for the
+specific plan-file `Write`, not all calls: the liveness-control `Glob` must
+invoke the deny-all hook in the same session.
+
+Native v2 remains refused. Exact 0.41.0 still imports plan before external
+hooks (`index.ts:329/341`), and `planService.ts:110` remains the sole final
+`event.allow()`. The same-day fresh-default-plan reproduction wrote a 658-byte
+plan file without a Write hook payload; the separate v1 control blocked Write.
+This is not a new restored-v2-plan lifecycle test. Both fresh and restored-plan
+proofs remain required before re-enabling v2.
+
+The 0.41.0 release removes `staleGuard` and deletes the old package
+`Permission.md` (#3481). That document's design discussion is historical;
+current ordering claims must cite released source. The dangerous-command
+policy now also skips auto mode; its exclusion from nonInteractive print
+already existed in 0.40.0, so this is not a newly lost print-mode protection.
+See [the dated v2 brief](native-v2-status.md) for released changes, the
+unreleased watchlist, and #3431 follow-up. No maintainer response or released
+external-hook precedence guarantee exists as of September 6; the reference
+fix remains held for `/approve`.
 
 ## When to run
 
@@ -54,7 +90,7 @@ the exact target release, post-edit review, `bun run check`, and clean diff
 checks.
 
 **Skip** for patch releases unless the changelog explicitly touches:
-- `apps/kimi-code/src/cli/run-prompt.ts` (stream-json output, session pinning)
+- `apps/kimi-code/src/cli/run-prompt.ts`, `prompt-render.ts`, `goal-prompt.ts`, or `prompt-session.ts` (stream-json output, goal summary, session pinning)
 - `packages/agent-core/src/session/hooks/` (live v1 hook engine since 0.5.0; retain the removed `agent/hooks/` path in cross-version diffs)
 - `packages/agent-core/src/agent/permission/` (policy queue ordering)
 - `apps/kimi-code/src/cli/commands.ts` / `options.ts` (argv surface)
@@ -82,9 +118,9 @@ These are the kimi-code surfaces kimi-plugin-cc consumes. If any one breaks, our
 | Hook **aggregation** across multiple hooks | `packages/agent-core/src/session/hooks/engine.ts` (`aggregateResults`/`blockDecision`) | **any-block-wins**: any result with `action:'block'` denies regardless of other hooks; an allow never pre-empts a block. Load-bearing since kimi-code 0.20.1 (#1127) — enabled kimi-code *plugins* can now contribute PreToolUse hooks merged into the `-p` session (`rpc/core-impl.ts` create+resume), so we are no longer the sole hook on the channel | implicit — this guarantees a plugin hook can't override our managed PreToolUse deny |
 | Plugin slash commands / command activation | `packages/agent-core/src/rpc/core-impl.ts`, `packages/agent-core/src/session/rpc.ts`, `packages/agent-core/src/session/prompt-metadata.ts`, `packages/agent-core/src/agent/index.ts` | Since kimi-code 0.21.0 (#1204), enabled kimi-code plugins can contribute slash commands activated by RPC/host UI. Re-confirm activation stays **host-initiated**, absent from the `apps/kimi-code/src/cli/` `-p` path, not registered as a model tool, and only macro-expands into prompt text whose later tool calls still pass through the index-0 hook | implicit — plugin-contributed slash commands must not become a model-reachable tool or a permission bypass |
 | Permission policy queue order | `packages/agent-core/src/agent/permission/policies/index.ts` | `PreToolCallHookPermissionPolicy` runs **before** `auto-mode-approve` / `yolo-mode-approve` | implicit — entire safety model assumes hook fires first |
-| Native-v2 veto-listener order | `packages/agent-core-v2/src/index.ts`, `agent/toolExecutor/beforeToolExecuteEvent.ts`, `features/plan/planService.ts`, `agent/externalHooks/externalHooksService.ts`, `session/externalHooks/externalHooksService.ts` | External PreToolUse must run before **every final `event.allow()`**, not merely before tool execution. 0.31.0 proved why: plan service registers before external hooks and final-allows its exact plan-file write; `default_plan_mode=true` reaches it on a fresh session. 0.33.0 made this engine the unflagged default. Until an exact release fixes the order, the plugin must keep native v2 unreachable through both explicit-selector refusal and a child-only legacy-v1 pin. | `runtime/cli-client.ts` refusal + `KIMI_CODE_LEGACY_FLAG=1`; `runtime/hooks/approval-policy.ts` denies `EnterPlanMode` as defense in depth |
+| Native-v2 veto-listener order | `packages/agent-core-v2/src/index.ts`, `agent/toolExecutor/beforeToolExecuteEvent.ts`, `features/plan/planService.ts`, `features/externalHooks/agent/agentExternalHooksService.ts` | External PreToolUse must run before **every final `event.allow()`**, not merely before tool execution. 0.31.0 proved why: plan service registers before external hooks and final-allows its exact plan-file write; `default_plan_mode=true` reaches it on a fresh session. 0.33.0 made this engine the unflagged default. Until an exact release fixes the order, the plugin must keep native v2 unreachable through both explicit-selector refusal and a child-only legacy-v1 pin. | `runtime/cli-client.ts` refusal + `KIMI_CODE_LEGACY_FLAG=1`; `runtime/hooks/approval-policy.ts` denies `EnterPlanMode` as defense in depth |
 | `-p` session bootstrap / permission-context construction | `packages/agent-core/src/rpc/core-impl.ts` (`createSessionWithOverrides` / `resumeSessionWithOverrides`), `packages/agent-core/src/config/workspace-local.ts` | `run-prompt.ts` only **delegates** to `createKimiHarness().createSession/resumeSession`; the harness impl is where the permission context is built and where project-local config (e.g. `.kimi-code/local.toml` `[workspace] additional_dir` → `additionalDirs`) is auto-loaded from disk at session start, on **all** transports incl. `-p` | implicit — what `additionalDirs`/session config holds before any policy runs decides which approve policies (e.g. `GitCwdWriteApprovePermissionPolicy`) could fire; the plugin's index-0 hook + single-root `runtime/rescue-approval.ts` must still bind first |
-| Stream-json output | `apps/kimi-code/src/cli/run-prompt.ts` (`PromptJsonWriter`, `writeResumeHint`) | NDJSON record shapes for assistant/tool/tool_result; `role:"meta", type:"session.resume_hint"` carries session id | `runtime/stream-json.ts` parser, `runtime/cli-client.ts` session pinning |
+| Stream-json output | `apps/kimi-code/src/cli/prompt-render.ts` (`PromptJsonWriter`, `writeResumeHint`), `goal-prompt.ts` (`goal.summary`), called by `run-prompt.ts` | NDJSON record shapes for assistant/tool/tool_result; `role:"meta", type:"session.resume_hint"` carries session id | `runtime/stream-json.ts` parser, `runtime/cli-client.ts` session pinning |
 | CLI argv | `apps/kimi-code/src/cli/commands.ts`, `options.ts` | `-p`, `-r <id>`, `--output-format stream-json`, `-m`, `--skills-dir` all accepted with current semantics | `runtime/cli-client.ts::buildArgs` |
 | Process / exit / lifecycle | `apps/kimi-code/src/cli/run-prompt.ts` and OS-level | stdout = stream-json only; stderr = humans-only; SIGTERM lands; process group enumerable | `runtime/cli-client.ts` cancellation; `runtime/background-spawn.ts` |
 
@@ -110,6 +146,9 @@ NEW='@moonshot-ai/kimi-code@<NEW_VERSION>'
 
 git diff "$PREV".."$NEW" -- \
   apps/kimi-code/src/cli/run-prompt.ts \
+  apps/kimi-code/src/cli/prompt-render.ts \
+  apps/kimi-code/src/cli/goal-prompt.ts \
+  apps/kimi-code/src/cli/prompt-session.ts \
   apps/kimi-code/src/cli/experimental-v2.ts \
   apps/kimi-code/src/cli/options.ts \
   apps/kimi-code/src/cli/commands.ts \

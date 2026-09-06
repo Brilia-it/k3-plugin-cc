@@ -2,6 +2,30 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.9.14 — 2026-09-06
+
+**Certifies kimi-code 0.41.0 on forced legacy-v1.** Model jobs on 0.41.x now
+pass the tested-minor gate. Native v2 remains disabled for every operation.
+
+- **Source audit: COMPAT-PRESERVED.** Four independent reviewers compared
+  exact 0.40.0 and 0.41.0. The v1 core, CLI prompt driver/shared writer, hooks,
+  permissions, session bootstrap/config, and kaos are unchanged. The SDK adds
+  `suggestFiles` (v1 returns `undefined`) and changes a comment.
+- **Runtime evidence:** the September 6 monitor's exact 0.41.0 smoke passed
+  **12 tests / 0 failures / 55 assertions in 383.88s**. This boundary/version
+  and documentation release reuses that same-day smoke; it changes no model
+  execution behavior. The known-minor assertion advances to 0.41; unknown-minor
+  refusal fixtures continue deriving the next boundary automatically.
+- **V2 evidence refreshed:** the exact 0.41.0 fresh-plan reproduction still
+  bypasses the hook on plan-file Write; v1 blocks it. `staleGuard` and the old
+  upstream `Permission.md` are removed in this release, so the docs distinguish
+  historical design evidence from current source. Auto-mode dangerous-command
+  checks are skipped, while their nonInteractive exclusion predates 0.41.0.
+  The [v2 brief](docs/native-v2-status.md) separates released changes from open
+  proposals and retains #3431 as the ordering blocker.
+- Claude/Codex version metadata and bundled runtime are regenerated. Release
+  gates: independent post-edit review and `bun run check`.
+
 ## 1.9.13 — 2026-09-02
 
 **Certifies kimi-code 0.40.0 on the forced legacy-v1 path.** Native agent-core-v2 remains fail-closed disabled; no hook, permission, concurrency, budget, confinement, or allowlist policy changed.
