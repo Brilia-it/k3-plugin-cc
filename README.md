@@ -164,11 +164,19 @@ its keep; used as an authority it will cost you.
 
 ### Which versions this is
 
-This fork is built on upstream **v1.9.8** (commit `145cf80`). Upstream has since moved to **v1.9.13**,
-so you are not getting their latest: you are getting v1.9.8 plus three Windows fixes. Newer upstream releases have been tested
-against newer `kimi-code` builds; this fork's Windows enforcement was last exercised locally
-against `kimi-code` **0.30.0**, on **2026-09-05**. If you run a newer CLI, the measurements above still
-describe 0.30.0, not what you have.
+This fork is built on upstream **v1.9.8** (commit `145cf80`), and its version number says so: the
+half before `-brilia.` is the upstream release we are built on, the half after counts our own
+changes.
+
+**You are not getting upstream's latest.** As of 2026-09-07 they are at **v1.9.14**, six releases
+ahead of our base. We check for new upstream releases weekly, so that gap is measured rather than
+assumed, but measuring it is not closing it: until we re-align, this is v1.9.8 plus three Windows
+fixes. For what changed in between, read
+[upstream's releases](https://github.com/linxule/kimi-plugin-cc/releases).
+
+Newer upstream releases have been tested against newer `kimi-code` builds. This fork's Windows
+enforcement was last exercised locally against `kimi-code` **0.30.0**, on **2026-09-05**. If you run
+a newer CLI, the measurements above still describe 0.30.0, not what you have.
 
 ## What this fork changes
 

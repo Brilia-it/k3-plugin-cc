@@ -1,10 +1,29 @@
 # Changelog
 
+> **How this fork is numbered.** `<upstream version>-brilia.<our version>`. The first half names the
+> upstream release this fork is built on, and moves only when we re-align to a newer one. The second
+> half counts our own changes on top. So `1.9.8-brilia.0.2.0` reads: upstream 1.9.8, our second
+> release. Upstream releases are checked weekly; when a newer one lands we evaluate it before moving
+> the first half.
+
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
-## 0.2.0 — (fork, based on upstream v1.9.8)
+## 1.9.8-brilia.0.2.0 — (fork)
 
-**Why this release exists.** A review of the published `0.1.0` (tagged `1.9.8-brilia.1`) found that we had shipped a
+- **Version numbers now name their upstream base.** The scheme is
+  `<upstream version>-brilia.<our version>`: `1.9.8-brilia.0.2.0` means upstream 1.9.8, our second
+  release. The previous form, `1.9.8-brilia.1`, was ambiguous about whose 1.9.8 it was, and in
+  semver terms it sorted *before* upstream 1.9.8 while actually being 1.9.8 plus our changes.
+  The base half is not decoration: an automated weekly check parses it out of the manifest and
+  compares it against upstream's releases, so a base left stale is caught rather than believed.
+- **Corrected a stale claim in the README.** It stated upstream was at v1.9.13. The first run of
+  that weekly check found v1.9.14, published 2026-09-06, and six releases between it and our base.
+  The README now carries the figure with the date it was true, and points at upstream's release
+  list for what changed. This is the second claim in two releases that was accurate when written
+  and wrong when read, which is the argument for measuring it on a schedule instead of restating it
+  from memory.
+
+**Why this release exists.** A review of the published `1.9.8-brilia.0.1.0` (tagged `1.9.8-brilia.1`) found that we had shipped a
 claim that was not true, and that we had renamed the slash commands to `/k3:*` while leaving the
 trademark in identifiers we distribute.
 
@@ -13,7 +32,7 @@ trademark in identifiers we distribute.
   grants no trademark rights — we had already written that in our own `NOTICE` without applying it to
   the agents. Second, agent names are how the model reaches this plugin, so ours and upstream's
   registered the *same* names: `kimi-review` from two plugins is a collision, not a coincidence.
-- **Corrected the coexistence claim.** `0.1.0` said both plugins "can be installed side by side
+- **Corrected the coexistence claim.** The first release said both plugins "can be installed side by side
   without colliding". That was false. Commands and agents no longer collide, but the safety hook
   still does: both write a managed block into the same `~/.kimi-code/config.toml` under a host id
   that identifies *which editor drives kimi-code*, not *which plugin*. Installed under `~/.claude/`,
@@ -30,7 +49,7 @@ written with the old marker becomes invisible to code looking for a new one: it 
 user's config, keep registering the hook, and stop being removable by `--uninstall`. That needs a
 migration path, so it gets its own release rather than being smuggled into a rename.
 
-## 0.1.0 — 2026-09-05 (fork, based on upstream v1.9.8; released as `1.9.8-brilia.1`)
+## 1.9.8-brilia.0.1.0 — 2026-09-05 (fork, first released as `1.9.8-brilia.1`)
 
 **Unofficial BRILIA fork.** Forked from upstream v1.9.8 (commit `145cf80`). Everything below this
 entry is upstream history by Xule Lin; this entry covers only what the fork adds. Three Windows
