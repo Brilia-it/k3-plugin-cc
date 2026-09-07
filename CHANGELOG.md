@@ -2,6 +2,34 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.9.8-brilia.2 — (fork)
+
+**Why this release exists.** A review of the published `1.9.8-brilia.1` found that we had shipped a
+claim that was not true, and that we had renamed the slash commands to `/k3:*` while leaving the
+trademark in identifiers we distribute.
+
+- **Agents renamed `kimi-*` to `k3-*`** (7 files, and their `name:` frontmatter). Two reasons, and
+  the second is the one that bites. First, "Kimi" is Moonshot's trademark and Apache-2.0 section 6
+  grants no trademark rights — we had already written that in our own `NOTICE` without applying it to
+  the agents. Second, agent names are how the model reaches this plugin, so ours and upstream's
+  registered the *same* names: `kimi-review` from two plugins is a collision, not a coincidence.
+- **Corrected the coexistence claim.** `brilia-1` said both plugins "can be installed side by side
+  without colliding". That was false. Commands and agents no longer collide, but the safety hook
+  still does: both write a managed block into the same `~/.kimi-code/config.toml` under a host id
+  that identifies *which editor drives kimi-code*, not *which plugin*. Installed under `~/.claude/`,
+  both resolve to `claude-code` and contend for one block. The README now says so, and says to use
+  one at a time until it is fixed properly.
+- **Corrected the certified kimi-code version.** The platform table said upstream certifies against
+  `0.30.0`; upstream's own `AGENTS.md` records `0.35.0`. We were understating upstream.
+- **Fixed the surface registry**, which still declared `MARKETPLACE_NAME = "kimi-marketplace"` after
+  the marketplace had been renamed, and carried stale hashes for the renamed agents.
+
+**Known and deliberately not fixed here.** The managed-block marker is still `kimi-plugin-cc-managed`
+in all three places it is defined. Renaming it is the real fix for the hook collision, but a block
+written with the old marker becomes invisible to code looking for a new one: it would stay in the
+user's config, keep registering the hook, and stop being removable by `--uninstall`. That needs a
+migration path, so it gets its own release rather than being smuggled into a rename.
+
 ## 1.9.8-brilia.1 — 2026-09-05 (fork)
 
 **Unofficial BRILIA fork.** Forked from upstream v1.9.8 (commit `145cf80`). Everything below this

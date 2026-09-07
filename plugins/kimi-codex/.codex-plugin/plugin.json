@@ -1,6 +1,6 @@
 {
   "name": "kimi",
-  "version": "1.9.8-brilia.1",
+  "version": "1.9.8-brilia.2",
   "description": "Codex plugin that delegates review, challenge, ask, rescue, pursue, and swarm workflows to the local kimi-code CLI through the kimi-plugin-cc companion runtime.",
   "author": {
     "name": "linxule"
@@ -30,9 +30,9 @@
     ],
     "websiteURL": "https://github.com/linxule/kimi-plugin-cc",
     "defaultPrompt": [
-      "Use $kimi-review to review my current diff.",
-      "Use $kimi-ask to explain this repository flow.",
-      "Use $kimi-rescue to delegate a bounded fix."
+      "Use $k3-review to review my current diff.",
+      "Use $k3-ask to explain this repository flow.",
+      "Use $k3-rescue to delegate a bounded fix."
     ],
     "brandColor": "#0F766E"
   }

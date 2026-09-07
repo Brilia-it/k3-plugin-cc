@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "UNOFFICIAL community fork of linxule/kimi-plugin-cc, maintained by BRILIA. Not affiliated with, endorsed by, or supported by Moonshot AI or the upstream author. Adds Windows fixes: the hook command is quoted for cmd.exe, hook paths are normalised so setup works without a manual override, and the Windows shell probe runs instead of reporting success without running.",
-    "version": "1.9.8-brilia.1"
+    "version": "1.9.8-brilia.2"
   },
   "plugins": [
     {

@@ -96,15 +96,25 @@ Verify it is actually enforcing, not just installed:
 
 ### Coexistence with the upstream plugin
 
-The commands live under `/k3:*` and the upstream plugin uses `/kimi:*`, so both can be installed
-side by side without colliding.
+**Partial, and worth understanding before you try it.** The slash commands and the agents no longer
+collide: ours are `/k3:*` and `k3-*`, upstream's are `/kimi:*` and `kimi-*`.
+
+The safety hook still does. Both plugins write a managed block into the same
+`~/.kimi-code/config.toml`, keyed by a host id that answers "which editor is driving kimi-code",
+not "which plugin". Installed under `~/.claude/`, both answer `claude-code`, so they own the same
+block: whichever ran `setup` last holds it, and the other refuses to run until you re-run its setup,
+which flips it back. That refusal is correct fail-closed behaviour, but two legitimately installed
+plugins should not force it on each other.
+
+Until that is fixed, **use one at a time**. Nothing is unsafe about having both installed; the one
+that does not own the block simply will not run.
 
 ## Platform support
 
 | Platform | Status |
 |---|---|
 | Windows 11 | **Tested.** Enforcement verified end to end inside a real `kimi-code` session |
-| macOS | **Supported, not tested by us.** Every change we made is gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream v1.9.8, which upstream certifies against `kimi-code` 0.30.0 |
+| macOS | **Supported, not tested by us.** Every change we made is gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream v1.9.8, which upstream certifies against `kimi-code` 0.35.0 |
 | Linux | Same as macOS |
 
 If you are the first to run this on macOS or Linux, we would like to hear about it either way.

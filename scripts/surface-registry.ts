@@ -1,7 +1,7 @@
 import { KIMI_PLUGIN_CC_VERSION } from "../runtime/version.js";
 
 export const PLUGIN_NAME = "kimi";
-export const MARKETPLACE_NAME = "kimi-marketplace";
+export const MARKETPLACE_NAME = "brilia-k3-marketplace";
 // Single source of truth: the Codex manifest/marketplace version derives from the
 // runtime version, so a release bump in runtime/version.ts propagates here without
 // a second edit. The codex-surfaces test asserts PLUGIN_VERSION === package.json.
@@ -34,8 +34,8 @@ export interface CodexSkillSpec {
 }
 
 export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
-  { path: ".claude-plugin/plugin.json", sha256: "b65f610d521c2d61a481aba617d12af803e7185d04123e3bca832764cc733c7a" },
-  { path: ".claude-plugin/marketplace.json", sha256: "883e48d1ce21c373d72d80ff3e97c28368da4efde17d8553c4e97a59ec9a6725" },
+  { path: ".claude-plugin/plugin.json", sha256: "08c92f627cb80c63e533a95ee14286c0cf348f7dd6a7266d11dfc8fe78e28e64" },
+  { path: ".claude-plugin/marketplace.json", sha256: "df5fe5fbc6d066d7ab3ce201ce54e2cbc552c5e0368b4a76e77ec10fcc30d5fb" },
   { path: "commands/README.md", sha256: "f996a084f8c7762c2405c3990443cff49d96003416da8fead8fd875a0f50fd23" },
   { path: "commands/ask.md", sha256: "5ffcd405b1f905f400c00520d210afc6dbf35cae3a0b07c6189866fa639bf778" },
   { path: "commands/cancel.md", sha256: "4d1c1e9d0534fac113fea18e2c8993d99f3ada1335186f66cd995a45f1057db4" },
@@ -47,14 +47,14 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: "commands/review.md", sha256: "2a5103029d91bd1f204979e8a52a9726ecfb171bcdc0b273be155ec7ced7c243" },
   { path: "commands/setup.md", sha256: "17e0e2c274f3cc4cb36780ea62c078bb1bbeeee81bfd1b0c8e0594f7e7f4fc8c" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
-  { path: "commands/swarm.md", sha256: "85b36b2c67994540aa5ac94e7d7701ce65c2d7921ddfe89c705ddeec7dd22efa" },
-  { path: "agents/kimi-ask.md", sha256: "3bdcf3b92142560026105a232cd61b2141ff97186081f557a0c54ff12a1d159c" },
-  { path: "agents/kimi-challenge.md", sha256: "29021277339269d19d9d2e41b18b9a38d4b25c168e3efd8b295d4942f3722938" },
-  { path: "agents/kimi-pursue.md", sha256: "ad931598a517afcdcfc1b63c10d6358baea60b60a77d6643d87a4a75c31f6278" },
-  { path: "agents/kimi-rescue.md", sha256: "7c1f44ae8b7e9ca8311f4d0144689703f79a5c449faca7834342c6598d652d6c" },
-  { path: "agents/kimi-review.md", sha256: "44a869d601ae8ed4fa498bdef38d25c6d9baf2576fbf3c80b46ddf9f597bc329" },
-  { path: "agents/kimi-swarm-write.md", sha256: "69512905353f32d1d74d4291b8061fcef41de44c51e5a24e26e841abbcacd281" },
-  { path: "agents/kimi-swarm.md", sha256: "111742057055a0382540893152f3db95fe9253e869148a49eefb61dba672a061" },
+  { path: "commands/swarm.md", sha256: "e69c61e3ec0ae6e14c6fb7d4f9a711436918b181c8606fb2e20acf655643cf23" },
+  { path: "agents/k3-ask.md", sha256: "fed4c924c406801863be715aef7ae9d4d1d7a0546127516155ff20d8441899af" },
+  { path: "agents/k3-challenge.md", sha256: "e1d70a782ac206f0b34dc09012cb44c9a5b5649052967b785f5e478f4e130f97" },
+  { path: "agents/k3-pursue.md", sha256: "3a7a9df2597b70c3508316b279a3dbb81e521752ebae277f8cdac0f316691a36" },
+  { path: "agents/k3-rescue.md", sha256: "03788b4f10512c17aa21ce0d603263f065e7d9c30b70b0007d56d92e8677e090" },
+  { path: "agents/k3-review.md", sha256: "e38544b63fe19636f4d84d2b5bd1cf8ec5d981269bc64e86a6fdb0a5b5f2eb25" },
+  { path: "agents/k3-swarm-write.md", sha256: "e6d7d01e1fd44069e912293e14fa413886d0c91449917f90b8d338cad3c0b211" },
+  { path: "agents/k3-swarm.md", sha256: "66d3a551477e0816ea862610ad46445c36a425ee130960d46e8b97b6d8e68432" },
 ];
 
 export const CODEX_PLUGIN_MANIFEST = {
@@ -80,9 +80,9 @@ export const CODEX_PLUGIN_MANIFEST = {
     capabilities: ["Code Review", "Local Shell", "Write"],
     websiteURL: "https://github.com/linxule/kimi-plugin-cc",
     defaultPrompt: [
-      "Use $kimi-review to review my current diff.",
-      "Use $kimi-ask to explain this repository flow.",
-      "Use $kimi-rescue to delegate a bounded fix.",
+      "Use $k3-review to review my current diff.",
+      "Use $k3-ask to explain this repository flow.",
+      "Use $k3-rescue to delegate a bounded fix.",
     ],
     brandColor: "#0F766E",
   },
@@ -111,11 +111,11 @@ export const CODEX_MARKETPLACE = {
 
 export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
   {
-    name: "kimi-ask",
+    name: "k3-ask",
     title: "Kimi Ask",
     displayName: "Kimi Ask",
     shortDescription: "Ask Kimi a read-only repo question",
-    defaultPrompt: "Use $kimi-ask to explain the current repository flow.",
+    defaultPrompt: "Use $k3-ask to explain the current repository flow.",
     implicit: true,
     command: "ask",
     argumentSummary: "[--background] [--wait] [-r | --resume <id>] [--fresh] [-m <model>] <prompt>",
@@ -129,11 +129,11 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     ],
   },
   {
-    name: "kimi-review",
+    name: "k3-review",
     title: "Kimi Review",
     displayName: "Kimi Review",
     shortDescription: "Run Kimi read-only code review",
-    defaultPrompt: "Use $kimi-review to review the current working tree.",
+    defaultPrompt: "Use $k3-review to review the current working tree.",
     implicit: true,
     command: "review",
     argumentSummary: "[--base <ref>] [-m <model>] [extra prose]",
@@ -147,11 +147,11 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     ],
   },
   {
-    name: "kimi-challenge",
+    name: "k3-challenge",
     title: "Kimi Challenge",
     displayName: "Kimi Challenge",
     shortDescription: "Challenge a design or approach",
-    defaultPrompt: "Use $kimi-challenge to stress-test this approach.",
+    defaultPrompt: "Use $k3-challenge to stress-test this approach.",
     implicit: true,
     command: "task challenge",
     argumentSummary: "[--base <ref>] [-m <model>] [extra prose]",
@@ -165,11 +165,11 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     ],
   },
   {
-    name: "kimi-rescue",
+    name: "k3-rescue",
     title: "Kimi Rescue",
     displayName: "Kimi Rescue",
     shortDescription: "Delegate a bounded Kimi fix",
-    defaultPrompt: "Use $kimi-rescue to delegate this bounded implementation task.",
+    defaultPrompt: "Use $k3-rescue to delegate this bounded implementation task.",
     implicit: false,
     command: "task rescue",
     argumentSummary: "[--background] [--wait] [-r | --resume <id>] [--fresh] [-m <model>] <prompt>",
@@ -182,28 +182,28 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     ],
   },
   {
-    name: "kimi-pursue",
+    name: "k3-pursue",
     title: "Kimi Pursue",
     displayName: "Kimi Pursue",
     shortDescription: "Run autonomous Kimi goal mode",
-    defaultPrompt: "Use $kimi-pursue to let Kimi pursue this objective with a budget.",
+    defaultPrompt: "Use $k3-pursue to let Kimi pursue this objective with a budget.",
     implicit: false,
     command: "task pursue",
     argumentSummary: "[--budget <30m|1h>] [--turns <N>] [-m <model>] <objective>",
     description:
       "Run Kimi's autonomous goal mode for an explicitly requested hands-off multi-turn objective. This is write-capable and budget-bounded; use only when the user explicitly asks Kimi to pursue an objective autonomously.",
     guidance: [
-      "Require explicit hands-off autonomy intent; single bounded fixes belong to `kimi-rescue`.",
+      "Require explicit hands-off autonomy intent; single bounded fixes belong to `k3-rescue`.",
       "Always keep a finite `--budget` — it is the sole hard bound on the loop. The runtime rejects `--background`, but detaching your own shell call is expected: a goal loop routinely outlives a foreground timeout, and the hook, allowlist, and budget do not depend on a human watching. Cancel with `companion.sh cancel` (no id — it targets the latest running job for the repo); note that a cancel stops further work but does not roll back edits already made to the real tree.",
       "Surface terminal goal statuses exactly as the companion reports them.",
     ],
   },
   {
-    name: "kimi-swarm",
+    name: "k3-swarm",
     title: "Kimi Swarm",
     displayName: "Kimi Swarm",
     shortDescription: "Fan out Kimi read-only review",
-    defaultPrompt: "Use $kimi-swarm to fan out a read-only review across these targets.",
+    defaultPrompt: "Use $k3-swarm to fan out a read-only review across these targets.",
     implicit: false,
     command: "task swarm",
     argumentSummary: "[--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [-m <model>] <objective>",
@@ -217,11 +217,11 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     ],
   },
   {
-    name: "kimi-swarm-write",
+    name: "k3-swarm-write",
     title: "Kimi Swarm Write",
     displayName: "Kimi Swarm Write",
     shortDescription: "Fan out patch-only Kimi edits",
-    defaultPrompt: "Use $kimi-swarm-write to fan out these disjoint edits into a patch.",
+    defaultPrompt: "Use $k3-swarm-write to fan out these disjoint edits into a patch.",
     implicit: false,
     command: "task swarm --write",
     argumentSummary: "[--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [-m <model>] <objective>",

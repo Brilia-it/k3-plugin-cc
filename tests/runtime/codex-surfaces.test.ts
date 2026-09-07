@@ -75,7 +75,7 @@ describe("Codex sidecar surfaces", () => {
     ) as typeof CODEX_MARKETPLACE;
 
     expect(marketplace).toEqual(CODEX_MARKETPLACE);
-    expect(marketplace.name).toBe("kimi-marketplace");
+    expect(marketplace.name).toBe("brilia-k3-marketplace");
     expect(marketplace.plugins[0].name).toBe("kimi");
     expect(marketplace.plugins[0].source.path).toBe("./plugins/kimi-codex");
     expect(marketplace.plugins[0].policy.installation).toBe("AVAILABLE");
