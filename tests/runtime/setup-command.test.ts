@@ -50,7 +50,7 @@ describe("setup command parsing", () => {
       });
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toContain("managed block is NOT installed");
-      expect(result.stdout).toContain("Next step: Run /kimi:setup");
+      expect(result.stdout).toContain("Next step: Run /k3:setup");
       // The tsx loader may emit Node deprecation warnings (e.g. DEP0205
       // module.register() on Node >= 25) that are environment noise, not
       // companion output — strip them before asserting a clean stderr.

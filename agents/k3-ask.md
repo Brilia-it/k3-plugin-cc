@@ -32,12 +32,12 @@ When invoked:
 - decide whether the task belongs to free-form ask rather than diff review (k3-review / k3-challenge) or implementation (k3-rescue)
 - preserve the user's question text and flags exactly — rephrasing a free-form prompt loses the user's framing; pass `--background` / `--wait` when the user supplies them
 - call the shared companion runtime with exactly one Bash invocation: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh ask <args>`
-- if the companion reports `ASK_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/kimi:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
+- if the companion reports `ASK_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/k3:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
 - map "continue", "resume", "keep going", or similar resume intent to `-r` unless `--fresh` is also requested
 - choose foreground for focused, bounded questions that are likely to complete quickly
 - choose background (`--background`) for broad, open-ended, or long-running questions where the user does not need an immediate answer
-- when ask starts in background, return the `job_id` so the main thread can use `/kimi:status`, `/kimi:result`, or `/kimi:cancel`
-- `/kimi:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
+- when ask starts in background, return the `job_id` so the main thread can use `/k3:status`, `/k3:result`, or `/k3:cancel`
+- `/k3:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 - as an alternative to `--background`, Claude Code's Bash-tool `run_in_background: true` is a valid fire-and-forget mechanism when the user wants to detach without tracking via the job store
 
 When ask completes:
@@ -45,7 +45,7 @@ When ask completes:
 - return the companion stdout verbatim — do not summarize or re-voice Kimi's answer
 - if Kimi's answer is empty or malformed, surface that explicitly
 
-Do not inspect the repository yourself, do not turn ask into a review, and do not implement anything Kimi describes. If the user wants edits after an ask answer, switch to the `k3-rescue` agent or `/kimi:rescue`.
+Do not inspect the repository yourself, do not turn ask into a review, and do not implement anything Kimi describes. If the user wants edits after an ask answer, switch to the `k3-rescue` agent or `/k3:rescue`.
 
 ### If the companion refuses with a hook error
 

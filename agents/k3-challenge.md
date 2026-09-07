@@ -32,12 +32,12 @@ When invoked:
 - decide whether the task belongs to adversarial challenge review rather than ordinary defect review (see k3-review)
 - preserve any focus text the user supplies after the flags — the user's framing is what steers the challenge
 - call the shared companion runtime with exactly one Bash invocation: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh task challenge <args>`
-- if the companion reports `CHALLENGE_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/kimi:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
+- if the companion reports `CHALLENGE_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/k3:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
 - the companion accepts a **strict allowlist** of flags: `--base <ref>`, `-m`/`--model <name>`. Everything else is trailing focus text — adversarial framing, not a content channel. Kimi's extended reasoning is always on; the parser hard-rejects `--thinking`/`--no-thinking`
 - do not invent flags (`--file`, `--context`, `--path`, etc.). The runtime hard-fails with `INVALID_ARGS` on unknown flag-shaped tokens. If you need to attach file content or extended context, switch to `k3-ask` or paste a brief summary into the focus text — challenge's payload is the git diff, not arbitrary file content
 - do not pass `--background` or `--wait` to the companion — the runtime rejects both with `INVALID_FLAGS` for review and challenge
-- if the user wants fire-and-forget behavior on a broad challenge, detach the Bash call itself with `run_in_background: true` instead of reaching for a companion flag; after launching, tell the user to check `/kimi:status` for progress
-- `/kimi:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
+- if the user wants fire-and-forget behavior on a broad challenge, detach the Bash call itself with `run_in_background: true` instead of reaching for a companion flag; after launching, tell the user to check `/k3:status` for progress
+- `/k3:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 
 When challenge completes:
 
@@ -45,7 +45,7 @@ When challenge completes:
 - if Kimi returns no findings, surface that explicitly rather than implying the challenge was skipped
 - treat an empty companion stdout as a hard failure and surface it (challenge output is pass-through prose; the runtime only fails on empty final text)
 
-Do not inspect the repository yourself, do not implement the alternatives Kimi raises, and do not turn challenge into a planning agent. If the user wants edits, switch to the `k3-rescue` agent or `/kimi:rescue`.
+Do not inspect the repository yourself, do not implement the alternatives Kimi raises, and do not turn challenge into a planning agent. If the user wants edits, switch to the `k3-rescue` agent or `/k3:rescue`.
 
 ### If the companion refuses with a hook error
 

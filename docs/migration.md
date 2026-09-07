@@ -68,25 +68,25 @@ Or fresh install on a machine that doesn't have v0.4:
 ### 4. Run setup
 
 ```
-/kimi:setup
+/k3:setup
 ```
 
 This writes the PreToolUse hook to `~/.kimi-code/config.toml` and runs a two-layer probe (direct + via `/bin/sh -c`) to verify the hook fires and denies as expected. If setup fails, look at the `Probe:` line in the output. Common failure codes (the runtime emits these as `SETUP_*` errors):
 
 - **Bad `KIMI_PLUGIN_CC_NODE_BIN` override** — v1 setup requires the override to be an absolute path; relative paths (`node`) are rejected with `SETUP_NODE_BIN_NOT_ABSOLUTE`.
-- **Orphan markers in `~/.kimi-code/config.toml`** from a manual edit or aborted earlier setup. Run `/kimi:setup --uninstall` to clean up, then `/kimi:setup` again. Code: `SETUP_ORPHAN_MARKERS`.
-- **Duplicate managed blocks** from two setup runs racing. Same fix: `/kimi:setup --uninstall` + `/kimi:setup`. Code: `SETUP_DUPLICATE_BLOCKS`.
+- **Orphan markers in `~/.kimi-code/config.toml`** from a manual edit or aborted earlier setup. Run `/k3:setup --uninstall` to clean up, then `/k3:setup` again. Code: `SETUP_ORPHAN_MARKERS`.
+- **Duplicate managed blocks** from two setup runs racing. Same fix: `/k3:setup --uninstall` + `/k3:setup`. Code: `SETUP_DUPLICATE_BLOCKS`.
 - **Hook script path contains characters TOML can't represent** (quotes, control chars). Reinstall to a path without these, or set `KIMI_PLUGIN_CC_HOOK_SCRIPT` to a safe path. Code: `SETUP_HOOK_PATH_UNSAFE`.
-- **Probe timed out** (5s budget). Usually means kimi-code or the Node binary is wedged on cold start. Re-run; if persistent, file an issue with `/kimi:setup --check` output.
+- **Probe timed out** (5s budget). Usually means kimi-code or the Node binary is wedged on cold start. Re-run; if persistent, file an issue with `/k3:setup --check` output.
 - **Hook script not found** — `dist/hooks/approval-hook.js` is missing. Reinstall the plugin or run `bun run build` if you're on a local clone. Code: `SETUP_HOOK_SCRIPT_MISSING`.
 
 ### 5. Verify
 
 ```
-/kimi:setup --check
+/k3:setup --check
 ```
 
-Reports the install state without writing. Run `/kimi:review` against a small diff to confirm the round-trip works end-to-end.
+Reports the install state without writing. Run `/k3:review` against a small diff to confirm the round-trip works end-to-end.
 
 ### Local-clone install upgrade
 
@@ -101,7 +101,7 @@ ls dist/hooks/approval-hook.js >/dev/null || bun run build
 # Restart Claude Code so the new agents/ and dist/ register
 ```
 
-Then run `/kimi:setup` in your Claude Code session. The local clone uses the same managed-block installer; no marketplace operations needed.
+Then run `/k3:setup` in your Claude Code session. The local clone uses the same managed-block installer; no marketplace operations needed.
 
 ### Using both Claude Code and Codex (v1.7.0+)
 
@@ -110,15 +110,15 @@ but share one `~/.kimi-code/config.toml`. As of **v1.7.0** each host manages its
 **own** host-scoped PreToolUse block (`# === BEGIN kimi-plugin-cc-managed:claude-code …`
 vs `:codex`), so:
 
-- Run **`/kimi:setup` in Claude Code AND `$kimi-setup` in Codex** — once each.
+- Run **`/k3:setup` in Claude Code AND `$k3-setup` in Codex** — once each.
   They no longer clobber each other; both blocks coexist and each host verifies
   its own. (Before v1.7.0 a single shared block was overwritten every time you
   switched hosts, which is why setup seemed to "need redoing.")
 - **One-time cleanup on upgrade to v1.7.0:** update the plugin in *both* hosts,
   then run setup in each. The first setup adopts your old un-suffixed block and
   prunes orphaned hook entries left by earlier installs.
-- `/kimi:setup --uninstall` removes only the current host's block. Use
-  `/kimi:setup --uninstall --all` to remove *every* host's block from the shared
+- `/k3:setup --uninstall` removes only the current host's block. Use
+  `/k3:setup --uninstall --all` to remove *every* host's block from the shared
   config (a deliberate full nuke — it clears blocks for **all** hosts, not just
   this one).
 
@@ -128,11 +128,11 @@ vs `:codex`), so:
 > migrated, re-creating the clobber (or leaving a duplicate the new host rejects
 > with `SETUP_DUPLICATE_BLOCKS`). Update **both** Claude Code and Codex to v1.7.0+
 > first, then run setup in each. If the config ever looks tangled, the clean-slate
-> escape hatch is `/kimi:setup --uninstall --all` followed by setup in each host.
+> escape hatch is `/k3:setup --uninstall --all` followed by setup in each host.
 
 ## Data and session continuity
 
-- **SQLite job rows** from v0.4 remain in `${CLAUDE_PLUGIN_DATA}/kimi-plugin-cc/state.db`. They're still visible to `/kimi:status` and `/kimi:result`, but `/kimi:replay` will report `REPLAY_LOG_UNREADABLE` on the v0.4 wire logs — v1.0's replay parser doesn't understand the Wire JSON-RPC shape. Archive or delete the database if you don't need v0.4 history.
+- **SQLite job rows** from v0.4 remain in `${CLAUDE_PLUGIN_DATA}/kimi-plugin-cc/state.db`. They're still visible to `/k3:status` and `/k3:result`, but `/k3:replay` will report `REPLAY_LOG_UNREADABLE` on the v0.4 wire logs — v1.0's replay parser doesn't understand the Wire JSON-RPC shape. Archive or delete the database if you don't need v0.4 history.
 - **Kimi CLI sessions** under `~/.kimi/sessions/` are independent of kimi-code's `~/.kimi-code/sessions/`. v1.0's `--resume` will not see v0.4 sessions.
 - **Plugin config** (`${CLAUDE_PLUGIN_DATA}/kimi-plugin-cc/config.json` — only `reviewGateEnabled` lives here) carries over unchanged.
 
@@ -141,7 +141,7 @@ vs `:codex`), so:
 If something is wrong, the v0.4 install is one step away:
 
 ```
-/kimi:setup --uninstall            # removes the v1.0 PreToolUse hook
+/k3:setup --uninstall            # removes the v1.0 PreToolUse hook
 /plugin uninstall kimi
 /plugin marketplace remove kimi-marketplace
 # If the v0.4-maintenance branch is published:
@@ -164,7 +164,7 @@ Claude Code's marketplace tooling uses `@ref` to pin a GitHub shorthand to a bra
 
 - A two-layer setup probe that catches `node`-not-on-PATH failure modes before they become silent fail-opens.
 - Workspace-bound rescue safety enforced by a hook that the plugin sets `KIMI_PLUGIN_CC_CMD=rescue` for. The hook only enforces the allowlist when that env var is set — kimi-code invocations from outside the plugin (e.g., direct user `kimi -p` calls) keep kimi-code's default permission posture, unrestricted by the plugin. The allowlist's job is to scope plugin-driven rescue, not to police all uses of kimi-code on the system.
-- `/kimi:setup --check` and `/kimi:setup --uninstall` for state inspection and cleanup.
+- `/k3:setup --check` and `/k3:setup --uninstall` for state inspection and cleanup.
 - Stream-json logs are easier to grep than Wire JSON-RPC dumps when you need to debug a job after the fact.
 
-If you hit problems, file an issue with the output of `/kimi:setup --check` and the contents of the managed block in `~/.kimi-code/config.toml` (the block is between the BEGIN and END markers — don't paste the rest of your kimi-code config).
+If you hit problems, file an issue with the output of `/k3:setup --check` and the contents of the managed block in `~/.kimi-code/config.toml` (the block is between the BEGIN and END markers — don't paste the rest of your kimi-code config).

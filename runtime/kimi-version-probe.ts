@@ -109,7 +109,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   //     KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND) AND a /goal-prefixed prompt.
   //     The plugin's read-only and rescue commands set no
   //     KIMI_CODE_EXPERIMENTAL_* env and never send /goal. (The v1.1
-  //     /kimi:pursue command intentionally opts into goal-command per-job
+  //     /k3:pursue command intentionally opts into goal-command per-job
   //     and sends /goal, but every tool call still passes the index-0
   //     PreToolUse hook on every continuation turn — see docs/safety.md.)
   //   - The new deny-all policy is unshift-ed only onto SUBAGENT policy
@@ -143,7 +143,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   //     single gate, but the plugin never relied on the env gate: read-only
   //     commands hard-prefix an English instruction line so their trimmed
   //     prompt never starts with `/goal` (cannot enter goal mode), and the
-  //     index-0 hook denies every write regardless. /kimi:pursue still sets the
+  //     index-0 hook denies every write regardless. /k3:pursue still sets the
   //     env var per-spawn — now redundant on 0.12 but harmless (unknown
   //     experimental flag ids resolve to undefined) and still required on
   //     0.8–0.11.
@@ -157,7 +157,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   //     path (re-verified against the 0.18.0 checkout 2026-06-20 during the v1.4
   //     write-swarm build — earlier notes here mis-cited it as "inherit
   //     deny-all"). So a `coder` swarm subagent's write IS gated solely by our
-  //     index-0 hook — which is exactly what makes /kimi:swarm --write possible.
+  //     index-0 hook — which is exactly what makes /k3:swarm --write possible.
   //   - New `doctor` subcommand + a `program.argument('[args...]')` unknown-
   //     positional error: both unreachable — the plugin passes the prompt as
   //     the VALUE of `-p, --prompt`, never a bare positional.
@@ -186,7 +186,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   //     a pure DENY that fires only on multi/mixed-AgentSwarm batches
   //     ("first non-undefined wins" → it can never pre-empt the index-0 hook).
   //     It enforces "one AgentSwarm per response, alone in its batch" — a
-  //     behavioral refinement for /kimi:swarm coordinators, not a write surface.
+  //     behavioral refinement for /k3:swarm coordinators, not a write surface.
   //   - REMOVED CwdOutsideFileWriteAskPermissionPolicy: this was an `ask`
   //     policy sitting AFTER auto-mode-approve, so it was already dead in `-p`
   //     auto mode. Its removal opens zero new write surface — the plugin owns
@@ -297,7 +297,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   //     gated to a MODEL-ISSUED CreateGoal in NON-auto mode (it returns early
   //     when permission.mode === 'auto'), so it is triple-dead on the `-p` auto
   //     path and is an `ask` that cannot approve a write. It does not affect
-  //     /kimi:pursue, which uses the /goal COMMAND path, runs auto, and is
+  //     /k3:pursue, which uses the /goal COMMAND path, runs auto, and is
   //     governed by the index-0 hook on every turn.
   //   - options.ts is BYTE-IDENTICAL (argv intact: -p/-r/--output-format/-m/
   //     --skills-dir; --auto/--yolo/--plan still rejected with -p). run-prompt.ts
@@ -322,7 +322,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   //     (records/index.ts, the record-RESTORE path) — both off the -p stdout
   //     stream our parser reads.
   //   - NEW in 0.18.0: KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY (#888) — an opt-in
-  //     HARD cap on concurrent AgentSwarm subagents. /kimi:swarm now sets it from
+  //     HARD cap on concurrent AgentSwarm subagents. /k3:swarm now sets it from
   //     --cap (v1.2.6); older binaries ignore the unknown env var.
   // SMOKE: the 0.16.0→0.18.0 source audit was prepared in a cloud session with
   // no kimi binary, so its Phase 1b smoke was deferred. It was then run locally

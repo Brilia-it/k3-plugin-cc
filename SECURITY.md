@@ -40,7 +40,7 @@ and is still open.
 
 That is exactly the bug this fork found on Windows: the command was quoted for a POSIX shell,
 `cmd.exe` could not launch it, the exit code was 255, so every tool call was allowed, while
-`/kimi:setup --check` reported `Probe: ok`. Both halves matter: enforcement was inert **and** the
+the setup check (upstream's `/kimi:setup --check` at the time) reported `Probe: ok`. Both halves matter: enforcement was inert **and** the
 diagnostic said it was fine.
 
 The root cause is not in this plugin or in the upstream one. `kimi -p` exposes no sandbox flag, so

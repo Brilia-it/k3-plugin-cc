@@ -47,7 +47,7 @@ import { RuntimeError } from "../errors.js";
  * `/opt/homebrew/Cellar/node/<version>/bin/node` — a path that changes on
  * every `brew upgrade node`. The managed block is verified by byte-exact
  * equality, so that churn silently invalidates EVERY host's hook at once and
- * forces a re-run of `/kimi:setup` with no user-visible cause (diagnosed
+ * forces a re-run of `/k3:setup` with no user-visible cause (diagnosed
  * 2026-07-25; a June config backup held `node/26.0.0` and `node/26.3.0`
  * side by side, i.e. this had already fired before).
  *
@@ -118,7 +118,7 @@ export function resolveNodeBinary(env: NodeJS.ProcessEnv): string {
  * Build the exact shell command string that the host shell needs to spawn
  * the hook. Single source of truth for:
  *
- *   - what `/kimi:setup` writes into kimi-code's config
+ *   - what `/k3:setup` writes into kimi-code's config
  *     (`command = "..."` inside [[hooks]])
  *   - what the shell probe runs
  *   - what the verifier (`evaluateInstalled`) equality-checks the
@@ -128,7 +128,7 @@ export function resolveNodeBinary(env: NodeJS.ProcessEnv): string {
  * correct for `/bin/sh -c` and WRONG for `cmd.exe`: single quotes are not
  * quoting characters there, so the command fails to launch. Because the hook
  * protocol treats every exit code other than 2 as ALLOW, a hook that cannot
- * launch degrades to fail-open SILENTLY, while `/kimi:setup --check` still
+ * launch degrades to fail-open SILENTLY, while `/k3:setup --check` still
  * reports "Probe: ok". Measured on Windows 11 with kimi-code 0.30.0:
  *
  *   | quoting                | /bin/sh | cmd.exe        |
@@ -516,7 +516,7 @@ export function describeHookCommandDrift(
         `hook is ${expected.hookScript} (likely a plugin update or move — the install path is version-stamped).`,
     );
   }
-  parts.push("Run /kimi:setup to re-pin the managed block to this companion's current paths.");
+  parts.push("Run /k3:setup to re-pin the managed block to this companion's current paths.");
   return parts.join(" ");
 }
 
@@ -654,7 +654,7 @@ export function slugifyHostId(value: string): string {
  * command isn't the canonical two-single-quoted-token shape (a stale/bare
  * legacy command whose owner can't be determined). Callers treat `null` as
  * "claimable by the current host." Lets a legacy (un-suffixed) block be
- * attributed to whichever host actually wrote it, so one host's `/kimi:setup`
+ * attributed to whichever host actually wrote it, so one host's `/k3:setup`
  * never adopts or removes another host's block.
  */
 export function hostIdFromHookCommand(command: string): string | null {

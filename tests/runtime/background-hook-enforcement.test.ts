@@ -12,11 +12,11 @@ import { cleanupTestPath, createGitRepoFixture, createTestPluginDataRoot } from 
  *
  * v1.9.0 shipped a fix for a CRITICAL self-inflicted regression: `startBackgroundJob`
  * spawned its worker with `process.execPath` (the fully symlink-resolved,
- * version-stamped `…/Cellar/node/<ver>/bin/node`) while `/kimi:setup` pins the
+ * version-stamped `…/Cellar/node/<ver>/bin/node`) while `/k3:setup` pins the
  * stable symlink (`/opt/homebrew/bin/node`). The spawned worker re-verifies the
  * PreToolUse hook by rebuilding the canonical command from ITS OWN `process.argv0`,
  * so it computed a different expected command than the config held → byte-exact
- * mismatch → every background rescue/ask refused FOREVER, and `/kimi:setup` could
+ * mismatch → every background rescue/ask refused FOREVER, and `/k3:setup` could
  * not converge the two sides.
  *
  * That regression was caught by a pre-release model review, not by CI. The

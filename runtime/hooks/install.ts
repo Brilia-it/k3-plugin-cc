@@ -62,7 +62,7 @@ export interface HookInstallStatus {
    * treat them as such.
    *
    * Consumers: the refusal `RuntimeError.details` on every model-spawning
-   * command, so the LLM caller can run /kimi:setup and retry ONCE instead of
+   * command, so the LLM caller can run /k3:setup and retry ONCE instead of
    * dead-ending. The plugin itself never self-writes from this path — that
    * design was rejected by two adversarial reviews; see
    * `.claude/hook-pin-durability-spec-2026-07-25.md`.
@@ -73,7 +73,7 @@ export interface HookInstallStatus {
    * would be ambiguous to a non-human caller.
    *
    * `"node-bin-not-executable"` is the sole value today, and it marks the ONE
-   * refusal whose remedy is NOT "run /kimi:setup": setup cannot repair a broken
+   * refusal whose remedy is NOT "run /k3:setup": setup cannot repair a broken
    * Node install. Every other refusal emits an identical `{config_path}`
    * payload, so without this an agent caller cannot tell them apart and would
    * guess. See LLM-caller discipline in AGENTS.md.
@@ -165,7 +165,7 @@ export async function verifyHookInstalled(
   } catch {
     return {
       installed: false,
-      reason: `hook script ${expected.hookScriptPath} is missing or unreadable — run /kimi:setup to reinstall`,
+      reason: `hook script ${expected.hookScriptPath} is missing or unreadable — run /k3:setup to reinstall`,
       configPath,
     };
   }
@@ -181,7 +181,7 @@ export async function verifyHookInstalled(
   //     `exec`s the binary it resolves, scripts/companion.sh:34,50) lands on a
   //     DIFFERENT node. The expected command is recomputed from the live process
   //     on every call, so it changes, and plain byte-exact equality above
-  //     already refuses — with a RECOVERABLE `drift` that /kimi:setup converges.
+  //     already refuses — with a RECOVERABLE `drift` that /k3:setup converges.
   //   - It does NOT catch the 2026-07-25 dead-node zombie (a config pinning
   //     ~/.hermes/node). That is a byte mismatch, likewise caught above.
   //   - On the default path it is close to self-evident: `resolveNodeBinary`
@@ -233,10 +233,10 @@ export async function verifyHookInstalled(
       reason:
         `hook interpreter ${expected.nodeBin} is missing or not executable, so the PreToolUse hook ` +
         `cannot spawn (kimi-code reads a failed hook as ALLOW). Repair the Node install, or set ` +
-        `KIMI_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /kimi:setup.`,
+        `KIMI_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /k3:setup.`,
       configPath,
       // Machine-readable discriminator: this is the ONE refusal whose remedy is
-      // NOT "run /kimi:setup" (LLM-caller discipline — an agent cannot read the
+      // NOT "run /k3:setup" (LLM-caller discipline — an agent cannot read the
       // prose above, and every other refusal emits an identical `{config_path}`).
       refusalKind: "node-bin-not-executable",
       nodeBin: expected.nodeBin,
@@ -262,7 +262,7 @@ function resolveKimiCodeConfigPath(env: NodeJS.ProcessEnv): string {
  * ride the error's structured context (LLM-caller discipline, v0.3.6+).
  *
  * `drift_axis === "hook-script"` is the ONLY value a caller may treat as
- * retryable (run /kimi:setup for this host, retry once). Its absence means the
+ * retryable (run /k3:setup for this host, retry once). Its absence means the
  * refusal is not a moved-path problem and re-running setup will not fix it.
  */
 /**
@@ -290,7 +290,7 @@ export function hookRefusalDetails(status: HookInstallStatus): Record<string, un
   return {
     config_path: status.configPath,
     // Routes the caller to "tell the human to repair Node" instead of the
-    // default "run /kimi:setup and retry" reflex. Never co-occurs with `drift`:
+    // default "run /k3:setup and retry" reflex. Never co-occurs with `drift`:
     // drift requires the equality check to FAIL, this requires it to PASS.
     ...(status.refusalKind !== undefined
       ? { refusal_kind: status.refusalKind, node_bin: status.nodeBin }
@@ -335,10 +335,10 @@ export function formatHookMissingWarning(
     "  This command will not start a Kimi model run until enforcement is",
     "  repaired (the review gate skips instead of blocking stop).",
     "",
-    "  Fix: run Claude Code `/kimi:setup` or Codex `$kimi-setup` to install",
+    "  Fix: run Claude Code `/k3:setup` or Codex `$k3-setup` to install",
     "  or repair this host's managed block in",
     "  ~/.kimi-code/config.toml. If you use nvm, asdf, mise, or fnm, you",
-    "  must re-run `/kimi:setup` after any Node version switch — the",
+    "  must re-run `/k3:setup` after any Node version switch — the",
     "  verifier pins the absolute Node binary path and a switch invalidates",
     "  the previously-installed block by design. See docs/safety.md.",
     "",
@@ -362,7 +362,7 @@ let warnedThisProcess = false;
  * Why stderr rather than stdout: stdout is reserved for the command's
  * load-bearing output (artifact prose, JSON envelopes). LLM-caller
  * discipline says stderr is humans-only, and this warning is exactly
- * that — a developer-facing nudge to run /kimi:setup before tagging.
+ * that — a developer-facing nudge to run /k3:setup before tagging.
  */
 export function maybeWarnHookMissing(
   status: HookInstallStatus,

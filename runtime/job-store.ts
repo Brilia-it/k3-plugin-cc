@@ -206,7 +206,7 @@ export class JobStore {
         if (input.command_type === "rescue") {
           throw new RuntimeError(
             "RESCUE_ALREADY_RUNNING",
-            `A rescue job for session ${input.kimi_session_id ?? "<unknown>"} is already running in this repo. Use /kimi:status to find it.`,
+            `A rescue job for session ${input.kimi_session_id ?? "<unknown>"} is already running in this repo. Use /k3:status to find it.`,
             "rescue.resume",
             error instanceof Error ? { cause: error } : undefined,
           );
@@ -214,7 +214,7 @@ export class JobStore {
         if (input.command_type === "ask") {
           throw new RuntimeError(
             "ASK_ALREADY_RUNNING",
-            `An ask session ${input.kimi_session_id ?? "<unknown>"} is already running in this repo. Use /kimi:status to find it.`,
+            `An ask session ${input.kimi_session_id ?? "<unknown>"} is already running in this repo. Use /k3:status to find it.`,
             "ask.resume",
             error instanceof Error ? { cause: error } : undefined,
           );
@@ -620,7 +620,7 @@ function translateSqliteError(error: unknown): RuntimeError {
   if (isSqliteBusyError(error)) {
     return new RuntimeError(
       "JOB_STORE_BUSY",
-      "The plugin job store is locked by another process. Wait a moment and retry, or check for stuck rescue workers with /kimi:status.",
+      "The plugin job store is locked by another process. Wait a moment and retry, or check for stuck rescue workers with /k3:status.",
       "job-store",
       error instanceof Error ? { cause: error } : undefined,
     );

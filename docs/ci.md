@@ -19,9 +19,9 @@ Spawns the **actual** `kimi -p` against a real PreToolUse hook and proves the
 safety contract end to end:
 
 1. read-only commands (review/challenge/ask/review_gate) — a forced write is denied;
-2. **autonomous goal mode** (`/kimi:pursue`) — zero files land across a full
+2. **autonomous goal mode** (`/k3:pursue`) — zero files land across a full
    multi-turn run, i.e. the hook fires on **every** continuation turn;
-3. **write-capable swarm** (`/kimi:swarm --write`) — coder-subagent edits land in
+3. **write-capable swarm** (`/k3:swarm --write`) — coder-subagent edits land in
    the throwaway worktree only, the user tree is untouched, and an out-of-root
    write is denied (needs kimi-code ≥ 0.18.0).
 

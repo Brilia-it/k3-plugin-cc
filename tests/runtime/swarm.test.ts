@@ -167,8 +167,8 @@ describe("runSwarm hook gate", () => {
       );
 
       expect(output).toContain("SWARM_HOOK_NOT_INSTALLED");
-      expect(output).toContain("Claude Code /kimi:setup");
-      expect(output).toContain("Codex $kimi-setup");
+      expect(output).toContain("Claude Code /k3:setup");
+      expect(output).toContain("Codex $k3-setup");
       expect(output).not.toContain("KIMI_PLUGIN_CC_SKIP_HOOK_CHECK");
     } finally {
       await cleanupTestPath(pluginDataRoot);

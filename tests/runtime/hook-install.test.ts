@@ -179,7 +179,7 @@ describe("verifyHookInstalled", () => {
       expect(status.installed).toBe(false);
       expect(status.reason).toContain(hookPath);
       expect(status.reason).toContain("missing or unreadable");
-      expect(status.reason).toContain("/kimi:setup");
+      expect(status.reason).toContain("/k3:setup");
     } finally {
       await cleanupTestPath(home);
     }
@@ -252,7 +252,7 @@ describe("verifyHookInstalled", () => {
       // kimi-code's fail-open semantics are the reason this must fail closed.
       expect(status.reason).toContain("ALLOW");
 
-      // NOT re-pin-recoverable: /kimi:setup cannot conjure a working Node, so an
+      // NOT re-pin-recoverable: /k3:setup cannot conjure a working Node, so an
       // agent caller must not be told to loop on it. It gets a machine-readable
       // discriminator instead, because every other refusal emits an identical
       // {config_path} payload and prose is invisible to an LLM caller.
@@ -567,10 +567,10 @@ describe("verifyHookInstalled", () => {
       expect(status.installed).toBe(false);
       // H4: the verifier now classifies the mismatch. Same node (process.execPath),
       // different hook script path → a "hook script path drift" diagnosis with the
-      // actionable /kimi:setup fix, instead of the raw expected-vs-got dump.
+      // actionable /k3:setup fix, instead of the raw expected-vs-got dump.
       expect(status.reason).toContain("Hook script path drift");
       expect(status.reason).toContain(oldHookPath);
-      expect(status.reason).toContain("Run /kimi:setup");
+      expect(status.reason).toContain("Run /k3:setup");
       // The prose above is for humans; an LLM caller branches on this instead.
       expect(status.drift).toEqual({
         axis: "hook-script",
@@ -820,7 +820,7 @@ describe("verifyHookInstalled", () => {
       expect(status.reason).toContain("Node binary drift");
       expect(status.reason).toContain(goneNode);
       expect(status.reason).toContain("no longer exists");
-      expect(status.reason).toContain("Run /kimi:setup");
+      expect(status.reason).toContain("Run /k3:setup");
       // Pure Node drift — the hook path matched, so don't mislabel it as path drift.
       expect(status.reason).not.toContain("Hook script path drift");
     } finally {
@@ -940,7 +940,7 @@ describe("formatHookMissingWarning", () => {
     expect(text).toContain("/home/u/.kimi-code/config.toml");
     expect(text).toContain("no hook block");
     expect(text).toContain("review_gate");
-    expect(text).toContain("/kimi:setup");
+    expect(text).toContain("/k3:setup");
     expect(text).toContain("KIMI_PLUGIN_CC_SKIP_HOOK_CHECK");
   });
 });

@@ -270,7 +270,7 @@ describe("ask background", () => {
   // `spawn(process.execPath)` regression reached pre-release review instead of
   // being caught by CI. That bug made the spawned worker rebuild a DIFFERENT
   // canonical command than the one setup pinned, so every background ask/rescue
-  // refused forever and /kimi:setup could not converge them.
+  // refused forever and /k3:setup could not converge them.
   //
   // This test crosses the process boundary: the parent pins a command,
   // background-spawn launches a real child, and the CHILD's own

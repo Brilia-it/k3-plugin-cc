@@ -337,7 +337,7 @@ describe("rescue command lifecycle", () => {
     const pluginDataRoot = await createTestPluginDataRoot("rescue-background-cancel");
     const repoRoot = await createGitRepoFixture("rescue-background-cancel-repo");
     const invocationPath = path.join(pluginDataRoot, "rescue-background-cancel.jsonl");
-    // Mock holds the response for 5s so /kimi:cancel races the close
+    // Mock holds the response for 5s so /k3:cancel races the close
     // event. cli-client's SIGKILL escalation guarantees the subprocess
     // doesn't outlive the cancel even if it ignores SIGTERM.
     const env = makeMockEnv(pluginDataRoot, "rescue-cancel", invocationPath, { delayMs: 5_000 });

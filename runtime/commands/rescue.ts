@@ -182,7 +182,7 @@ export async function executeRescueJob(
         [
           "rescue refuses to run without the kimi-plugin-cc PreToolUse hook.",
           `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-          "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
+          "Repair by running Claude Code /k3:setup or Codex $k3-setup, then retry.",
           "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
           hookRefusalRetryProtocol(context.env),
         ].join(" "),
@@ -274,7 +274,7 @@ export async function executeRescueJob(
       // LLM-caller discipline: writing the raw model output to stderr
       // for a wrapper LLM-caller would corrupt its prose stream. Keep
       // the raw text in the RuntimeError details — surfaces via
-      // /kimi:status / /kimi:result --json — and emit only a short
+      // /k3:status / /k3:result --json — and emit only a short
       // human-facing line on stderr.
       context.stderr.write(
         `[kimi-plugin-cc] rescue artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`,

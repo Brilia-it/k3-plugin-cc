@@ -87,7 +87,7 @@ describe("approval-hook entry script", () => {
   test("ask label + Bash → exit 2 + stderr reason (PR 4: ask is read-only)", async () => {
     // PR 2 originally allowed every tool under `ask` on the assumption
     // the user was watching the prompt. PR 4 reviewers flagged that
-    // /kimi:ask runs as a non-interactive subprocess and `ask` is
+    // /k3:ask runs as a non-interactive subprocess and `ask` is
     // documented read-only in AGENTS.md. Ask now shares the read-only
     // allowlist with review/challenge/review_gate.
     const result = await invokeHook(

@@ -65,7 +65,7 @@ async function assertUnavailableCommand(
     });
 
     expect(failure.exitCode).not.toBeNull();
-    expect(output).toContain("Run `/kimi:setup`");
+    expect(output).toContain("Run `/k3:setup`");
     expect(output).toContain("persisted as failed");
     expect(latest?.status).toBe("failed");
     expect(latest?.error?.code).toBe(errorCode);

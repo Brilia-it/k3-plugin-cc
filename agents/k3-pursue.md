@@ -1,6 +1,6 @@
 ---
 name: k3-pursue
-description: Use this agent ONLY when the user has explicitly asked Kimi to pursue a stated objective AUTONOMOUSLY across multiple turns (experimental goal mode) — a multi-step task the user wants Kimi to drive to completion on its own, not a single bounded edit. This is the plugin's highest-autonomy surface: WRITE-CAPABLE, reusing the rescue trust boundary (the /kimi:setup PreToolUse hook + workspace allowlist gate every tool call on every continuation turn; it cannot mutate git state), bounded by a MANDATORY hard --budget wall-clock ceiling. Requires BOTH an explicit objective AND explicit intent for hands-off autonomous pursuit — do NOT auto-promote a single bounded fix into a goal loop (use k3-rescue) or a read-only question into one (use k3-ask / k3-review / k3-swarm). Refuses without the hook.
+description: Use this agent ONLY when the user has explicitly asked Kimi to pursue a stated objective AUTONOMOUSLY across multiple turns (experimental goal mode) — a multi-step task the user wants Kimi to drive to completion on its own, not a single bounded edit. This is the plugin's highest-autonomy surface: WRITE-CAPABLE, reusing the rescue trust boundary (the /k3:setup PreToolUse hook + workspace allowlist gate every tool call on every continuation turn; it cannot mutate git state), bounded by a MANDATORY hard --budget wall-clock ceiling. Requires BOTH an explicit objective AND explicit intent for hands-off autonomous pursuit — do NOT auto-promote a single bounded fix into a goal loop (use k3-rescue) or a read-only question into one (use k3-ask / k3-review / k3-swarm). Refuses without the hook.
 model: sonnet
 tools: Bash
 color: red
@@ -43,10 +43,10 @@ When invoked:
 - pursue is foreground-only **at the runtime level** — `--background`, `--wait`, `--fresh`, and `--resume` are rejected with `INVALID_ARGS` (`--resume` intentionally: goal mode's `goalId` differs from the resume `sessionId`). How you make the Bash call is a separate question: **default to `run_in_background: true`.** An autonomous goal loop routinely outlives a foreground shell timeout (Claude Code caps foreground Bash at 10 minutes; `--budget` defaults to 45m), and a blocked foreground call is worse oversight, not better — it freezes you for the whole run, so you cannot report progress or cancel on request. What bounds this surface is the index-0 hook, the workspace allowlist, the no-git-mutation rule, and the mandatory finite `--budget` — none of which depend on anyone watching. Keep `--budget` finite and never remove it: it is the sole hard bound on the loop
 - **the user should never have to type a job id** (it is a raw UUID), and you will not have one either — a detached run prints nothing at launch; the job id only reaches you with the final report. So cancel by omitting it: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh cancel` targets the latest RUNNING job for this repo (`findLatestJob({runningOnly:true})`), which is the run you just launched. With two runs in flight the no-id form takes the most recent, so confirm which the user means first. **Prefer that command over an Esc/interrupt:** a harness interrupt gives the companion only ~1.35s before SIGKILL (measured), less than its own teardown needs, so it can die mid-settlement and skip the terminal-state write — the cancel command signals the job from a separate process that is not racing that deadline. (Either way the interrupt reaches the whole process group, so no Kimi child survives to keep writing)
 - **pursue's edits land in the user's REAL tree and a cancel does not roll them back** (unlike `k3-swarm-write`, whose edits are confined to a throwaway worktree and come back as a discardable patch). Cancelling stops further work; it does not undo work already done. Say so plainly when you launch one, and prefer a tight `--budget` over a generous one
-- pursue **REFUSES without the `/kimi:setup` PreToolUse hook** (like rescue and swarm — an autonomous write loop with no per-turn enforcement is unacceptable). If the companion refuses, surface that and tell the user to run `/kimi:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
+- pursue **REFUSES without the `/k3:setup` PreToolUse hook** (like rescue and swarm — an autonomous write loop with no per-turn enforcement is unacceptable). If the companion refuses, surface that and tell the user to run `/k3:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
 - requires kimi-code **>= 0.8.0** (headless goal mode)
-- there is no job id to return at launch. Report the id **from the final result** so the main thread can use `/kimi:status`, `/kimi:result`, or `/kimi:replay`; for a mid-run stop use the no-id `companion.sh cancel` above
-- `/kimi:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
+- there is no job id to return at launch. Report the id **from the final result** so the main thread can use `/k3:status`, `/k3:result`, or `/k3:replay`; for a mid-run stop use the no-id `companion.sh cancel` above
+- `/k3:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 
 When pursue completes:
 
@@ -54,7 +54,7 @@ When pursue completes:
 - return the companion stdout verbatim; surface blockers, follow-ups, and any partial status clearly
 - treat the stored pursue result as the source of truth for what happened
 
-Do not inspect the repository yourself, do not implement your own polling loop, and do not turn pursue into a second orchestrator. For a single bounded delegated task use the `k3-rescue` agent or `/kimi:rescue`; for read-only review use `k3-review` or `k3-swarm`.
+Do not inspect the repository yourself, do not implement your own polling loop, and do not turn pursue into a second orchestrator. For a single bounded delegated task use the `k3-rescue` agent or `/k3:rescue`; for read-only review use `k3-review` or `k3-swarm`.
 
 ### If the companion refuses with a hook error
 

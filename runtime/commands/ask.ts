@@ -298,7 +298,7 @@ async function requireAskHookInstalled(context: CommandContext): Promise<void> {
     [
       "ask refuses to run without the canonical kimi-plugin-cc PreToolUse hook.",
       `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-      "Run /kimi:setup or $kimi-setup to install or repair this host's managed block.",
+      "Run /k3:setup or $k3-setup to install or repair this host's managed block.",
       "Set KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
       hookRefusalRetryProtocol(context.env),
     ].join(" "),

@@ -4,7 +4,7 @@
 // config via a comment-dropping TOML stringifier (smol-toml has no comment
 // support) on every login/settings write. This deletes our BEGIN/END markers
 // while the `[[hooks]]` TABLE (data) survives and keeps enforcing. Pre-v1.8.2
-// this made each host's `/kimi:setup` prune the OTHER host's live-but-unmarked
+// this made each host's `/k3:setup` prune the OTHER host's live-but-unmarked
 // hook (the "seesaw"). v1.8.2 adds (A) a content-based installed fallback
 // (byte-exact command match on a bare table) and (B) host-scoped pruning.
 //

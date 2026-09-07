@@ -8,15 +8,15 @@
 //      forced write attempt is denied and no file lands.
 //   2. explicit experimental features refuse before spawn.
 //   3. 0.33+ default-v2 routing is pinned to legacy-v1 for fresh/resume.
-//   4. autonomous goal mode (/kimi:pursue) — the hook fires on EVERY
+//   4. autonomous goal mode (/k3:pursue) — the hook fires on EVERY
 //      continuation turn (zero files across a multi-turn run).
-//   5. read-only swarm (/kimi:swarm) — a SPAWNED SUBAGENT's forced write is
+//   5. read-only swarm (/k3:swarm) — a SPAWNED SUBAGENT's forced write is
 //      denied (zero files across the fan-out).
-//   6. write-swarm POSITIVE (/kimi:swarm --write) — a coder subagent's edits
+//   6. write-swarm POSITIVE (/k3:swarm --write) — a coder subagent's edits
 //      LAND in the throwaway worktree (captured as a patch), the user's real
 //      tree is untouched, and the worktree is cleaned up. The first POSITIVE
 //      proof (1-3 only assert denial) — it caught the v1.4.1 path-field bug.
-//   7. write-swarm NEGATIVE (/kimi:swarm --write) — a subagent's absolute-path
+//   7. write-swarm NEGATIVE (/k3:swarm --write) — a subagent's absolute-path
 //      write OUTSIDE the trusted worktree root is hook-denied.
 //
 // Why it exists (the latent finding behind it):
@@ -205,7 +205,7 @@ test("real-binary smoke gating", () => {
   expect(BINARY, "kimi binary not resolvable on PATH / KIMI_PLUGIN_CC_KIMI_BIN").toBeDefined();
 });
 
-// Goal-mode (autonomous /kimi:pursue) budget. Goal mode runs MULTIPLE
+// Goal-mode (autonomous /k3:pursue) budget. Goal mode runs MULTIPLE
 // continuation turns, so it needs a larger budget than a single prompt turn.
 // A read-only goal never self-completes (every write is denied), so the model
 // runs continuation turns until this wall-clock budget aborts it. That abort is
@@ -452,7 +452,7 @@ suite("real-binary smoke: 0.33+ default-v2 routing stays pinned to legacy-v1", (
   );
 });
 
-// The LOAD-BEARING safety test for /kimi:pursue (autonomous goal mode): the
+// The LOAD-BEARING safety test for /k3:pursue (autonomous goal mode): the
 // PreToolUse hook must fire on EVERY continuation turn, not just turn 1. We run
 // real headless goal mode (KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND=1 + a /goal
 // prompt) under a read-only label so every write is denied, then assert NO file
@@ -555,7 +555,7 @@ suite("real-binary smoke: autonomous goal mode is gated every turn (pursue)", ()
   );
 });
 
-// The LOAD-BEARING safety test for /kimi:swarm (read-only parallel fan-out): a
+// The LOAD-BEARING safety test for /k3:swarm (read-only parallel fan-out): a
 // SPAWNED SWARM SUBAGENT's write must be denied by the PreToolUse hook. This is
 // the swarm analog of the read-only and goal-mode smokes above, and the one
 // thing that converts "swarm subagents inherit the index-0 hook under the swarm
@@ -678,7 +678,7 @@ suite("real-binary smoke: read-only swarm subagents cannot write (swarm)", () =>
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The LOAD-BEARING field-proof for /kimi:swarm --write (v1.4, write-capable
+// The LOAD-BEARING field-proof for /k3:swarm --write (v1.4, write-capable
 // swarm). Unlike every smoke above (which asserts a write is DENIED), this is the
 // FIRST POSITIVE proof: a `coder` subagent's write must LAND — but in the
 // throwaway worktree, NOT the user's real tree — and be captured as a patch the

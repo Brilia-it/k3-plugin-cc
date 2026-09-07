@@ -15,7 +15,7 @@
 //   agent-core/src/agent/turn/index.ts:436-458). For read-only commands
 //   (review/challenge/review_gate/ask), the hook is the only mechanism
 //   that overrides -p's auto-approve and enforces the safety contract
-//   advertised by /kimi:review, /kimi:challenge, etc.
+//   advertised by /k3:review, /k3:challenge, etc.
 //
 // Fail-closed posture:
 //
@@ -63,7 +63,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
  * kimi-code's parallel fan-out tool (PR #424, 0.12.0). Its exact tool_name
  * string is `AgentSwarm` (verified against
  * packages/agent-core/src/tools/builtin/collaboration/agent-swarm.ts:87,
- * `readonly name = 'AgentSwarm' as const`). The `/kimi:swarm` (read-only)
+ * `readonly name = 'AgentSwarm' as const`). The `/k3:swarm` (read-only)
  * label allowlists THIS tool so the parent agent can launch the swarm; every
  * spawned subagent inherits the same KIMI_PLUGIN_CC_CMD label and fires THIS
  * hook at permission policy index 0 (kimi-code
@@ -162,11 +162,11 @@ export async function decideHookOutcome(
     case "review":
     case "challenge":
     case "review_gate":
-      // /kimi:ask is documented and dispatched as a read-only narrative
+      // /k3:ask is documented and dispatched as a read-only narrative
       // surface (see agents/kimi-ask.md: "do not implement anything Kimi
       // describes"). PR 2 initially trusted kimi-code's `permission:auto`
       // for ask on the assumption the user was watching every tool call,
-      // but `/kimi:ask` runs as a non-interactive subprocess via
+      // but `/k3:ask` runs as a non-interactive subprocess via
       // companion.sh — the user never sees individual tool prompts. PR 4
       // reviewers flagged this contradiction; ask now shares the
       // read-only allowlist with review/challenge/review_gate.
@@ -179,7 +179,7 @@ export async function decideHookOutcome(
       };
 
     case "swarm":
-      // /kimi:swarm — read-only PARALLEL fan-out. The parent agent must be
+      // /k3:swarm — read-only PARALLEL fan-out. The parent agent must be
       // allowed to call AgentSwarm (else the swarm never launches and the
       // hook silently breaks the feature). Every spawned subagent inherits
       // THIS "swarm" label and fires THIS hook at policy index 0, so a
@@ -199,7 +199,7 @@ export async function decideHookOutcome(
       };
 
     case "swarm-write": {
-      // /kimi:swarm --write — WRITE-capable parallel fan-out (v1.4). The
+      // /k3:swarm --write — WRITE-capable parallel fan-out (v1.4). The
       // coordinator and `coder` subagents run in an EPHEMERAL THROWAWAY WORKTREE
       // (off the user's HEAD). Allow AgentSwarm (else the swarm never launches)
       // plus the read-only set; deny the singular Agent. Every write/edit/shell
@@ -284,7 +284,7 @@ function denyReadOnlyMessage(label: string, toolName: string): string {
   return [
     `kimi-plugin-cc safety hook: ${label} is read-only.`,
     `Tool "${tool}" is denied — use Read, Grep, or Glob to inspect the workspace instead.`,
-    "If you need to mutate state, the user must invoke /kimi:rescue (write-capable) rather than this command.",
+    "If you need to mutate state, the user must invoke /k3:rescue (write-capable) rather than this command.",
   ].join(" ");
 }
 

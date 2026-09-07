@@ -149,7 +149,7 @@ describe("argument parsing", () => {
   });
 
   test("parseReviewArgs hard-rejects thinking flag forms when invoked as 'challenge'", () => {
-    // parseReviewArgs handles both /kimi:review and /kimi:challenge via
+    // parseReviewArgs handles both /k3:review and /k3:challenge via
     // its `commandName` parameter; both share `parseKnownFlags`. A future
     // refactor of that helper could regress the challenge path silently
     // (kimi review-smoke #2 on the alpha.5 candidate caught this gap).

@@ -205,7 +205,7 @@ async function executeReviewGate(
       // runCliPromptWithBudget ties the 8 s timeout to an AbortController
       // that kills the kimi child on expiry — review_gate runs inside
       // Claude Code's Stop hook, so a runaway kimi after timeout would
-      // hold model tokens with no way for /kimi:cancel to reach it
+      // hold model tokens with no way for /k3:cancel to reach it
       // (the SQLite row's kimi_pid is null). See reports/17 and 18.
       const result = await runCliPromptWithBudget(
         {
@@ -242,7 +242,7 @@ async function executeReviewGate(
       const finalText = reassembleProseFromRecords(result.records);
       const rendered = renderManagedJobOutput(job, finalText);
 
-      // Cancel-vs-completed race: /kimi:cancel pre-marks the row as
+      // Cancel-vs-completed race: /k3:cancel pre-marks the row as
       // `cancelled` and SIGTERMs the worker. If kimi managed to return
       // in the SIGTERM→exit window before our wire-equivalent picked
       // up the close, we'd overwrite the cancellation artifact and

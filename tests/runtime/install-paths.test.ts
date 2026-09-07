@@ -180,7 +180,7 @@ describe("describeHookCommandDrift", () => {
     expect(reason).toContain("SAME interpreter");
     expect(reason).toContain("your Node did not move");
     expect(reason).not.toContain("version-manager switch");
-    expect(reason).toContain("Run /kimi:setup");
+    expect(reason).toContain("Run /k3:setup");
   });
 
   test("a genuinely different interpreter is still reported as a real change", () => {
@@ -223,7 +223,7 @@ describe("describeHookCommandDrift", () => {
     expect(reason).toContain("/opt/node-26.0/bin/node");
     expect(reason).toContain("no longer exists");
     expect(reason).toContain("version-manager");
-    expect(reason).toContain("Run /kimi:setup");
+    expect(reason).toContain("Run /k3:setup");
   });
 
   test("Node binary changed when both interpreters still exist (version-manager switch)", () => {
@@ -233,7 +233,7 @@ describe("describeHookCommandDrift", () => {
     const reason = describeHookCommandDrift(installed, expected, () => true);
     expect(reason).toContain("Node binary changed");
     expect(reason).not.toContain("no longer exists");
-    expect(reason).toContain("Run /kimi:setup");
+    expect(reason).toContain("Run /k3:setup");
   });
 
   test("Hook script path drift when only the plugin path moved (same node)", () => {
@@ -244,7 +244,7 @@ describe("describeHookCommandDrift", () => {
     expect(reason).toContain("Hook script path drift");
     expect(reason).toContain("/old/dist/hooks/approval-hook.js");
     expect(reason).not.toContain("Node binary");
-    expect(reason).toContain("Run /kimi:setup");
+    expect(reason).toContain("Run /k3:setup");
   });
 
   test("reports BOTH drifts when node and hook path changed", () => {
@@ -410,7 +410,7 @@ describe("preferStableNodePath", () => {
   // gives the child argv0 === the fully symlink-resolved (version-stamped) path,
   // while setup — running via companion.sh, which execs `$(command -v node)` —
   // pins the stable symlink. The two never converge, so every background
-  // rescue/ask would refuse forever and `/kimi:setup` could not fix it.
+  // rescue/ask would refuse forever and `/k3:setup` could not fix it.
   test("a worker spawned with resolveNodeBinary agrees with what setup pins", () => {
     const setupSide = resolveNodeBinary({});
     // A child spawned with `setupSide` reports it verbatim as its own argv0

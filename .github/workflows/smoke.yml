@@ -2,9 +2,9 @@ name: Real-binary smoke
 
 # The real-binary safety gate: spawns the ACTUAL `kimi -p` against a real
 # PreToolUse hook and proves end-to-end that (1) read-only commands' forced
-# writes are denied, (2) autonomous goal mode (/kimi:pursue) is hook-gated on
+# writes are denied, (2) autonomous goal mode (/k3:pursue) is hook-gated on
 # EVERY continuation turn (zero files land across a multi-turn run), and (3)
-# write-swarm (/kimi:swarm --write) edits land only in the throwaway worktree
+# write-swarm (/k3:swarm --write) edits land only in the throwaway worktree
 # (user tree untouched) while out-of-root writes are denied (needs kimi >= 0.18.0).
 #
 # MANUAL-DISPATCH ONLY (no schedule) — a goal-mode + write-swarm run is a few

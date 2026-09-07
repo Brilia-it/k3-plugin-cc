@@ -7,7 +7,7 @@
 // write, because `kimi -p` hard-codes `permission: auto`. The hook contract is
 // exit 2 = deny, and ANY OTHER exit code = allow. That means a hook which fails
 // to launch does not fail safe: it fails open, silently, while
-// `/kimi:setup --check` still reports "Probe: ok".
+// `/k3:setup --check` still reports "Probe: ok".
 //
 // That is not hypothetical. It is exactly what happened on Windows: the command
 // was single-quoted (POSIX), cmd.exe could not launch it, exit was 255, and

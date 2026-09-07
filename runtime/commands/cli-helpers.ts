@@ -44,7 +44,7 @@ export function reassembleProseFromRecords(records: ReadonlyArray<StreamJsonReco
  * Loud-fail warning when kimi finished a job but never announced a
  * session id on stderr. We persist `kimi_session_id` as NULL in that
  * case (the row is unresumable), and the user is silently surprised
- * later when `-r` or `/kimi:replay` returns nothing.
+ * later when `-r` or `/k3:replay` returns nothing.
  *
  * The right surface is human-readable stderr per the LLM-caller
  * discipline invariant — load-bearing context still goes via the SQLite

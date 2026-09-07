@@ -8,7 +8,7 @@ Run the companion with any user-supplied flags appended after `task swarm`:
 
 `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh task swarm <args>`
 
-`/kimi:swarm` is a **parallel fan-out**: Kimi uses the `AgentSwarm` tool to fan the work out across subagents (one per file/module/question), then consolidates into one markdown report. **By default it is read-only**, enforced by the same PreToolUse hook as `/kimi:review` — the hook runs under the `swarm` label (read-only tool set plus `AgentSwarm`), and **every spawned subagent inherits that label and fires the same hook** (policy index 0), so a subagent's write/edit/shell call is denied exactly like a single-turn review's.
+`/k3:swarm` is a **parallel fan-out**: Kimi uses the `AgentSwarm` tool to fan the work out across subagents (one per file/module/question), then consolidates into one markdown report. **By default it is read-only**, enforced by the same PreToolUse hook as `/k3:review` — the hook runs under the `swarm` label (read-only tool set plus `AgentSwarm`), and **every spawned subagent inherits that label and fires the same hook** (policy index 0), so a subagent's write/edit/shell call is denied exactly like a single-turn review's.
 
 **`--write`** turns it into a write-capable fan-out: the coordinator and `coder` subagents run inside an **ephemeral throwaway git worktree off your HEAD**, edit disjoint targets there, and the result is captured as a **reviewable patch** (written to a `.patch` file whose path is printed in the report). Writes are confined to that worktree by the `swarm-write` hook label (rescue-grade allowlist, scoped to a forge-proof trusted worktree root — not the payload cwd); git mutation and out-of-worktree writes are denied; **the plugin never applies or commits — you own the merge.** Your real working tree is never touched.
 
@@ -23,6 +23,6 @@ Supported flags:
 Prototype limitations:
 
 - **No `--background` flag** — the runtime has no detached-worker mode for swarm. That is separate from how the *caller* runs the shell command: for `--write` (30m default budget vs a 10-minute foreground Bash cap) detaching the call is expected; for a read-only fan-out the default stays foreground and detaching is a per-request choice. `--budget` and `--max-concurrency` stay finite either way, and budget expiry still captures the patch/report. To stop a run, just say so — the stop path is `companion.sh cancel` with no id (it targets the latest running job for this repo). For `--write`, prefer that over Esc: an interrupt can kill the run mid-teardown and lose the captured patch.
-- Read-only swarm requires kimi-code **>= 0.12.0** (the `AgentSwarm` tool); `--write` requires **>= 0.18.0** (the hard concurrency cap). Both **refuse** without the `/kimi:setup` PreToolUse hook (a fan-out with no enforcement is an N-fold blast radius).
+- Read-only swarm requires kimi-code **>= 0.12.0** (the `AgentSwarm` tool); `--write` requires **>= 0.18.0** (the hard concurrency cap). Both **refuse** without the `/k3:setup` PreToolUse hook (a fan-out with no enforcement is an N-fold blast radius).
 
 Return the companion stdout verbatim.

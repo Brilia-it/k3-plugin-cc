@@ -53,7 +53,7 @@ export async function startBackgroundJob(
   // command from ITS OWN `process.argv0`. Spawning with a different spelling of
   // node than setup pinned makes the worker compute a different expected
   // command than the config holds → byte-exact mismatch → every background
-  // rescue/ask refuses forever, with `/kimi:setup` unable to converge the two
+  // rescue/ask refuses forever, with `/k3:setup` unable to converge the two
   // sides (setup runs via companion.sh, whose argv0 is the stable symlink).
   //
   // Concretely: `spawn(process.execPath)` gives the child an argv0 equal to the

@@ -148,7 +148,7 @@ const SWARM_SUPPORTED_FLAGS =
   "-m/--model <name>, --budget <30m|1h|90s>, --cap <N>, --max-concurrency <N>, --write";
 
 /**
- * Parser for /kimi:swarm (read-only parallel fan-out). Foreground-only:
+ * Parser for /k3:swarm (read-only parallel fan-out). Foreground-only:
  * no --background/--fresh/--resume. Trailing tokens are the objective.
  */
 export function parseSwarmArgs(argv: string[]): SwarmArgs {
@@ -307,7 +307,7 @@ export function parseDurationMs(token: string, flag: string): number {
 }
 
 /**
- * Parser for /kimi:pursue (autonomous goal mode). Foreground-only in the
+ * Parser for /k3:pursue (autonomous goal mode). Foreground-only in the
  * prototype: no --background/--fresh/--resume (the goalId/sessionId split makes
  * session resume unreliable — see pursue.ts). Trailing tokens are the objective.
  */

@@ -8,7 +8,7 @@
 // safety control is the PreToolUse hook (see runtime/hooks/approval-policy.ts) —
 // without it, `kimi -p` auto-approves every tool call from review /
 // challenge / review_gate / ask. PR 3 made rescue REFUSE to run when the
-// hook is missing, so /kimi:setup is the only path that wires the
+// hook is missing, so /k3:setup is the only path that wires the
 // plugin's safety story into ~/.kimi-code/config.toml.
 //
 // What this command does:
@@ -32,10 +32,10 @@
 //
 // Subcommands:
 //
-//   /kimi:setup                — install (idempotent) + probe
-//   /kimi:setup --check        — probe only (no write)
-//   /kimi:setup --uninstall    — remove managed block (and orphan markers)
-//   /kimi:setup --enable-review-gate / --disable-review-gate
+//   /k3:setup                — install (idempotent) + probe
+//   /k3:setup --check        — probe only (no write)
+//   /k3:setup --uninstall    — remove managed block (and orphan markers)
+//   /k3:setup --enable-review-gate / --disable-review-gate
 //                              — flip the plugin-side review-gate flag in
 //                                CLAUDE_PLUGIN_DATA/config.json
 //
@@ -306,7 +306,7 @@ async function runInstall(
         "SETUP_ORPHAN_MARKERS",
         [
           `kimi-code config at ${configPath} contains an orphaned ${state.detail} marker.`,
-          "Run `/kimi:setup --uninstall` to clean up, then re-run `/kimi:setup`.",
+          "Run `/k3:setup --uninstall` to clean up, then re-run `/k3:setup`.",
         ].join(" "),
         "setup.install",
         { details: { configPath, orphan: state.detail } },
@@ -319,7 +319,7 @@ async function runInstall(
           `kimi-code config at ${configPath} contains ${state.beginLines.length} kimi-plugin-cc managed blocks for host ${hostId} (lines ${state.beginLines
             .map((line) => line + 1)
             .join(", ")}).`,
-          "This usually means two /kimi:setup runs raced. Run `/kimi:setup --uninstall` to clear them, then `/kimi:setup` again.",
+          "This usually means two /k3:setup runs raced. Run `/k3:setup --uninstall` to clear them, then `/k3:setup` again.",
         ].join(" "),
         "setup.install",
         { details: { configPath, beginLines: state.beginLines } },
@@ -373,8 +373,8 @@ async function runInstall(
     warnings,
     reviewGateEnabled,
     nextStep: probe.ok
-      ? "Run /kimi:review, /kimi:challenge, /kimi:ask, or /kimi:rescue. Codex users can invoke the matching $kimi-* skills."
-      : "Re-run /kimi:setup after installing kimi-code and Node. If the probe keeps failing, run /kimi:setup --uninstall and inspect ~/.kimi-code/config.toml manually.",
+      ? "Run /k3:review, /k3:challenge, /k3:ask, or /k3:rescue. Codex users can invoke the matching $k3-* skills."
+      : "Re-run /k3:setup after installing kimi-code and Node. If the probe keeps failing, run /k3:setup --uninstall and inspect ~/.kimi-code/config.toml manually.",
     details: buildDetails({
       configPath,
       hookScriptPath,
@@ -410,7 +410,7 @@ async function runCheck(
       warnings,
       reviewGateEnabled,
       nextStep:
-        "Repair or remove the invalid [[hooks]] entry named above, then run /kimi:setup --check again. No model call is required.",
+        "Repair or remove the invalid [[hooks]] entry named above, then run /k3:setup --check again. No model call is required.",
       details: buildDetails({
         configPath,
         hookScriptPath,
@@ -465,7 +465,7 @@ async function runCheck(
   if (ownStale.length > 0) {
     warnings.push(
       `Found ${ownStale.length} stale marker-less kimi-plugin-cc hook block(s) from this host's earlier installs. ` +
-        `Run /kimi:setup to refresh, or /kimi:setup --uninstall --all to clear everything.`,
+        `Run /k3:setup to refresh, or /k3:setup --uninstall --all to clear everything.`,
     );
   }
   for (const host of foreignHosts) {
@@ -495,8 +495,8 @@ async function runCheck(
       reviewGateEnabled,
       nextStep:
         installedCheck.state.kind === "absent"
-          ? "Run /kimi:setup (without --check) to install the managed block."
-          : "Run /kimi:setup --uninstall, then /kimi:setup to repair.",
+          ? "Run /k3:setup (without --check) to install the managed block."
+          : "Run /k3:setup --uninstall, then /k3:setup to repair.",
       details: buildDetails({
         configPath,
         hookScriptPath,
@@ -529,7 +529,7 @@ async function runCheck(
       warnings,
       reviewGateEnabled,
       nextStep:
-        "Reinstall the plugin so dist/hooks/approval-hook.js is present, or run /kimi:setup to refresh the managed block.",
+        "Reinstall the plugin so dist/hooks/approval-hook.js is present, or run /k3:setup to refresh the managed block.",
       details: buildDetails({
         configPath,
         hookScriptPath,
@@ -556,13 +556,13 @@ async function runCheck(
     warnings,
     reviewGateEnabled,
     nextStep: !probe.ok
-      ? "Run /kimi:setup to repair the managed block, or /kimi:setup --uninstall if you want to remove the integration."
+      ? "Run /k3:setup to repair the managed block, or /k3:setup --uninstall if you want to remove the integration."
       : installedCheck.via === "bare-table"
         // Enforcement is active via the marker-less table, but the markers are
         // gone (kimi-code stripped them). Don't say "No action needed" while a
         // warning tells the user to re-adorn — that contradiction confused
         // operators (Kimi review F3). Recommend the harmless re-adorn.
-        ? "Enforcement is active. Run /kimi:setup to re-adorn this host's managed-block markers — kimi-code stripped them on its last config write (comments are not preserved). Your hook keeps working meanwhile."
+        ? "Enforcement is active. Run /k3:setup to re-adorn this host's managed-block markers — kimi-code stripped them on its last config write (comments are not preserved). Your hook keeps working meanwhile."
         : "No action needed.",
     details: buildDetails({
       configPath,
@@ -618,7 +618,7 @@ async function runUninstallLocked(
       probe: "skipped",
       warnings,
       reviewGateEnabled,
-      nextStep: "Run /kimi:setup to install the managed block again.",
+      nextStep: "Run /k3:setup to install the managed block again.",
       details: buildDetails({
         configPath,
         hookScriptPath,
@@ -679,7 +679,7 @@ async function runUninstallLocked(
   if (!removeAllHosts && remainingHosts.length > 0) {
     warnings.push(
       `Left ${remainingHosts.length} other host block(s) in place: ${remainingHosts.join(", ")}. ` +
-        `Use \`/kimi:setup --uninstall --all\` to remove every host's block.`,
+        `Use \`/k3:setup --uninstall --all\` to remove every host's block.`,
     );
   }
 
@@ -696,8 +696,8 @@ async function runUninstallLocked(
     warnings,
     reviewGateEnabled,
     nextStep: changed
-      ? "Run /kimi:setup again to reinstall the hook, or leave the plugin uninstalled."
-      : "Run /kimi:setup to install the hook.",
+      ? "Run /k3:setup again to reinstall the hook, or leave the plugin uninstalled."
+      : "Run /k3:setup to install the hook.",
     details: buildDetails({
       configPath,
       hookScriptPath,
@@ -784,7 +784,7 @@ async function assertKimiHookSetValid(
   if (validation.valid) return;
   throw new RuntimeError(
     "SETUP_INVALID_HOOKS_CONFIG",
-    `${validation.reason ?? "Configured hooks failed validation"} Repair or remove that [[hooks]] entry before rerunning /kimi:setup; the existing config was left unchanged.`,
+    `${validation.reason ?? "Configured hooks failed validation"} Repair or remove that [[hooks]] entry before rerunning /k3:setup; the existing config was left unchanged.`,
     stage,
     {
       details: {
@@ -1017,15 +1017,15 @@ function buildManagedBlock(
   const suffix = hostId.length > 0 ? `:${hostId}` : "";
   return [
     `${BEGIN_MARKER_PREFIX}${suffix} (v${KIMI_PLUGIN_CC_VERSION}) ===`,
-    `# DO NOT EDIT — managed by /kimi:setup. Run /kimi:setup --uninstall to remove.`,
+    `# DO NOT EDIT — managed by /k3:setup. Run /k3:setup --uninstall to remove.`,
     `# Host: ${hostId.length > 0 ? hostId : "(legacy)"} — Claude Code and Codex each own a`,
     `#   separate block in this shared ~/.kimi-code/config.toml; setup in one host`,
     `#   never touches the other's.`,
     `# Purpose:`,
     `#   kimi-code's \`kimi -p\` mode hard-codes permission='auto' and`,
-    `#   auto-approves every tool call. This hook enforces /kimi:review,`,
-    `#   /kimi:challenge, /kimi:review_gate, and /kimi:ask as read-only,`,
-    `#   and applies the workspace-bound rescue allowlist for /kimi:rescue.`,
+    `#   auto-approves every tool call. This hook enforces /k3:review,`,
+    `#   /k3:challenge, /k3:review_gate, and /k3:ask as read-only,`,
+    `#   and applies the workspace-bound rescue allowlist for /k3:rescue.`,
     `#   Without this block the plugin's safety contract collapses.`,
     `# Matcher field is intentionally OMITTED — kimi-code compiles the`,
     `#   matcher with \`new RegExp(...)\`. An empty/missing matcher means`,
@@ -1406,10 +1406,10 @@ async function collectInstalledKimiPluginsNotice(
     [
       `NOTE: ${enabledIds.length} kimi-code plugin(s) installed and enabled: ${enabledIds.join(", ")}.`,
       "  kimi-code registers their tools (including MCP) on every session. Under kimi-plugin-cc's",
-      "  read-only commands (/kimi:review, /kimi:challenge, /kimi:ask, and the review gate) the",
+      "  read-only commands (/k3:review, /k3:challenge, /k3:ask, and the review gate) the",
       "  PreToolUse hook denies any tool outside Read/Grep/Glob, so calls to these plugins' tools",
       "  are blocked — safe, but they can waste model turns. This is expected; no action needed.",
-      "  (/kimi:rescue and /kimi:swarm apply their own allowlists.) To avoid the turn-waste, disable",
+      "  (/k3:rescue and /k3:swarm apply their own allowlists.) To avoid the turn-waste, disable",
       "  kimi-code plugins you don't need for delegated work in your kimi-code config.",
     ].join("\n"),
   );

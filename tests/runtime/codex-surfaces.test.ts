@@ -76,8 +76,8 @@ describe("Codex sidecar surfaces", () => {
 
     expect(marketplace).toEqual(CODEX_MARKETPLACE);
     expect(marketplace.name).toBe("brilia-k3-marketplace");
-    expect(marketplace.plugins[0].name).toBe("kimi");
-    expect(marketplace.plugins[0].source.path).toBe("./plugins/kimi-codex");
+    expect(marketplace.plugins[0].name).toBe("k3");
+    expect(marketplace.plugins[0].source.path).toBe("./plugins/k3-codex");
     expect(marketplace.plugins[0].policy.installation).toBe("AVAILABLE");
     expect(marketplace.plugins[0].policy.authentication).toBe("ON_INSTALL");
   });

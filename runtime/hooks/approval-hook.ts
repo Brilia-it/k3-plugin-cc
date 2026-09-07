@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Entry script for the kimi-code PreToolUse hook.
 //
-// Installed by /kimi:setup as a managed block in ~/.kimi-code/config.toml:
+// Installed by /k3:setup as a managed block in ~/.kimi-code/config.toml:
 //
 //   [[hooks]]
 //   event = "PreToolUse"

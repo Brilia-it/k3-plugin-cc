@@ -164,7 +164,7 @@ describe("classifyManagedCommandFailure", () => {
     // records, its stderr tail (embedded in the CLI_NONZERO_EXIT message by
     // assertCliResultSuccess) names the logged-out OAuth provider. The
     // classifier must recognize it BEFORE the generic CLI_NONZERO_EXIT
-    // startup_failed branch, whose /kimi:setup advice cannot repair auth.
+    // startup_failed branch, whose /k3:setup advice cannot repair auth.
     const inner = new RuntimeError(
       "CLI_NONZERO_EXIT",
       'kimi subprocess exited with code 1:\nerror: failed to run prompt: auth.login_required: OAuth provider "managed:kimi-code" requires login before it can be used.',

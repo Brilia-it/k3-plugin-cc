@@ -8,6 +8,46 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.9.8-brilia.0.2.1 — (fork)
+
+**The rename in 0.2.0 was cosmetic, and a cross-vendor review said so.** We had renamed seven
+agent files and their frontmatter and called the job done. Everything those agents *say* still
+pointed at the old namespace, and every identifier we actually distribute still carried the
+trademark. Two separate defects wearing one name.
+
+- **Fixed: the agents told you to run commands that do not exist here.** 375 references to
+  `/kimi:*` across agents, commands, runtime error messages, docs and tests are now `/k3:*`,
+  plus 56 `$kimi-*` Codex skill references. This was not a trademark issue, it was a broken
+  instruction: our commands are `/k3:*`, so `run /kimi:setup` pointed at nothing. Worse for
+  anyone who also has the upstream plugin installed, where `/kimi:setup` exists and belongs to
+  the *other* plugin: we were sending people to configure someone else's hook block, which is
+  exactly the collision 0.2.0 documented.
+- **Fixed: the trademark in what we ship.** Package name `kimi-plugin-cc` to `k3-plugin-cc`;
+  the Codex plugin identifier `kimi` to `k3`; its display name `Kimi` to `K3`; the marketplace
+  label `Kimi Marketplace` to `K3 Marketplace (BRILIA)`; the distributed folder
+  `plugins/kimi-codex` to `plugins/k3-codex`; and five Codex skills `kimi-{setup,status,result,cancel,replay}`
+  to `k3-*`. Naming the upstream product truthfully ("it drives the `kimi-code` CLI") stays, and
+  is a different thing: the line is between *naming* and *identifying as*.
+- **Apache-2.0 section 4(b): `runtime/version.ts` now carries its modification notice.** NOTICE
+  said the changed files are marked; that file was not.
+- **What history we did NOT rewrite.** `CHANGELOG.md` and `ROADMAP-TO-GA.md` keep their `/kimi:*`
+  references. They record what upstream shipped on the dates they shipped it, and on those dates
+  the commands really were called that. Two lines in README and SECURITY that describe the
+  original Windows bug now say explicitly that the check was upstream's `/kimi:setup --check` at
+  the time we found it, because the first pass rewrote them into a claim about a command that did
+  not exist yet.
+
+**Still carrying the mark, and still deliberate.** The managed block written into your
+`~/.kimi-code/config.toml` is still keyed `kimi-plugin-cc-managed`, and the environment variables
+are still `KIMI_PLUGIN_CC_*`. Both live on machines other than ours, so renaming them needs a
+migration path rather than a find-and-replace. That is its own release.
+
+**Verified.** typecheck clean, build clean, surface registry regenerated and its gate green. On
+the two test files that exercise real background spawning, this tree scores 7 pass / 4 fail
+against the clean upstream v1.9.8 baseline's 5 pass / 6 fail, same command and same scope; the
+remaining failures are `EPERM` on symlink creation, a Windows privilege limit present on both
+trees.
+
 ## 1.9.8-brilia.0.2.0 — (fork)
 
 - **Version numbers now name their upstream base.** The scheme is
@@ -180,7 +220,7 @@ Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the up
 - **Experimental v2 refactor preserved the ordinary deny seam, but the original order claim was later corrected.** 0.29.1 replaces ordered pre-execution hook slots with an awaited veto event; ordinary external PreToolUse blocks and the exact smoke below were real. A 2026-07-31 production-registration trace found plan service actually precedes external hooks and can final-allow its exact plan-file write first. v1.9.4 therefore disables experimental-v2 across the tested range; see its entry for the inherited gap and mitigation.
 - **Exact-binary smoke GREEN on latest.** The temp-installed exact-0.29.1 `bun run smoke:real` passed **10 / 0 / 43 in 339.80s**: all read-only forced writes denied, asserted-v2 denial passed through the new veto path, pursue reached its finite budget with zero writes, read swarm denied a subagent write, write swarm stayed confined (`patchBytes=306`, `userTreeClean=true`, `worktreeCleaned=true`), and the non-vacuous out-of-root absolute write was denied. Exact 0.29.0 had already passed the same 10/0/43 matrix.
 - **Headless pursue resume remains upstream-blocked.** Both print drivers still use create-only goal parsing; `resumeGoal()` remains TUI/RPC-only.
-- Edits: `runtime/kimi-version-probe.ts` (`{0,29}` + audit proof), `runtime/stream-json.ts` (verified-through range), version/docs/tests, re-pinned Claude hashes, and regenerated `dist/` + `plugins/kimi-codex/`. Tags: `v1.8.8` and `compat-verified-kimi-code-0.29.1`. Evidence: daily-monitor reports 2026-07-23 and 2026-07-24.
+- Edits: `runtime/kimi-version-probe.ts` (`{0,29}` + audit proof), `runtime/stream-json.ts` (verified-through range), version/docs/tests, re-pinned Claude hashes, and regenerated `dist/` + `plugins/k3-codex/`. Tags: `v1.8.8` and `compat-verified-kimi-code-0.29.1`. Evidence: daily-monitor reports 2026-07-23 and 2026-07-24.
 
 ## 1.8.7 — 2026-07-21
 
@@ -193,7 +233,7 @@ Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the up
 - **The 0.28.1 v2 change** (broadcasting session-level permission-mode switches to already-running subagents) is a propagation fix, not a hook bypass — the v2 external-hook runner is byte-identical across the delta.
 - **Exact-binary smokes GREEN on both releases** (temp-installed exact binaries via `KIMI_PLUGIN_CC_KIMI_BIN`; `bun run smoke:real`): 0.27.0 — 10 pass / 0 fail / 43 assertions; 0.28.1 — 10 / 0 / 43. Full matrix on each: read-only forced-write denials, the `KIMI_CODE_EXPERIMENTAL_FLAG=1` v2 denial lane, pursue budget-abort with zero writes, read-swarm subagent denial, write-swarm confinement (`patchBytes=278`, `userTreeClean=true`, `worktreeCleaned=true`), and the out-of-root absolute-write denial.
 - **Test-only fix:** a Node ≥25 environment failure — the tsx loader's DEP0205 `module.register()` deprecation warning leaked into a spawned companion's stderr assertion in `tests/runtime/setup-command.test.ts`; the assertion now strips Node deprecation warnings before comparing.
-- Edits: `runtime/kimi-version-probe.ts` (`{0,27}`/`{0,28}` + chained audit comments), `runtime/stream-json.ts` (verified-through range), AGENTS.md, CHANGELOG.md, ROADMAP audit log, `tests/runtime/{kimi-version-probe,marker-strip,setup-command}.test.ts`, 4-file version bump 1.8.6 → 1.8.7 + re-pinned surface hashes, regenerated `dist/` + `plugins/kimi-codex/`. Tags: `v1.8.7`, `compat-verified-kimi-code-0.27.0`, `compat-verified-kimi-code-0.28.1`. Evidence: daily-monitor reports 2026-07-18 (0.27.0) and 2026-07-21 (0.28.1).
+- Edits: `runtime/kimi-version-probe.ts` (`{0,27}`/`{0,28}` + chained audit comments), `runtime/stream-json.ts` (verified-through range), AGENTS.md, CHANGELOG.md, ROADMAP audit log, `tests/runtime/{kimi-version-probe,marker-strip,setup-command}.test.ts`, 4-file version bump 1.8.6 → 1.8.7 + re-pinned surface hashes, regenerated `dist/` + `plugins/k3-codex/`. Tags: `v1.8.7`, `compat-verified-kimi-code-0.27.0`, `compat-verified-kimi-code-0.28.1`. Evidence: daily-monitor reports 2026-07-18 (0.27.0) and 2026-07-21 (0.28.1).
 
 ## 1.8.6 — 2026-07-17
 
@@ -213,7 +253,7 @@ Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the up
 - **Two write-swarm MEDIUMs (memo-continuity gap-check).** A follow-up review of the transcript surfaced two `swarm.ts` findings the main remediation hadn't folded in: **(MED, fail-open version gate)** `assertSwarmSupported` returned without blocking whenever the `kimi --version` probe failed — fine for READ mode (a too-old binary is only degraded, the read-only hook still holds), but UNSAFE for `--write`, whose safe concurrency depends on the hard `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY` cap that only exists on kimi-code ≥0.18.0. On a flaky probe against a 0.12–0.17 binary the env var is ignored, the default `--max-concurrency 1` serialization is enforced nowhere, and racing `coder` subagents corrupt the shared-worktree patch. The gate now **fails CLOSED for write mode** (`throw SWARM_UNSUPPORTED` with the probe reason) while read mode keeps failing open. **(MED, orphan-sweep reaps a live worktree)** `WORKTREE_ORPHAN_TTL_MS` was a flat 6h while `--budget` accepts up to `MAX_DURATION_MS` (24h); the sweep's only liveness signal is the worktree dir's mtime, which is frozen at `git worktree add` time when a run edits only existing files. A long write run (`--budget 12h`) could thus be seen as "idle >6h" and `git worktree remove --force`d by a concurrent run's startup sweep → ENOENT writes, lost patch. The TTL is now derived as `MAX_DURATION_MS + 2h`, so it always exceeds the longest a run can live; orphans (hard-kill leftovers) are still reaped, just after a provably-safe delay. Both are covered by new `swarm.test.ts` regressions (write refuses on a broken probe; read still reaches the hook check; TTL > max budget).
 - **Read-only swarm prompt slimmed (k3 anti-hang).** The kimi-code 0.26.0 coordinator hung when over-prescribed (it emitted a non-sole-tool-call response and never launched, timing out to budget with 0 records) and stalled on a denied preliminary `Bash` size-check. `buildSwarmPrompt` now states the read-only goal + report shape, names the tool constraint (Read/Grep/Glob only, Bash denied), and steers the fan-out to be the first action — without prescribing the `AgentSwarm`/`subagent_type`/`prompt_template` mechanics. Safety is unchanged: the PreToolUse hook (swarm label, policy index 0) denies every write/edit/shell for the coordinator and every subagent regardless of prose.
 - **Process.** The findings came from a kimi k3 `/kimi:swarm` self-audit; every CRITICAL/HIGH was re-verified against the source (the `$IFS`-glue RCE and the parser divergences were reproduced directly against the vendored parser). A follow-up Fable adversarial review of the *fixes* found the `$IFS`-glue hole in the first-cut regex gate and drove the quote-aware rebuild; an Opus correctness pass checked for false positives. (The k3 swarm coordinator itself repeatedly hung — a known upstream k3 limitation — so the reliable internal reviews carried the gap-check.)
-- Edits: `runtime/rescue-approval.ts`, `runtime/hooks/managed-block.ts`, `runtime/hooks/install.ts`, `runtime/cli-client.ts`, `runtime/commands/setup.ts`, `runtime/commands/swarm.ts`; regression tests in `tests/runtime/{rescue-approval,marker-strip,hook-install,cli-client,setup,swarm}.test.ts`; 4-file version bump 1.8.5 → 1.8.6 + re-pinned surface hashes; regenerated `dist/` + `plugins/kimi-codex/`.
+- Edits: `runtime/rescue-approval.ts`, `runtime/hooks/managed-block.ts`, `runtime/hooks/install.ts`, `runtime/cli-client.ts`, `runtime/commands/setup.ts`, `runtime/commands/swarm.ts`; regression tests in `tests/runtime/{rescue-approval,marker-strip,hook-install,cli-client,setup,swarm}.test.ts`; 4-file version bump 1.8.5 → 1.8.6 + re-pinned surface hashes; regenerated `dist/` + `plugins/k3-codex/`.
 
 ## 1.8.5 — 2026-07-16
 
@@ -287,8 +327,8 @@ Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the up
 
 **Silence the `MODULE_TYPELESS_PACKAGE_JSON` warning in the Codex bundle.** Cosmetic packaging fix; no runtime behavior change.
 
-- The root `package.json` declares `"type": "module"`, which covers root `dist/` on the Claude side (Claude Code copies the repo root, package.json included, into its cache). But the self-contained Codex bundle `plugins/kimi-codex/` carried no `package.json`, so when Codex ran the bundled `dist/companion.js` from its cache Node walked up to `~/package.json` (no `type`), emitted `MODULE_TYPELESS_PACKAGE_JSON`, and reparsed as ESM (perf overhead; the warning also leaked into the setup probe's captured deny-reason preview).
-- Fix: `bun run build` now emits `dist/package.json` (`{"type":"module"}`), which the existing runtime mirror copies into `plugins/kimi-codex/dist/`, so the bundled companion resolves its module type locally. Verified in an isolated `$HOME` location: **1 → 0** warnings. `bun run check` green.
+- The root `package.json` declares `"type": "module"`, which covers root `dist/` on the Claude side (Claude Code copies the repo root, package.json included, into its cache). But the self-contained Codex bundle `plugins/k3-codex/` carried no `package.json`, so when Codex ran the bundled `dist/companion.js` from its cache Node walked up to `~/package.json` (no `type`), emitted `MODULE_TYPELESS_PACKAGE_JSON`, and reparsed as ESM (perf overhead; the warning also leaked into the setup probe's captured deny-reason preview).
+- Fix: `bun run build` now emits `dist/package.json` (`{"type":"module"}`), which the existing runtime mirror copies into `plugins/k3-codex/dist/`, so the bundled companion resolves its module type locally. Verified in an isolated `$HOME` location: **1 → 0** warnings. `bun run check` green.
 
 ## 1.7.1 — 2026-07-08
 
@@ -374,15 +414,15 @@ Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the up
 
 ## 1.6.0 — 2026-06-23
 
-**Repackage the Codex plugin as a self-contained `plugins/kimi-codex/` subfolder to end Claude Code/Codex surface crossover.** The Codex sidecars added under v1.5.x placed `skills/` at the repo root — which is also the Claude Code plugin root — and Claude Code auto-discovers a top-level `skills/` directory by convention. So the 12 Codex skills were also loading as Claude Code skills, producing a triple commands+agents+skills surface and a safety asymmetry. This release isolates the Codex package without breaking the Claude Code surface or duplicating maintenance.
+**Repackage the Codex plugin as a self-contained `plugins/k3-codex/` subfolder to end Claude Code/Codex surface crossover.** The Codex sidecars added under v1.5.x placed `skills/` at the repo root — which is also the Claude Code plugin root — and Claude Code auto-discovers a top-level `skills/` directory by convention. So the 12 Codex skills were also loading as Claude Code skills, producing a triple commands+agents+skills surface and a safety asymmetry. This release isolates the Codex package without breaking the Claude Code surface or duplicating maintenance.
 
-- **New self-contained Codex plugin root: `plugins/kimi-codex/`** — contains `.codex-plugin/plugin.json` (`skills: "./skills/"`), the 12 `skills/`, and a **byte-mirror of the runtime** (`scripts/companion.sh`, `scripts/review-gate-hook.sh`, `dist/**`). Codex copies a plugin root to `~/.codex/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION/` on install and forbids `../` escapes, so the package must bundle everything it needs. The repo root no longer has `skills/` or `.codex-plugin/`, so Claude Code is back to its intended **commands + agents** surface. `.agents/plugins/marketplace.json` stays at the repo root with `source.path → "./plugins/kimi-codex"`.
+- **New self-contained Codex plugin root: `plugins/k3-codex/`** — contains `.codex-plugin/plugin.json` (`skills: "./skills/"`), the 12 `skills/`, and a **byte-mirror of the runtime** (`scripts/companion.sh`, `scripts/review-gate-hook.sh`, `dist/**`). Codex copies a plugin root to `~/.codex/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION/` on install and forbids `../` escapes, so the package must bundle everything it needs. The repo root no longer has `skills/` or `.codex-plugin/`, so Claude Code is back to its intended **commands + agents** surface. `.agents/plugins/marketplace.json` stays at the repo root with `source.path → "./plugins/k3-codex"`.
 - **Closes a safety asymmetry.** The write-capable Codex skills (`kimi-rescue`, `kimi-pursue`, `kimi-swarm-write`, `kimi-setup`, `kimi-cancel`) declare `allow_implicit_invocation: false` only in `agents/openai.yaml`, which Claude Code ignores — so while they leaked into Claude Code they were model-invocable there, whereas the equivalent slash commands are deliberately human-only. Moving the skills out of the Claude Code scan root removes that exposure entirely.
 - **Single-sourced version.** `scripts/surface-registry.ts` `PLUGIN_VERSION` now imports `KIMI_PLUGIN_CC_VERSION` from `runtime/version.ts` (it was a 7th hard-coded version source). A new test asserts `PLUGIN_VERSION === KIMI_PLUGIN_CC_VERSION === package.json` version.
-- **Generator + gate hardening** (`scripts/generate-surfaces.ts`): write mode now mirrors the runtime payload into the subfolder (0755 on shell scripts) and prunes stale skill dirs + stale mirrored files; `--check` byte-compares the mirror against the freshly built root and detects orphaned generated files. `bun run check` now builds **before** the surface check, and the drift gate covers `dist` **and** `plugins/kimi-codex`.
+- **Generator + gate hardening** (`scripts/generate-surfaces.ts`): write mode now mirrors the runtime payload into the subfolder (0755 on shell scripts) and prunes stale skill dirs + stale mirrored files; `--check` byte-compares the mirror against the freshly built root and detects orphaned generated files. `bun run check` now builds **before** the surface check, and the drift gate covers `dist` **and** `plugins/k3-codex`.
 - **New tests**: repo-root `skills/` absence (Claude Code skill-leakage guard) + subfolder presence; bundled `companion.sh` is a byte copy of root; `resolvePluginPaths` precedence (`CLAUDE_PLUGIN_DATA` wins over `PLUGIN_DATA` when both set).
 - **Claude Code regression audit: none.** The v1.5.x shared-file edits (shell env-var alias dance in `companion.sh`/`review-gate-hook.sh`, the `paths.ts` `?? PLUGIN_DATA` fallback, the `review-gate.ts` inline-payload preference with transcript fallback) all short-circuit to the original behavior whenever the Claude environment variables are set, and the load-bearing PreToolUse approval hook + its strict-exact verifier are untouched.
-- **Verified out-of-band by Codex** (not by `bun run check`): a live Codex install loading skills from `plugins/kimi-codex/skills/` and the manifest passing Codex's real schema — reinstall the marketplace + run the `$kimi-ask` product smoke. `bun run check` green locally.
+- **Verified out-of-band by Codex** (not by `bun run check`): a live Codex install loading skills from `plugins/k3-codex/skills/` and the manifest passing Codex's real schema — reinstall the marketplace + run the `$kimi-ask` product smoke. `bun run check` green locally.
 
 ## 1.5.1 — 2026-06-23
 

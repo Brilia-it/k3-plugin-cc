@@ -88,7 +88,7 @@ export interface CliClientOptions {
    * exported to the spawn as KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY (kimi-code
    * 0.18.0+, PR #888). Older binaries silently ignore the unknown env var, so
    * on < 0.18 the soft --cap prompt-count hint is the only count bound. Only
-   * /kimi:swarm sets this (from --max-concurrency, distinct from the soft --cap
+   * /k3:swarm sets this (from --max-concurrency, distinct from the soft --cap
    * total-count hint). Upstream's `resolveSwarmMaxConcurrency` THROWS on a
    * non-positive-integer value; the swarm parser rejects anything that isn't a
    * positive `Number.isInteger` (the same predicate upstream applies), so every
@@ -168,7 +168,7 @@ export interface CliClientResult {
    * Out-of-band goal-mode summary from a headless `/goal` run (kimi-code
    * 0.8.0+): goalId, terminal status, reason, turns/tokens/wallClock. Undefined
    * for ordinary (non-goal) runs. Captured first-announce-wins and filtered
-   * from records[], mirroring the resume-hint meta record. /kimi:pursue
+   * from records[], mirroring the resume-hint meta record. /k3:pursue
    * consumes it; goalId is distinct from the resume-hint sessionId.
    */
   goalSummary?: GoalSummaryRecord;
@@ -789,7 +789,7 @@ export function requireSessionId(
  *   18) flagged this as critical for review_gate in particular: the
  *   8 s budget fires inside Claude Code's Stop hook, the parent
  *   returns "allow stop", and a runaway kimi keeps holding the
- *   SQLite row + model tokens. Subsequent `/kimi:cancel` can't reach
+ *   SQLite row + model tokens. Subsequent `/k3:cancel` can't reach
  *   it because `kimi_pid` is null.
  *
  * Behavior:

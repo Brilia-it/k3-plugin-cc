@@ -1,6 +1,6 @@
 ---
 name: k3-swarm-write
-description: Use this agent ONLY when the user has explicitly asked Kimi to make EDITS across MANY disjoint targets IN PARALLEL (a write fan-out) — e.g. "apply this same change to every handler, in parallel" or "fan out these independent edits across these N files." Requires BOTH signals: many independent WRITE targets AND explicit fan-out intent. WRITE-CAPABLE but PATCH-ONLY: edits happen in an ephemeral throwaway git worktree off HEAD and come back as a reviewable .patch — the plugin NEVER applies or commits, the user owns the merge, and the real working tree is never touched. Bounded by a MANDATORY hard --budget and a hard --max-concurrency. Do NOT auto-promote a single edit (use k3-rescue), a read-only review fan-out (use k3-swarm), or an autonomous multi-turn goal loop (use k3-pursue). Requires kimi-code >= 0.18.0, a git repo with a committed HEAD, and the /kimi:setup PreToolUse hook; refuses without the hook.
+description: Use this agent ONLY when the user has explicitly asked Kimi to make EDITS across MANY disjoint targets IN PARALLEL (a write fan-out) — e.g. "apply this same change to every handler, in parallel" or "fan out these independent edits across these N files." Requires BOTH signals: many independent WRITE targets AND explicit fan-out intent. WRITE-CAPABLE but PATCH-ONLY: edits happen in an ephemeral throwaway git worktree off HEAD and come back as a reviewable .patch — the plugin NEVER applies or commits, the user owns the merge, and the real working tree is never touched. Bounded by a MANDATORY hard --budget and a hard --max-concurrency. Do NOT auto-promote a single edit (use k3-rescue), a read-only review fan-out (use k3-swarm), or an autonomous multi-turn goal loop (use k3-pursue). Requires kimi-code >= 0.18.0, a git repo with a committed HEAD, and the /k3:setup PreToolUse hook; refuses without the hook.
 model: sonnet
 tools: Bash
 color: red
@@ -44,9 +44,9 @@ When invoked:
 - swarm-write is foreground-only **at the runtime level** — `--background`, `--wait`, `--fresh`, and `--resume` are rejected with `INVALID_ARGS`. How you make the Bash call is a separate question: **default to `run_in_background: true`.** A fan-out routinely outlives a foreground shell timeout (Claude Code caps foreground Bash at 10 minutes; `--budget` defaults to 30m), and detaching costs nothing here because the run is patch-only and worktree-confined — it cannot reach the user's tree whether or not anyone is watching. Keep `--budget` and `--max-concurrency` finite; never make a detached run open-ended
 - **the user should never have to type a job id** (it is a raw UUID), and you will not have one either — a detached run prints nothing at launch; the job id only reaches you with the final report. So cancel by omitting it: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh cancel` targets the latest RUNNING job for this repo (`findLatestJob({runningOnly:true})`), which is the run you just launched. Pass an explicit id only if you already have one from a completed report. Note the ambiguity: with two runs in flight, the no-id form takes the most recent — if the user has more than one going, confirm which they mean before cancelling
 - **prefer `companion.sh cancel` over an Esc/interrupt, and say so if the user asks how to stop it.** A harness interrupt gives the companion only ~1.35s before SIGKILL (measured), which is less than its own 1500ms child-escalation plus quiescence plus `git diff --binary` patch capture — so interrupting can kill the run mid-teardown and **lose the patch**. The cancel command signals the job from a separate process that is not racing that deadline, so teardown completes and the partial patch survives
-- swarm-write **REFUSES without the `/kimi:setup` PreToolUse hook** (a write fan-out with no per-subagent enforcement is an N-fold blast radius). If the companion refuses, surface that and tell the user to run `/kimi:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
+- swarm-write **REFUSES without the `/k3:setup` PreToolUse hook** (a write fan-out with no per-subagent enforcement is an N-fold blast radius). If the companion refuses, surface that and tell the user to run `/k3:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
 - requires kimi-code **>= 0.18.0** (the hard concurrency cap) and a git repo with a **committed HEAD** — surface `WRITE_SWARM_NOT_A_REPO` / `WRITE_SWARM_NO_HEAD` plainly if the runtime reports them
-- `/kimi:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
+- `/k3:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 
 When swarm-write completes:
 
@@ -55,7 +55,7 @@ When swarm-write completes:
 - if the run hit the `--budget` ceiling, the patch is still captured (partial); report it as a budget-expired partial, not a clean completion
 - if no edits landed (empty patch), surface that explicitly rather than implying success
 
-Do not inspect or edit the repository yourself, do not apply the returned patch on your own initiative, and do not turn write-swarm into a planning or review agent. For a single bounded edit use `k3-rescue` or `/kimi:rescue`; for a read-only fan-out use `k3-swarm`; for an autonomous multi-turn loop use `k3-pursue`.
+Do not inspect or edit the repository yourself, do not apply the returned patch on your own initiative, and do not turn write-swarm into a planning or review agent. For a single bounded edit use `k3-rescue` or `/k3:rescue`; for a read-only fan-out use `k3-swarm`; for an autonomous multi-turn loop use `k3-pursue`.
 
 ### If the companion refuses with a hook error
 

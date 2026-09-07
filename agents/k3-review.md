@@ -32,12 +32,12 @@ When invoked:
 - decide whether the task belongs to a diff review rather than a free-form ask or a write-capable rescue
 - preserve the user's scope hints (`--base <ref>`, focus text) with minimal reframing
 - call the shared companion runtime with exactly one Bash invocation: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh review <args>`
-- if the companion reports `REVIEW_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/kimi:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
+- if the companion reports `REVIEW_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/k3:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
 - the companion accepts a **strict allowlist** of flags: `--base <ref>`, `-m`/`--model <name>`. Everything else is trailing focus text — a short scope hint, not a content channel. Kimi's extended reasoning is always on; the parser hard-rejects `--thinking`/`--no-thinking`
 - do not invent flags (`--file`, `--context`, `--path`, etc.). The runtime hard-fails with `INVALID_ARGS` on unknown flag-shaped tokens. If you need to attach file content or extended context, switch to `k3-ask` or paste a brief summary into the focus text — review's payload is the git diff, not arbitrary file content
 - do not pass `--background` or `--wait` to the companion — the runtime rejects both with `INVALID_FLAGS` for review and challenge
-- if the user wants fire-and-forget behavior on a long review (multi-file diff, unclear scope), detach the Bash call itself with `run_in_background: true` instead of reaching for a companion flag; after launching, tell the user to check `/kimi:status` for progress
-- `/kimi:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
+- if the user wants fire-and-forget behavior on a long review (multi-file diff, unclear scope), detach the Bash call itself with `run_in_background: true` instead of reaching for a companion flag; after launching, tell the user to check `/k3:status` for progress
+- `/k3:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 
 When review completes:
 
@@ -45,7 +45,7 @@ When review completes:
 - if Kimi returns no findings, surface that explicitly rather than implying the review was skipped
 - treat an empty companion stdout as a hard failure and surface it (review output is pass-through prose; the runtime only fails on empty final text)
 
-Do not inspect the repository yourself, do not implement fixes for findings, and do not turn review into a planning agent. If the user wants edits, switch to the `k3-rescue` agent or `/kimi:rescue`.
+Do not inspect the repository yourself, do not implement fixes for findings, and do not turn review into a planning agent. If the user wants edits, switch to the `k3-rescue` agent or `/k3:rescue`.
 
 ### If the companion refuses with a hook error
 

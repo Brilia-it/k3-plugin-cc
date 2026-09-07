@@ -8,7 +8,7 @@ Run the companion with any user-supplied flags appended after `task pursue`:
 
 `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh task pursue <args>`
 
-`/kimi:pursue` is **autonomous goal mode**: Kimi keeps working toward the objective across continuation turns until it completes, blocks itself, or the budget expires. It is write-capable and runs under the **same PreToolUse hook + workspace allowlist as `/kimi:rescue`** (the hook gates every tool call in every turn), and like rescue it **cannot mutate git state** — the main thread owns branch/commit.
+`/k3:pursue` is **autonomous goal mode**: Kimi keeps working toward the objective across continuation turns until it completes, blocks itself, or the budget expires. It is write-capable and runs under the **same PreToolUse hook + workspace allowlist as `/k3:rescue`** (the hook gates every tool call in every turn), and like rescue it **cannot mutate git state** — the main thread owns branch/commit.
 
 Supported flags:
 
@@ -20,7 +20,7 @@ Prototype limitations (experimental):
 
 - **No `--background` flag** — the runtime has no detached-worker mode for pursue. That is separate from how the *caller* runs the shell command: a goal loop routinely outlives a foreground timeout (Claude Code caps foreground Bash at 10 minutes vs the 45m default budget), so detaching the call is expected. The bounds that hold either way are the PreToolUse hook, the workspace allowlist, no git mutation, and the mandatory finite `--budget`. To stop a run, just say so — the stop path is `companion.sh cancel` with no id, which targets the latest running job for this repo. Note that a cancel stops further work; it does **not** roll back edits already made to your real tree.
 - **No `--resume`.** Goal mode emits a goalId distinct from the session id; resuming the session would not reliably re-enter the goal. The goalId is shown in the result for when resume lands.
-- Requires kimi-code **>= 0.8.0** (headless goal mode) and the `/kimi:setup` PreToolUse hook (refuses without it).
+- Requires kimi-code **>= 0.8.0** (headless goal mode) and the `/k3:setup` PreToolUse hook (refuses without it).
 
 Terminal outcomes are surfaced as status, not errors: `complete` (done, exit 0), `blocked` (Kimi stopped itself, exit 3), `paused` (interrupted, exit 6). A run that hits the `--budget` wall-clock ceiling is instead a timeout **failure** (the goal process tree is reaped), not a terminal status. The result headlines the goal status, reason, and turns/tokens/wall-clock usage.
 

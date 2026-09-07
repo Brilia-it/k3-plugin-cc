@@ -146,7 +146,7 @@
 //     `/goal`-prefixed (on 0.8–0.11 the `goal-command` experimental flag must
 //     also be on; 0.12.0 removed that gate — PR #569 — so the `/goal` prefix
 //     alone triggers it). Read-only commands never trigger it (their trimmed
-//     prompt never starts with `/goal`); the v1.1 /kimi:pursue command is
+//     prompt never starts with `/goal`); the v1.1 /k3:pursue command is
 //     the intentional consumer — it is recognized as a first-class record on
 //     the dedicated `StreamJsonOutcome.goalSummary` channel (see
 //     GoalSummaryRecord below), NOT routed to the malformed channel. See
@@ -267,7 +267,7 @@ export type StreamJsonRecord =
  * the session.resume_hint. Unlike assistant/tool/meta records it carries NO
  * `role` field — it is keyed by `type: "goal.summary"`.
  *
- * It is OUT-OF-BAND metadata for our wrapper (the /kimi:pursue job store
+ * It is OUT-OF-BAND metadata for our wrapper (the /k3:pursue job store
  * consumes turns/tokens/wallClock/status), not consumer-facing prose. To keep
  * the role-keyed `StreamJsonRecord` union — and its `.role` consumers
  * (reassembleProseFromRecords, onRecord callbacks) — untouched, it is surfaced
@@ -276,7 +276,7 @@ export type StreamJsonRecord =
  * the resume-hint meta record is captured out-of-band.
  *
  * Only emitted when the experimental flag `goal-command` is enabled AND the
- * prompt is `/goal`-prefixed. Before /kimi:pursue this never appeared (it would
+ * prompt is `/goal`-prefixed. Before /k3:pursue this never appeared (it would
  * have landed in the malformed channel as "unknown role: undefined");
  * recognizing it is forward-compat hardening that also unlocks structured goal
  * progress. All fields are nullable upstream (null when no goal snapshot exists).

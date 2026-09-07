@@ -184,7 +184,8 @@ Three Windows fixes, all gated behind `win32`, none of which alter behaviour on 
 
 1. **The hook command is double-quoted.** It was quoted POSIX-style with single quotes, which
    `cmd.exe` does not recognise, so the hook never launched. Since any exit code other than 2 means
-   "allow", enforcement was silently inert while `/kimi:setup --check` still reported `Probe: ok`.
+   "allow", enforcement was silently inert while the setup check (upstream's `/kimi:setup --check` at
+   the time we found it) still reported `Probe: ok`.
    Measured with the same command string: `/bin/sh` exits 2, `cmd.exe` exits 255.
 2. **Hook paths are normalised.** The path derived from `CLAUDE_PLUGIN_ROOT` contains backslashes on
    Windows, and the TOML safety check rejects backslashes, so every Windows user had to set
