@@ -262,7 +262,7 @@ For tests or deliberate diagnostics only, `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` byp
 
 ## Refusal codes of the native-v2 contract (v1.10.0)
 
-Every refusal below is raised BEFORE a kimi process is created (or, for the provenance mismatch, before any record reaches the caller), carries `retryable_after_setup: false`, and is **not** repaired by `/kimi:setup` — the remedy is the named setting, binary, or a fresh session. Agents must not retry through setup on these.
+Every refusal below is raised BEFORE a kimi process is created (or, for the provenance mismatch, before any record reaches the caller) and is **not** repaired by `/kimi:setup` — the remedy is the named setting, binary, or a fresh session. Agents must not retry through setup on these. The native-v2 refusals say so explicitly with `retryable_after_setup: false` in `details`; `CLI_V2_HOOK_ORDER_UNSAFE`, `INVALID_ENV` and the legacy-v1 form of `KIMI_CAPABILITY_NOT_CERTIFIED` predate 1.10 and omit the field in 1.10.0 (the field is added to them in the next release). The retry gate keys on the field being literally `true`, so an ABSENT field is already treated as non-retryable — wrappers must do the same, never assert the field's presence.
 
 | Code | Raised when | Remedy |
 |---|---|---|
