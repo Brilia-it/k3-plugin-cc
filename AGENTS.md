@@ -102,6 +102,7 @@ See [ROADMAP-TO-GA.md](./ROADMAP-TO-GA.md) for the full pre-GA history and v1.1 
 - `dist/` and `plugins/kimi-codex/` are committed intentionally (zero-build install for both hosts; Codex copies the subfolder to its cache). The drift gate catches forgotten rebuilds/regenerations.
 - Agent files register at session start. Adding or editing `agents/*.md` mid-session doesn't activate them until Claude Code reloads — reach for slash commands or direct `companion.sh` in the same session.
 - `.claude/` is gitignored — notes, worktrees, internal docs under it stay local. Don't try to commit them.
+- **Tests never inherit host plugin env.** `bunfig.toml` preloads `tests/helpers/preload.ts`, which deletes `CLAUDE_PLUGIN_DATA`/`PLUGIN_DATA`/`CLAUDE_PLUGIN_ROOT`/`PLUGIN_ROOT` (and the per-spawn `KIMI_PLUGIN_CC_*` overlays) before every test file. A Claude Code or Codex session exports these into the shell — possibly ANOTHER plugin's data dir — and a test that spreads `process.env` would otherwise write its `reviewGateEnabled: true` fixture and mock job rows into a live plugin store (it did, 2026-09-09). Tests that need a plugin root/data dir set their own explicitly; never remove the preload.
 
 ## Releasing
 
