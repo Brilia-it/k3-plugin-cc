@@ -62,6 +62,8 @@ describe("resolveKimiCliCommand", () => {
       const re = err as RuntimeError;
       expect(re.code).toBe("INVALID_ENV");
       expect(re.details.env_var).toBe("KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS");
+      // 1.10.1: every plugin refusal states its setup-retryability explicitly.
+      expect(re.details.retryable_after_setup).toBe(false);
     }
   });
 
@@ -107,5 +109,6 @@ describe("resolveKimiCliCommand", () => {
     expect(threw).toBeInstanceOf(RuntimeError);
     expect((threw as RuntimeError).code).toBe("INVALID_ENV");
     expect((threw as RuntimeError).details.reserved_flag).toBeDefined();
+    expect((threw as RuntimeError).details.retryable_after_setup).toBe(false);
   });
 });

@@ -18,11 +18,11 @@ export function resolveKimiCliCommand(env) {
         return { command, prefixArgs: plainArgs };
     }
     if (!Array.isArray(parsed)) {
-        throw new RuntimeError("INVALID_ENV", "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS must be a JSON array of strings.", "kimi-command.env", { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw } });
+        throw new RuntimeError("INVALID_ENV", "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS must be a JSON array of strings.", "kimi-command.env", { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw, retryable_after_setup: false } });
     }
     for (const entry of parsed) {
         if (typeof entry !== "string") {
-            throw new RuntimeError("INVALID_ENV", "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS entries must be strings.", "kimi-command.env", { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw } });
+            throw new RuntimeError("INVALID_ENV", "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS entries must be strings.", "kimi-command.env", { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw, retryable_after_setup: false } });
         }
     }
     const prefixArgs = parsed;
@@ -59,7 +59,14 @@ export function assertPrefixArgsSafe(prefixArgs, raw) {
         if (RESERVED_PREFIX_FLAGS.has(flag)) {
             throw new RuntimeError("INVALID_ENV", `KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS must not contain the reserved kimi flag "${flag}". ` +
                 "The prefix is a launcher shim only; session, engine, plan, prompt, model, and " +
-                "output-format flags are owned by the plugin and would bypass its safety checks.", "kimi-command.env", { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", reserved_flag: flag, value: raw } });
+                "output-format flags are owned by the plugin and would bypass its safety checks.", "kimi-command.env", {
+                details: {
+                    env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS",
+                    reserved_flag: flag,
+                    value: raw,
+                    retryable_after_setup: false,
+                },
+            });
         }
     }
 }

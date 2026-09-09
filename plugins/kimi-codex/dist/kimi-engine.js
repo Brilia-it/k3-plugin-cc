@@ -81,6 +81,7 @@ export function assertNoUnsafeExperimentalSelector(env, stage = "kimi-engine.pla
     throw new RuntimeError("CLI_V2_HOOK_ORDER_UNSAFE", "Refusing kimi-code experimental features: the master KIMI_CODE_EXPERIMENTAL_FLAG enables unreviewed agent-core-v2 features (tower, subagent fork) that kimi-plugin-cc has not certified under its no-plan safety profile. Unset KIMI_CODE_EXPERIMENTAL_FLAG and retry.", stage, {
         details: {
             refusal_kind: "v2-hook-order-unsafe",
+            retryable_after_setup: false,
             experimental_v2: true,
         },
     });
@@ -438,6 +439,8 @@ function assertCertifiedCapability(engine, operationKind, probe) {
             : `Upgrade kimi-code to at least ${minimum.major}.${minimum.minor}.0 within a certified minor.`;
         throw new RuntimeError("KIMI_CAPABILITY_NOT_CERTIFIED", `Refusing ${operationKind}: kimi-code ${probe.version} is not in this operation's certified legacy-v1 range. ${remedy} KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production repair path.`, "kimi-engine.capability", {
             details: {
+                refusal_kind: "v1-version-not-certified",
+                retryable_after_setup: false,
                 operation_kind: operationKind,
                 intended_engine: engine,
                 kimi_version: probe.version,

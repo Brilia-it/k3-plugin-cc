@@ -182,5 +182,5 @@ This release changes behaviour that earlier 1.x users may depend on. Strictly by
 
 No action for the job store (one additive nullable column, migrated automatically) or the hook policy (unchanged allowlists). As with every release, run `/kimi:setup` (or `$kimi-setup`) after updating so the hook is re-pinned to the new install path — a `kimi login` also strips the managed-block markers, and setup restores them.
 
-None of these refusals is repaired by `/kimi:setup` (the native-v2 ones carry `retryable_after_setup: false` explicitly; a few pre-1.10 codes omit the field in 1.10.0 and an absent field must be treated as `false`). They are catalogued with remedies in [docs/safety.md § Refusal codes](./safety.md#refusal-codes-of-the-native-v2-contract-v1100).
+None of these refusals is repaired by `/kimi:setup`; all of them carry `retryable_after_setup: false` explicitly from 1.10.1 (an absent field must still be treated as `false`). They are catalogued with remedies in [docs/safety.md § Refusal codes](./safety.md#refusal-codes-of-the-native-v2-contract-v1100).
 

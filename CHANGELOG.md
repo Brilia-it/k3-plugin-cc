@@ -2,6 +2,19 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.10.1 — 2026-09-09
+
+**Patch: every plugin refusal now states its setup-retryability explicitly.** The 1.10.0
+refusal-code contract (`docs/safety.md § Refusal codes`) says agents key on
+`details.retryable_after_setup`; three pre-1.10 refusal shapes omitted the field —
+`CLI_V2_HOOK_ORDER_UNSAFE`, `INVALID_ENV` (all three `KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` paths)
+and the legacy-v1 branch of `KIMI_CAPABILITY_NOT_CERTIFIED` (which also gains
+`refusal_kind: "v1-version-not-certified"`). Behaviour was already fail-safe (the retry gate
+retries only on literal `true`), so this is a contract-exactness fix: no policy, allowlist,
+engine-selection or certification change; kimi-code 0.42.0 remains the exact certified version.
+Found by Kimi's post-publish release review of 1.10.0. Wrappers must still treat an absent
+field as non-retryable.
+
 ## 1.10.0 — 2026-09-09
 
 **Full migration to native agent-core-v2, certified at exact kimi-code 0.42.0.**

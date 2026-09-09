@@ -259,7 +259,7 @@ describe("kimi execution plan", () => {
     ).rejects.toMatchObject({
       code: "CLI_V2_HOOK_ORDER_UNSAFE",
       stage: "kimi-engine.plan",
-      details: { refusal_kind: "v2-hook-order-unsafe" },
+      details: { refusal_kind: "v2-hook-order-unsafe", retryable_after_setup: false },
     });
   });
 
@@ -287,7 +287,7 @@ describe("kimi execution plan", () => {
         }),
       ).rejects.toMatchObject({
         code: "KIMI_CAPABILITY_NOT_CERTIFIED",
-        details: { minimum_version: "0.18.0" },
+        details: { minimum_version: "0.18.0", retryable_after_setup: false, refusal_kind: "v1-version-not-certified" },
       });
     } finally {
       await cleanupTestPath(cwd);

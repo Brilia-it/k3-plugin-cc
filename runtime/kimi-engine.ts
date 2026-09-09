@@ -174,6 +174,7 @@ export function assertNoUnsafeExperimentalSelector(
     {
       details: {
         refusal_kind: "v2-hook-order-unsafe",
+        retryable_after_setup: false,
         experimental_v2: true,
       },
     },
@@ -671,6 +672,8 @@ function assertCertifiedCapability(
       "kimi-engine.capability",
       {
         details: {
+          refusal_kind: "v1-version-not-certified",
+          retryable_after_setup: false,
           operation_kind: operationKind,
           intended_engine: engine,
           kimi_version: probe.version,

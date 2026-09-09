@@ -57,7 +57,7 @@ export function resolveKimiCliCommand(env: NodeJS.ProcessEnv): ResolvedKimiComma
       "INVALID_ENV",
       "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS must be a JSON array of strings.",
       "kimi-command.env",
-      { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw } },
+      { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw, retryable_after_setup: false } },
     );
   }
   for (const entry of parsed) {
@@ -66,7 +66,7 @@ export function resolveKimiCliCommand(env: NodeJS.ProcessEnv): ResolvedKimiComma
         "INVALID_ENV",
         "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS entries must be strings.",
         "kimi-command.env",
-        { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw } },
+        { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw, retryable_after_setup: false } },
       );
     }
   }
@@ -110,7 +110,14 @@ export function assertPrefixArgsSafe(prefixArgs: readonly string[], raw?: string
           "The prefix is a launcher shim only; session, engine, plan, prompt, model, and " +
           "output-format flags are owned by the plugin and would bypass its safety checks.",
         "kimi-command.env",
-        { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", reserved_flag: flag, value: raw } },
+        {
+          details: {
+            env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS",
+            reserved_flag: flag,
+            value: raw,
+            retryable_after_setup: false,
+          },
+        },
       );
     }
   }
