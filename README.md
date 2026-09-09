@@ -10,6 +10,8 @@ This is a [Claude Code](https://claude.ai/code) plugin that drives the [kimi-cod
 
 > **Migrating from v0.4?** v0.4.x targeted the Python [Kimi CLI](https://github.com/MoonshotAI/kimi-cli) and stays available at the [`v0.4.0`](https://github.com/linxule/kimi-plugin-cc/releases/tag/v0.4.0) tag (`v0.4-maintenance` branch is cut from that tag for ongoing fixes — see the linked tag if the branch is not yet pushed). v1.0 is a hard cut to kimi-code — install kimi-code first, then `/plugin update kimi` will upgrade you in place. See [docs/migration.md](./docs/migration.md) for the step-by-step upgrade.
 
+> **Upgrading to v1.10 from an earlier 1.x?** kimi-code 0.42.0 removed the legacy engine; v1.10 runs native agent-core-v2 with **exact-version** certification (0.42.0), cannot resume pre-1.10 sessions, and refuses `default_plan_mode = true`. Read [docs/migration.md § Upgrading to 1.10](./docs/migration.md#upgrading-to-110-native-agent-core-v2-kimi-code-0420) before updating, then run `/kimi:setup` again.
+
 ## Try it in 60 seconds
 
 ```

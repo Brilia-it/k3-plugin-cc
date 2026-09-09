@@ -10,6 +10,21 @@ kimi-code 0.42.0 deleted the legacy agent-core-v1 package and `KIMI_CODE_LEGACY_
 the plugin's forced-v1 pin inert. All eight operations (ask, review, challenge,
 review_gate, rescue, pursue, swarm, swarm-write) now run on unmodified native v2.
 
+### ⚠️ Breaking changes and upgrade notes
+
+This release changes behaviour that earlier 1.x users may depend on. Strictly by semver it is a major; it ships as 1.10.0 because the plugin is upgraded in place through the marketplace and its 1.x line has always advanced compat by minor releases.
+
+- **Certification is now per EXACT kimi-code version, not per minor.** Native v2 is certified at `0.42.0` only. When kimi-code publishes `0.42.1` (or newer), every model-spawning command refuses with `KIMI_CAPABILITY_NOT_CERTIFIED` until a plugin release certifies it — before 1.10, a patch release inside a tested minor kept working. kimi-code self-upgrades in the background, so expect this on the next upstream patch; pin `KIMI_PLUGIN_CC_KIMI_BIN` to a certified binary if you need continuity, and watch for the next plugin release.
+- **Sessions created before 1.10 cannot be resumed on 0.42.0.** `ask --resume`, `ask -r`, `rescue --resume` and rescue's implicit latest-session reuse refuse (`KIMI_SESSION_LINEAGE_UNKNOWN` / `KIMI_SESSION_ENGINE_MISMATCH`) — the v1 engine no longer exists in the binary, so nothing could replay those sessions. Nothing is deleted; `/kimi:status`, `/kimi:result` and `/kimi:replay` still work on the old jobs. Start fresh sessions.
+- **`default_plan_mode = true` (any spelling) in `~/.kimi-code/config.toml` now blocks every command** (`CLI_V2_PLAN_MODE_CONFIGURED`). On the old forced-v1 path that setting was harmless; on native v2 it would arm the one code path that bypasses the safety hook. Set it to `false` or remove it. `/kimi:setup` cannot fix this one.
+- **`KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` may no longer contain kimi flags** (`-r`, `-c`/`-C`, `-S`, `-p`, `-m`, `--plan`, `--yolo`, `--agent`, `--add-dir`, …) — `INVALID_ENV`. The prefix is a launcher shim only (e.g. `["--import","tsx",…]`).
+- **`[experimental] tower` / `subagent_fork` and `KIMI_CODE_EXPERIMENTAL_FLAG` refuse before spawn** (`CLI_V2_EXPERIMENTAL_UNSAFE` / `CLI_V2_HOOK_ORDER_UNSAFE`). Unset them for plugin-managed runs.
+- **Still on kimi-code ≤ 0.41.x?** Nothing changes for you: those versions route to the legacy-v1 engine exactly as before. But the plugin certifies them only for an explicitly pinned binary — kimi-code's auto-update will move you to 0.42.x, at which point the notes above apply.
+
+No action for the job store (one additive nullable column, migrated automatically) or the hook policy (unchanged allowlists). As with every release, run `/kimi:setup` (or `$kimi-setup`) after updating so the hook is re-pinned to the new install path — a `kimi login` also strips the managed-block markers, and setup restores them.
+
+All of these refusals carry `retryable_after_setup: false` and are catalogued with remedies in [docs/safety.md § Refusal codes](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100).
+
 - **Certification basis changed (docs/native-v2-certification-provenance.md §2).** Upstream
   still registers the plan feature before external hooks and provides no ordering guarantee
   (confirmed in the shipped 0.42.0 bundle). Native v2 is instead certified on a construction:
