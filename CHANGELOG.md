@@ -23,6 +23,39 @@ review_gate, rescue, pursue, swarm, swarm-write) now run on unmodified native v2
   resuming a session whose wire journal holds any `plan_mode.*`/`plan.*` record
   (`KIMI_SESSION_PLAN_TAINTED`). Fail-closed on unreadable/oversized/symlinked inputs. Run
   before spawn and re-run at the cli-client spawn boundary (config and journals are mutable).
+- **Resume proven live on the real layout.** The real-binary smoke gains a native-v2 resume
+  lane: a fresh run's real `agents/*/wire.jsonl` is found where the preflight scans, the `-r`
+  resume re-emits `system.version` first with the same session id and the hook still denying
+  writes, and a `plan_mode.enter` record appended to that journal makes the next resume refuse
+  before any process is created. The tag scan additionally pins `features/plan/planOps.ts` and
+  asserts the durable plan event types are exactly `plan_mode.enter|cancel|exit` +
+  `plan.revision` (the prefixes the taint scan keys on) and that `restore()` folds by literal
+  `record.type`; `permission.set_mode` (`manual|yolo|auto`) is verified to be a separate state.
+- **Second-round adversarial review (Codex) — seven findings, all closed with regression tests.**
+  (P1) upstream's config loader camelCases every top-level TOML key before the plan section
+  reads `defaultPlanMode`, so `defaultPlanMode = true` (or any mixed spelling) walked past a
+  literal `default_plan_mode` check — the preflight now mirrors upstream's `snakeToCamel`
+  verbatim (`app/config/toml.ts` is hash-pinned by the tag scan; the `[experimental]` table
+  is verified to keep raw keys and is not normalized). (P1) the hidden `-C` alias of
+  `--continue` resumed the latest cwd session with no journal scan — the reserved-prefix-flag
+  set now covers every kimi root flag incl. `-C`, `-y/--yes/--auto-approve/--manual`, `-V/-h`.
+  (P1) the Stop hook verified the hook under `<plugin-root>/<relative KIMI_CODE_HOME>` while the
+  child read `<payload.cwd>/<…>` — `runReviewGateStopHook` now resolves the home once against
+  the payload cwd for verification, plan and spawn. (P2) a persisted row carrying a session id
+  but no source job is refused (`KIMI_SESSION_LINEAGE_UNKNOWN`) instead of exempted. (P2)
+  unknown-role and malformed stream lines before the `system.version` marker now trip the
+  marker-first rule. (P2) the stderr resume-hint channel (kimi 0.1.x) is consulted only on
+  legacy-v1 plans — a native-v2 plan pins a session id from the stdout meta record alone.
+  (P2) the marker's `version` must be a single well-formed semver token; a multi-line value
+  is no longer first-line-normalized into the certified version.
+- **Second-round review (Kimi) — three findings, all closed.** (1) the v2 resume path had no
+  repeatable proof of the session-store keying → smoke lane 3b (above) plus a tag-scan pin of
+  upstream's own layout scanner (`app/sessionExport/wire-scan.ts`) and the `session_<uuid>` /
+  `sessions/` / `agents/` builders. (2) a goal-terminal pursue exit (3/6) skipped the success
+  assertion, so a native-v2 plan could resolve with no `system.version` marker and an empty
+  artifact — `assertGoalRunProvenance` now refuses that (`CLI_ENGINE_PROVENANCE_MISMATCH`).
+  (3) a readdir failure other than ENOENT/ENOTDIR (e.g. `EACCES`) during the journal scan
+  escaped as an untyped error instead of the classified `KIMI_SESSION_JOURNAL_UNAVAILABLE`.
 - **Engine selection is plugin-owned (`selectIntendedEngine`).** Exact version in
   `NATIVE_V2_CERTIFIED` → native-v2; a minor in `KIMI_TESTED_MINORS` (≤ 0.41) → legacy-v1 with
   the child-only legacy pin; otherwise refuse. Certification is per exact version and per

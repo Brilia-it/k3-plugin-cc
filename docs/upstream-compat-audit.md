@@ -84,11 +84,14 @@ The release-quality gate remains: scoped source audit, real-binary smoke against
 the exact target release, post-edit review, `bun run check`, and clean diff
 checks.
 
-**Skip** for patch releases unless the changelog explicitly touches:
-- `apps/kimi-code/src/cli/run-prompt.ts`, `prompt-render.ts`, `goal-prompt.ts`, or `prompt-session.ts` (stream-json output, goal summary, session pinning)
-- `packages/agent-core/src/session/hooks/` (live v1 hook engine since 0.5.0; retain the removed `agent/hooks/` path in cross-version diffs)
-- `packages/agent-core/src/agent/permission/` (policy queue ordering)
+**Skip** for patch releases unless the changelog explicitly touches (paths under `packages/agent-core-v2/src` unless noted):
+- `apps/kimi-code/src/cli/run-prompt.ts`, `cli/v2/`, `prompt-render.ts`, `goal-prompt.ts` (print-mode bootstrap, stream-json output, `system.version` marker, goal summary, session pinning)
+- `features/externalHooks/` (the hook engine: config schema, runner, matcher, aggregation)
+- `agent/toolExecutor/` or `agent/permissionGate/` (the before-execute channel and the auto-approve gate — the sole `.allow()` invariant)
+- `features/plan/`, `state/`, `workspace/sessionLifecycle/` (plan-mode arming vectors and the restore-folding source the journal taint scan depends on)
 - `apps/kimi-code/src/cli/commands.ts` / `options.ts` (argv surface)
+
+**Never skip** the mechanized gate: even a patch release is uncertified until `tests/audit/v2-tag-scan.test.ts` passes against its tree and its exact version is appended to `NATIVE_V2_CERTIFIED` (see "Current certified boundary" above).
 
 ### Forward-scan mode (no release, but `origin/main` moved)
 
@@ -106,18 +109,23 @@ The forward-scan is the lightweight discharge of the "quarterly drift" trigger a
 
 These are the kimi-code surfaces kimi-plugin-cc consumes. If any one breaks, our safety guarantees break.
 
-| Surface | Where in kimi-code | What we depend on | Where in kimi-plugin-cc |
+| Surface | Where in kimi-code (0.42.0, all paths under `packages/agent-core-v2/src` unless noted) | What we depend on | Where in kimi-plugin-cc |
 |---|---|---|---|
-| `kimi -p` engine + permission mode | `apps/kimi-code/src/cli/run-prompt.ts`, `experimental-v2.ts` and their tests | engine selector semantics; on the pinned v1 path, hard-coded `permission: 'auto'`; `installHeadlessHandlers` auto-approves; resumed sessions force-overridden to `'auto'`. **Load-bearing audit lesson from 0.33.0:** `run-prompt.ts` changed only comments while `experimental-v2.ts` inverted unflagged `-p` to v2, so the selector file can never be omitted from the CLI diff. | `runtime/cli-client.ts` invokes `-p`, refuses experimental selectors, and pins `KIMI_CODE_LEGACY_FLAG=1`; safety relies on the hook firing |
-| PreToolUse hook engine | `packages/agent-core/src/session/hooks/` (live since kimi-code 0.5.0; keep the removed `agent/hooks/` path in cross-version diffs) | stdin JSON shape (`{tool_name, tool_input, session_id, cwd, ...}`), exit-2-as-deny semantics, empty matcher means all tools, fail-open on internal error | `runtime/hooks/approval-hook.ts`, `runtime/hooks/approval-policy.ts` |
-| Hook **aggregation** across multiple hooks | `packages/agent-core/src/session/hooks/engine.ts` (`aggregateResults`/`blockDecision`) | **any-block-wins**: any result with `action:'block'` denies regardless of other hooks; an allow never pre-empts a block. Load-bearing since kimi-code 0.20.1 (#1127) — enabled kimi-code *plugins* can now contribute PreToolUse hooks merged into the `-p` session (`rpc/core-impl.ts` create+resume), so we are no longer the sole hook on the channel | implicit — this guarantees a plugin hook can't override our managed PreToolUse deny |
-| Plugin slash commands / command activation | `packages/agent-core/src/rpc/core-impl.ts`, `packages/agent-core/src/session/rpc.ts`, `packages/agent-core/src/session/prompt-metadata.ts`, `packages/agent-core/src/agent/index.ts` | Since kimi-code 0.21.0 (#1204), enabled kimi-code plugins can contribute slash commands activated by RPC/host UI. Re-confirm activation stays **host-initiated**, absent from the `apps/kimi-code/src/cli/` `-p` path, not registered as a model tool, and only macro-expands into prompt text whose later tool calls still pass through the index-0 hook | implicit — plugin-contributed slash commands must not become a model-reachable tool or a permission bypass |
-| Permission policy queue order | `packages/agent-core/src/agent/permission/policies/index.ts` | `PreToolCallHookPermissionPolicy` runs **before** `auto-mode-approve` / `yolo-mode-approve` | implicit — entire safety model assumes hook fires first |
-| Native-v2 veto-listener order | `packages/agent-core-v2/src/index.ts`, `agent/toolExecutor/beforeToolExecuteEvent.ts`, `features/plan/planService.ts`, `features/externalHooks/agent/agentExternalHooksService.ts` | External PreToolUse must run before **every final `event.allow()`**, not merely before tool execution. 0.31.0 proved why: plan service registers before external hooks and final-allows its exact plan-file write; `default_plan_mode=true` reaches it on a fresh session. 0.33.0 made this engine the unflagged default. Until an exact release fixes the order, the plugin must keep native v2 unreachable through both explicit-selector refusal and a child-only legacy-v1 pin. | `runtime/cli-client.ts` refusal + `KIMI_CODE_LEGACY_FLAG=1`; `runtime/hooks/approval-policy.ts` denies `EnterPlanMode` as defense in depth |
-| `-p` session bootstrap / permission-context construction | `packages/agent-core/src/rpc/core-impl.ts` (`createSessionWithOverrides` / `resumeSessionWithOverrides`), `packages/agent-core/src/config/workspace-local.ts` | `run-prompt.ts` only **delegates** to `createKimiHarness().createSession/resumeSession`; the harness impl is where the permission context is built and where project-local config (e.g. `.kimi-code/local.toml` `[workspace] additional_dir` → `additionalDirs`) is auto-loaded from disk at session start, on **all** transports incl. `-p` | implicit — what `additionalDirs`/session config holds before any policy runs decides which approve policies (e.g. `GitCwdWriteApprovePermissionPolicy`) could fire; the plugin's index-0 hook + single-root `runtime/rescue-approval.ts` must still bind first |
-| Stream-json output | `apps/kimi-code/src/cli/prompt-render.ts` (`PromptJsonWriter`, `writeResumeHint`), `goal-prompt.ts` (`goal.summary`), called by `run-prompt.ts` | NDJSON record shapes for assistant/tool/tool_result; `role:"meta", type:"session.resume_hint"` carries session id | `runtime/stream-json.ts` parser, `runtime/cli-client.ts` session pinning |
-| CLI argv | `apps/kimi-code/src/cli/commands.ts`, `options.ts` | `-p`, `-r <id>`, `--output-format stream-json`, `-m`, `--skills-dir` all accepted with current semantics | `runtime/cli-client.ts::buildArgs` |
-| Process / exit / lifecycle | `apps/kimi-code/src/cli/run-prompt.ts` and OS-level | stdout = stream-json only; stderr = humans-only; SIGTERM lands; process group enumerable | `runtime/cli-client.ts` cancellation; `runtime/background-spawn.ts` |
+| `kimi -p` print mode + permission mode | `apps/kimi-code/src/cli/v2/run-v2-print.ts` (entry via `apps/kimi-code/src/cli/run-prompt.ts` → `runV2Print`), `apps/kimi-code/src/cli/options.ts` | v2-only since 0.42.0 (the v1 engine and `KIMI_CODE_LEGACY_FLAG` are gone — the tag scan asserts the selector is absent). `auto` permission mode forced fresh and resumed, `nonInteractive:true`; `--auto/--yolo/--plan` rejected with `-p`; `-r` refuses when the session's recorded cwd ≠ current cwd (`:426`). **Load-bearing audit lesson from 0.33.0:** the selector file changed semantics while `run-prompt.ts` changed only comments — never omit the print-mode entry from the CLI diff. | `runtime/kimi-engine.ts::selectIntendedEngine` (exact-version `NATIVE_V2_CERTIFIED`), `runtime/cli-client.ts` invokes `-p` and requires the `system.version` marker first; safety relies on the hook firing under the no-plan construction |
+| Before-execute channel (the ONE place every tool call is gated) | `agent/toolExecutor/beforeToolExecuteEvent.ts`, `agent/toolExecutor/toolExecutorService.ts` (`prepareToolCall` → `fireBeforeExecute`) | listeners run sequentially in registration order; `veto` wins; `pass` is non-terminal; `event.allow()` is chain-breaking. **Invariant:** the sole `.allow()` in the engine + CLI is the plan-file guard (`features/plan/planService.ts`), gated on ACTIVE plan mode, and the subscriber set is exactly permissionGate, toolDedupe, btw, externalHooks, goal, plan, swarm, tower | `tests/audit/v2-tag-scan.test.ts` (allow count, subscriber set, sha256 pins); the no-plan construction in `runtime/native-v2-preflight.ts` + `runtime/hooks/approval-policy.ts` |
+| Plan mode arming vectors | `features/plan/planService.ts`, `features/plan/planOps.ts` (durable `plan_mode.enter|cancel|exit`, `plan.revision`), `features/plan/configSection.ts` (`default_plan_mode`), `features/plan/tools/enter-plan-mode/enterPlanModeTool.ts`, `workspace/sessionLifecycle/sessionLifecycleService.ts` (reads the default once in `sessions.create()`), `state/eventDispatcherService.ts` + `state/state.ts` (`restore()` folds ONLY `agents/<id>/wire.jsonl`, by literal `record.type`; fork `snapshotExcluded`) | exactly three arming routes from `-p`: `default_plan_mode` (single user file, no env/argv/project overlay), the `EnterPlanMode` tool, and journal replay on resume. Anything that adds a fourth (a new plan event type, a second restore source, an env binding for the default, a plan field on agent profiles) breaks the construction | `inspectPlanModeConfig` (`CLI_V2_PLAN_MODE_CONFIGURED`), hook denial of `EnterPlanMode`/`ExitPlanMode`, `scanSessionJournalsForPlan` (`KIMI_SESSION_PLAN_TAINTED`) + proven-lineage resume; all pinned/asserted by the tag scan and proven live by smoke lanes 3/3b |
+| PreToolUse hook engine | `features/externalHooks/configSection.ts` (strict `{event, matcher?, command, timeout?}`), `features/externalHooks/internal/runHook.ts`, `features/externalHooks/internal/matchHooks.ts`, `features/externalHooks/agent/agentExternalHooksService.ts` (eager, one per agent scope incl. swarm children) | stdin JSON `{hook_event_name, session_id, cwd (process cwd), client_type, session_title, tool_name, tool_input, tool_call_id}`; exit 2 = deny with stderr reason, exit 0 + JSON `permissionDecision:"deny"` = deny, anything else allow; fail-OPEN on spawn error/timeout/abort/bad JSON; 30 s default; empty matcher = all tools; throwing regex matches nothing | `runtime/hooks/approval-hook.ts`, `runtime/hooks/approval-policy.ts`, `runtime/commands/setup.ts` (strict schema validation of every configured hook) |
+| Hook **aggregation** across multiple hooks (incl. plugin-contributed) | `features/externalHooks/internal/matchHooks.ts` (`Promise.all`, first block in match order), `features/externalHooks/app/externalHooksRunnerService.ts` (plugin hooks appended and deduped on `cwd\0command`) | **any-block-wins**: an allow never pre-empts a block, so a kimi-code plugin's hook can neither override nor disable ours | implicit — guarantees the managed PreToolUse deny is terminal under coexistence (Claude + Codex host blocks, upstream plugins) |
+| Auto-approve policy vs. hook | `agent/permissionGate/permissionGateService.ts` (→ `AutoModeApprovePermissionPolicyService`) | the auto-mode approval uses non-terminal `pass()`, never `allow()`, so it cannot pre-empt the external-hooks listener that runs after it | implicit — the entire safety model assumes a hook veto beats auto-approve; the tag scan's allow-count invariant covers it |
+| Plugin slash commands / command activation | `agent/pluginCommand/`, `agent/plugin/`, `app/plugin/` | activation stays RPC/host-initiated and absent from `-p`; `-p` intercepts exactly one prefix, `/goal` (`apps/kimi-code/src/cli/goal-prompt.ts:43`); a plugin command must never become a model-reachable tool or a permission bypass | read-only commands hard-prefix an instruction line so their prompt never starts with `/goal`; `runtime/commands/pursue.ts` is the only `/goal` producer |
+| Tool input schemas the allowlist reads | `agent/tools/os/write/writeTool.ts`, `agent/tools/edit/editTool.ts` (`path`; Write also `mode`), `agent/tools/os/bash/bashTool.ts` (`command`, **`cwd`**, `timeout`, `run_in_background`; `effectiveCwd` asserts NO workspace membership, `:191`) | field names, and the fact that `Bash.cwd` is honoured without an upstream membership check while the hook payload's top-level `cwd` is the process cwd | `runtime/rescue-approval.ts` (`checkApprovedPath`, `checkApprovedDirectory` confines `tool_input.cwd` to the trusted root before the command string); tag scan asserts the field names |
+| AgentSwarm / subagents | `features/swarm/tools/agent-swarm/agentSwarmTool.ts` (`'AgentSwarm'`, strict schema), `features/swarm/agent/swarmService.ts`; `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY` (unset = no cap) | children run in-process in a child DI scope sharing the session workspace with their OWN eager external-hooks service — every child tool call fires the hook; no deny-all path on the swarm route; `fork` gated by `subagent_fork` | `runtime/commands/swarm.ts` always exports the concurrency cap (4 read / 1 write); the `swarm`/`swarm-write` hook labels; worktree confinement via `KIMI_PLUGIN_CC_WORKSPACE_ROOT` |
+| Experimental features | `apps/kimi-code/src/utils/experimental-features.ts` (`[experimental]` config table, per-flag `KIMI_CODE_EXPERIMENTAL_*` env, master `KIMI_CODE_EXPERIMENTAL_FLAG`; precedence env → config → master → default) | `tower` and `subagent_fork` are v2-only features outside the certified profile; the master flag enables all of them | `inspectExperimentalSelectors` (`CLI_V2_EXPERIMENTAL_UNSAFE`) + `assertNoUnsafeExperimentalSelector` (`CLI_V2_HOOK_ORDER_UNSAFE`) refuse before spawn |
+| Stream-json output | `apps/kimi-code/src/cli/prompt-render.ts` (`system.version` FIRST line, `session.resume_hint`, `turn.step.retrying`), `apps/kimi-code/src/cli/goal-prompt.ts` (`goal.summary`) | NDJSON record shapes for assistant/tool/tool_result; `role:"meta", type:"system.version"` is the provenance marker a v2 plan requires first and must equal the probed version; `session.resume_hint` carries the `session_<uuid>` token that round-trips via `-r` | `runtime/stream-json.ts` parser; `runtime/cli-client.ts` provenance gate (`CLI_ENGINE_PROVENANCE_MISMATCH`) and session pinning |
+| CLI argv | `apps/kimi-code/src/cli/options.ts` | `-p` (prompt as VALUE), `-r`/`-S`/`--session`, `--output-format stream-json`, `-m`, `--skills-dir` accepted with current semantics; `--agent`/`--agent-file`/`--add-dir` exist and are NEVER passed | `runtime/cli-client.ts::buildArgs`; `runtime/kimi-command.ts::assertPrefixArgsSafe` refuses reserved flags in the launcher prefix |
+| Session store layout | `<KIMI_CODE_HOME>/sessions/<workspaceId>/<sessionId>/agents/<agentId>/wire.jsonl` (+ `state.json`, `logs/`) | the journal the preflight scans lives exactly there; a layout change fails closed as `KIMI_SESSION_JOURNAL_UNAVAILABLE` (every v2 resume would refuse) | `scanSessionJournalsForPlan`; smoke lane 3b asserts the real layout |
+| Auto-update preflight | update check on the `-p` path | a background upgrade must never swap the certified binary under an execution plan | every spawn exports `KIMI_CODE_NO_AUTO_UPDATE=1` and an absolute `KIMI_CODE_HOME` (`runtime/cli-client.ts::buildEnv`) |
+| Process / exit / lifecycle | `apps/kimi-code/src/cli/v2/run-v2-print.ts` and OS-level | stdout = stream-json only; stderr = humans-only; goal exits 0/3/6; SIGTERM lands; process group enumerable | `runtime/cli-client.ts` cancellation; `runtime/background-spawn.ts` |
 
 ## The routine
 
@@ -141,68 +149,80 @@ NEW='@moonshot-ai/kimi-code@<NEW_VERSION>'
 
 git diff "$PREV".."$NEW" -- \
   apps/kimi-code/src/cli/run-prompt.ts \
+  apps/kimi-code/src/cli/v2/ \
   apps/kimi-code/src/cli/prompt-render.ts \
   apps/kimi-code/src/cli/goal-prompt.ts \
-  apps/kimi-code/src/cli/prompt-session.ts \
-  apps/kimi-code/src/cli/experimental-v2.ts \
   apps/kimi-code/src/cli/options.ts \
   apps/kimi-code/src/cli/commands.ts \
-  apps/kimi-code/test/cli/experimental-v2.test.ts \
-  apps/kimi-code/test/cli/run-prompt.test.ts \
-  > /tmp/kimi-<NEW>-diff/01-cli-prompt-mode.diff
+  apps/kimi-code/src/utils/experimental-features.ts \
+  apps/kimi-code/test/cli/ \
+  > /tmp/kimi-<NEW>-diff/01-cli-print-mode.diff
+
+# The before-execute channel is the ONE place every tool call is gated, and
+# the permission gate is the auto-approve policy that must stay non-terminal
+# (`pass()`, never `allow()`). Also scopes the permission mode/rules/approval
+# services that decide what the gate does.
+git diff "$PREV".."$NEW" -- \
+  packages/agent-core-v2/src/agent/toolExecutor/ \
+  packages/agent-core-v2/src/agent/permissionGate/ \
+  packages/agent-core-v2/src/agent/permissionPolicy/ \
+  packages/agent-core-v2/src/agent/permissionMode/ \
+  packages/agent-core-v2/src/agent/permissionRules/ \
+  packages/agent-core-v2/src/agent/toolApproval/ \
+  > /tmp/kimi-<NEW>-diff/02-before-execute-and-gates.diff
 
 git diff "$PREV".."$NEW" -- \
-  packages/agent-core/src/agent/permission/ \
-  packages/agent-core/src/session/permission/ \
-  > /tmp/kimi-<NEW>-diff/02-permission.diff
-
-# Scope BOTH historical agent/hooks AND live session/hooks. The engine relocated
-# to session/hooks/ in kimi-code 0.5.0 and the old tree was removed in the same
-# commit. Retaining both paths makes cross-version audits cover either layout;
-# a path absent from both compared releases contributes an empty diff.
-git diff "$PREV".."$NEW" -- \
-  packages/agent-core/src/agent/hooks/ \
-  packages/agent-core/src/session/hooks/ \
+  packages/agent-core-v2/src/features/externalHooks/ \
   > /tmp/kimi-<NEW>-diff/03-hooks.diff
 
+# Plan-mode arming vectors + the restore-folding source. A change here is a
+# change to the no-plan construction itself: the plan guard's final allow, the
+# durable plan event types (`planOps.ts` — the journal scan keys on their
+# prefixes), `default_plan_mode` (`configSection.ts`, read once in
+# `sessions.create()` in sessionLifecycle), and what `restore()` folds.
 git diff "$PREV".."$NEW" -- \
-  packages/agent-core/src/agent/records/ \
-  packages/agent-core/src/session/ \
-  > /tmp/kimi-<NEW>-diff/04-wire-records.diff
+  packages/agent-core-v2/src/features/plan/ \
+  packages/agent-core-v2/src/state/ \
+  packages/agent-core-v2/src/workspace/sessionLifecycle/ \
+  > /tmp/kimi-<NEW>-diff/04-plan-and-restore.diff
 
-# Session BOOTSTRAP lives in the RPC core impl, NOT run-prompt.ts. run-prompt.ts
-# only delegates: createKimiHarness().createSession/resumeSession. The harness
-# impl is rpc/core-impl.ts (createSessionWithOverrides/resumeSessionWithOverrides),
-# which is where the permission CONTEXT is constructed and where config can be
-# auto-loaded from disk at session start. Scope it explicitly — reading
-# run-prompt.ts alone hides this surface. (Added after the 0.19.1 audit, where
-# #812 wired an unconditional read of project-local .kimi-code/local.toml
-# `[workspace] additional_dir` into BOTH the -p create AND resume bootstraps via
-# config/workspace-local.ts; source-reading of run-prompt.ts made additionalDirs
-# look --add-dir-only, and only the Phase-4 adversarial pass caught it.)
+# Session/feature BOOTSTRAP: feature registration order (`index.ts`), the
+# config loader (`app/bootstrap/`, `app/config/`), and every feature's
+# `configSection.ts`. A non-empty 05 means session construction or on-disk
+# config-load behaviour moved — exactly the surface that decides what state a
+# session starts with before any listener runs (the 0.19.1 lesson: an
+# unconditional project-local config read was wired into BOTH create and
+# resume bootstraps and only the adversarial pass caught it).
 git diff "$PREV".."$NEW" -- \
-  packages/agent-core/src/rpc/core-impl.ts \
-  packages/agent-core/src/config/workspace-local.ts \
-  packages/agent-core/src/config/ \
+  packages/agent-core-v2/src/index.ts \
+  packages/agent-core-v2/src/app/bootstrap/ \
+  packages/agent-core-v2/src/app/config/ \
+  packages/agent-core-v2/src/workspace/ \
+  ':(exclude)packages/agent-core-v2/src/workspace/sessionLifecycle' \
+  ':(glob)packages/agent-core-v2/src/features/*/configSection.ts' \
   > /tmp/kimi-<NEW>-diff/05-session-bootstrap.diff
 
-# The v1 TOOL LAYER and the SDK/kaos packages are on the -p path but were
-# blind spots until the 0.39.0 audit. tools/ holds the input schemas whose
-# field names the hook allowlist reads (Write/Edit `path`, Bash `command`) and
-# the tool-internal path guards; run-prompt.ts imports createKimiHarness from
-# packages/node-sdk (a 0-byte agent-core diff does NOT cover it); kaos is the
-# execution/paths abstraction under both. Exclude node-sdk's v2-only files
-# when reading (v2/ and sdk-rpc-client-v2.ts are behind the refused engine).
+# The TOOL LAYER (input schemas whose field names the hook allowlist reads:
+# Write/Edit `path`, Bash `command` + `cwd`), the fan-out / delegation
+# features (swarm, goal, tower, btw, plugin commands, agent profiles) that
+# spawn or steer additional tool callers, and the SDK/kaos packages under the
+# -p path (a 0-byte agent-core-v2 diff does NOT cover them).
 git diff "$PREV".."$NEW" -- \
-  packages/agent-core/src/tools/ \
+  packages/agent-core-v2/src/agent/tools/ \
+  packages/agent-core-v2/src/features/swarm/ \
+  packages/agent-core-v2/src/features/goal/ \
+  packages/agent-core-v2/src/features/tower/ \
+  packages/agent-core-v2/src/features/btw/ \
+  packages/agent-core-v2/src/agent/plugin/ \
+  packages/agent-core-v2/src/agent/pluginCommand/ \
+  packages/agent-core-v2/src/app/plugin/ \
+  packages/agent-core-v2/src/app/agentProfileCatalog/ \
   packages/node-sdk/src \
-  ':(exclude)packages/node-sdk/src/v2' \
-  ':(exclude)packages/node-sdk/src/sdk-rpc-client-v2.ts' \
   packages/kaos/src \
-  > /tmp/kimi-<NEW>-diff/06-v1-tools-sdk.diff
+  > /tmp/kimi-<NEW>-diff/06-tools-fanout-sdk.diff
 ```
 
-A 0-byte `03-hooks.diff` (historical `agent/hooks/` plus live `session/hooks/`) is the canonical "hook engine unchanged" signal. The other **five** need real reading. (Note: `04-wire-records.diff` scopes the whole `session/` dir, so it re-includes `session/hooks/`+`session/permission/` — that overlap is intentional belt-and-suspenders, not a bug.) `05-session-bootstrap.diff` scopes the RPC harness impl + the whole `config/` dir, because a non-empty `05` means session construction or on-disk config-load behavior moved — exactly the surface that determines what the permission context (e.g. `additionalDirs`) holds before any policy runs. A non-empty `05` requires reading even when `01`–`04` are clean. `06-v1-tools-sdk.diff` was added after the 0.39.0 audit, where `tools/policies/path-access.ts`, `tools/builtin/shell/bash.ts`, and ~1k changed lines in `packages/node-sdk` sat outside every scoped diff (benign that release — a win32-only path-bridge refactor and additive MCP threading — but a tool_input schema rename or an SDK-level engine/session change would have been invisible). A non-empty `06` means tool input schemas, tool-internal guards, or the harness SDK moved: read it for schema-field renames (the hook allowlist reads `path`/`command` by name), new pre-hook approval paths, and `createKimiHarness` behavior changes.
+A 0-byte `03-hooks.diff` is the canonical "hook engine unchanged" signal, and a 0-byte `02` + `04` together mean the before-execute channel and the plan-mode arming vectors — the two surfaces the no-plan construction rests on — are untouched. The other diffs need real reading. `05` is the bootstrap/config surface: non-empty means session construction or on-disk config-load behaviour moved, which decides what state a session starts with before any listener runs — read it even when `01`–`04` are clean. `06` is the tool layer, the fan-out features and the SDK: read it for schema-field renames (the allowlist reads `path`/`command`/`cwd` by name), new tool callers that might not get an eager external-hooks service, and harness-level session/engine changes. Whatever the diffs say, the release is uncertified until the tag scan (`tests/audit/v2-tag-scan.test.ts`) is green against the tree with a fresh per-version hash row, the plan-mode-ON live control still shows the bypass, and the per-operation smoke (incl. lane 3b, native-v2 resume) passes.
 
 ### Phase 1 — Multi-agent compat review (4 parallel agents)
 
@@ -346,7 +366,7 @@ The compat-marker tag (`compat-verified-kimi-code-<ver>`) is independent of the 
 - **A headless/cloud-prepared catch-up DEFERS its smoke — treat the PR as smoke-pending until you run it locally against that branch.** A catch-up prepared in a cloud/CI session with no kimi binary cannot run Phase 1b (`PREREQS_OK` is false; the suite skips — installing the binary doesn't help, the smoke needs valid Moonshot OAuth creds). Before merging such a PR, run `bun run smoke:real` **locally against the actual PR branch**, then flip the "smoke pending" docs (`CHANGELOG`, `kimi-version-probe.ts` comment, `ROADMAP`) to GREEN so the tagged commit is accurate. Do **not** substitute the daily-checkup routine's `report-NN` green smoke for this if the PR added code the report's smoke didn't cover: the 2026-06-19 v1.2.6 PR bundled the `/kimi:swarm --cap` env-wiring feature, but report 81's green smoke *predated* that code (report 81 had explicitly said the feature should NOT be bundled), so it certified only the pre-feature tree. Re-running locally against the branch is what actually closed the gate. (Same run: watch for the cwd-persisted-into-the-clone trap — `bun run check` piped through `tail` reported exit 0 while actually failing "Script not found check" because a prior `cd` had left the shell in `.claude/kimi-code-research/kimi-code-repo`; run gates unpiped from the plugin root.)
 - **Don't tag a plugin version (`vX.Y.Z`) for zero-code-change audits.** Reserve patch and minor releases for actual changes. Use the compat-marker tag for verification-only events.
 - **Don't skip the multi-reviewer pass on the audit commit.** The 2026-05-27 run caught a `~/.kimi/plugins/installed.json` path error (correct path: `~/.kimi-code/plugins/installed.json`) propagated from the source audit reports into the roadmap — exactly the kind of detail one reader misses.
-- **Don't conclude `additionalDirs`/session config is empty by reading `run-prompt.ts` alone — the harness impl (`rpc/core-impl.ts`) can auto-load project-local config at bootstrap.** `run-prompt.ts` only delegates to `createKimiHarness().createSession/resumeSession`; the real bootstrap (`createSessionWithOverrides`/`resumeSessionWithOverrides`) lives in `packages/agent-core/src/rpc/core-impl.ts` and is where on-disk config is merged into the permission context. In the 2026-06-23 0.19.1 audit, #812 (commit `c0eeca2`) made both the `-p` create and resume paths unconditionally read `.kimi-code/local.toml` `[workspace] additional_dir` into `additionalDirs` — so reading run-prompt.ts made it look `--add-dir`-only, and only the Phase-4 adversarial reviewer caught it. Always read `05-session-bootstrap.diff`; if a claim depends on a session field being empty/default on the `-p` path, trace it through `core-impl.ts`, not just the CLI entrypoint. (The safety conclusion held — the index-0 hook + single-root `rescue-approval.ts` bind before the only `additionalDirs` consumer, `GitCwdWriteApprovePermissionPolicy` at index 17, which is dead below auto-approve on `-p` — but the audit *reasoning* was wrong. See report 85's CORRECTION box.)
+- **Don't conclude `additionalDirs`/session config is empty by reading `run-prompt.ts` alone — the harness impl (v1: `rpc/core-impl.ts`; v2: `app/bootstrap/` + `workspace/sessionLifecycle/`) can auto-load project-local config at bootstrap.** `run-prompt.ts` only delegates to `createKimiHarness().createSession/resumeSession`; the real bootstrap (`createSessionWithOverrides`/`resumeSessionWithOverrides`) lives in `packages/agent-core/src/rpc/core-impl.ts` and is where on-disk config is merged into the permission context. In the 2026-06-23 0.19.1 audit, #812 (commit `c0eeca2`) made both the `-p` create and resume paths unconditionally read `.kimi-code/local.toml` `[workspace] additional_dir` into `additionalDirs` — so reading run-prompt.ts made it look `--add-dir`-only, and only the Phase-4 adversarial reviewer caught it. Always read `05-session-bootstrap.diff`; if a claim depends on a session field being empty/default on the `-p` path, trace it through `core-impl.ts`, not just the CLI entrypoint. (The safety conclusion held — the index-0 hook + single-root `rescue-approval.ts` bind before the only `additionalDirs` consumer, `GitCwdWriteApprovePermissionPolicy` at index 17, which is dead below auto-approve on `-p` — but the audit *reasoning* was wrong. See report 85's CORRECTION box.)
 
 ## Reference: the 2026-05-27 0.4.0 audit
 

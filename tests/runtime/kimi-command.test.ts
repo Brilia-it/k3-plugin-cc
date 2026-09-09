@@ -88,6 +88,15 @@ describe("resolveKimiCliCommand", () => {
     JSON.stringify(["--plan"]),
     JSON.stringify(["-m", "some-model"]),
     "-r session_x",
+    // Codex second-round F2: the HIDDEN `-C` alias of --continue resumes the
+    // latest session for the cwd with no plugin-chosen id → no journal scan.
+    JSON.stringify(["-C"]),
+    "-C",
+    JSON.stringify(["-y"]),
+    JSON.stringify(["--yes"]),
+    JSON.stringify(["--auto-approve"]),
+    JSON.stringify(["--manual"]),
+    JSON.stringify(["-V"]),
   ])("rejects a reserved kimi flag in the prefix: %s", (raw) => {
     let threw: unknown;
     try {

@@ -9,6 +9,10 @@
 //   2. explicit experimental features (tower/fork master flag) refuse before spawn.
 //   3. default_plan_mode=true refuses before spawn on native-v2 (the no-plan
 //      construction); on a pinned <=0.41 binary it stays pinned to legacy-v1.
+//   3b. native-v2 resume — a fresh run's REAL wire journal is found where the
+//      preflight scans, the resumed run re-proves v2 provenance + hook denial,
+//      and a `plan_mode.enter` record appended to that journal makes the next
+//      resume refuse BEFORE spawn (arming vector C, proven on the real layout).
 //   4. autonomous goal mode (/kimi:pursue) — the hook fires on EVERY
 //      continuation turn (zero files across a multi-turn run).
 //   5. read-only swarm (/kimi:swarm) — a SPAWNED SUBAGENT's forced write is
@@ -49,7 +53,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { access, cp, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, appendFile, cp, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -373,16 +377,14 @@ suite("real-binary smoke: read-only commands cannot write (H7)", () => {
   }
 });
 
-// v2 containment lane (v1.9.4, extended for 0.34.0): 0.31.0 source review corrected the earlier claim
-// that external PreToolUse is always ahead of plan approval. AgentPlanService is
-// registered first and final-allows exact plan-file Write/Edit calls; user
-// `default_plan_mode=true` makes that reachable on a fresh session before the
-// model calls any tool. Until upstream guarantees the hook veto first, the
-// plugin refuses the same experimental truthy values conservatively. Since
-// 0.33.0 made v2 the unflagged default; runCliPrompt also pins every accepted
-// child to KIMI_CODE_LEGACY_FLAG=1. This smoke proves the explicit refusal still
-// happens before the exact binary can start; the next suite proves fresh and
-// resumed unflagged runs stay on v1 even with default plan mode configured.
+// Experimental-selector lane (v1.9.4, extended for 0.34.0; re-scoped for the
+// 0.42.0 native-v2 migration): the master KIMI_CODE_EXPERIMENTAL_FLAG enables
+// v2-only features (tower, subagent fork) outside the certified no-plan
+// profile, so every plan — v2 or a pinned v1 — refuses it BEFORE the exact
+// binary can start. (Before 0.42 this same refusal also kept the then-unsafe v2
+// engine unreachable while buildEnv pinned accepted children to legacy-v1; the
+// pin is now v1-only and the plan-mode hazard is closed by the preflight, see
+// the next suite.)
 suite("real-binary smoke: agent-core-v2 is refused before spawn", () => {
   test(
     "[review/v2] the unsafe engine is refused before any file can land",
@@ -545,6 +547,134 @@ suite("real-binary smoke: default_plan_mode is refused (v2) or pinned (v1)", () 
             resumeSessionId = result.sessionId;
           }
         }
+      } finally {
+        await cleanupTestPath(kimiHome);
+        await cleanupTestPath(workspace);
+        await cleanupTestPath(pluginData);
+      }
+    },
+    PER_RUN_BUDGET_MS * 2 + 30_000,
+  );
+});
+
+// Walk the REAL 0.42.0 session layout for one session id — the same walk the
+// preflight's scanSessionJournalsForPlan performs — so this smoke can prove the
+// scan resolves the layout the binary actually writes (a layout drift would
+// otherwise fail closed as "journal unavailable" and silently break every v2
+// resume without any test noticing).
+async function findSessionJournals(kimiHome: string, sessionId: string): Promise<string[]> {
+  const sessionsDir = path.join(kimiHome, "sessions");
+  if (!existsSync(sessionsDir)) return [];
+  const journals: string[] = [];
+  for (const workspace of await readdir(sessionsDir)) {
+    const agentsDir = path.join(sessionsDir, workspace, sessionId, "agents");
+    if (!existsSync(agentsDir)) continue;
+    for (const agent of await readdir(agentsDir)) {
+      const journal = path.join(agentsDir, agent, "wire.jsonl");
+      if (existsSync(journal)) journals.push(journal);
+    }
+  }
+  return journals;
+}
+
+// Native-v2 resume lane (arming vector C, live): a resumed `kimi -r` session
+// replays its wire journal, so the plugin scans every agent journal for durable
+// plan-state records before spawning. This lane proves, against the real
+// binary and the real on-disk layout, that (1) a fresh v2 run yields a
+// resumable session whose journal the scan can find, (2) the resumed run
+// re-proves v2 provenance (system.version first), keeps the same session id and
+// is still hook-denied on a write attempt, and (3) once that REAL journal holds
+// a `plan_mode.enter` record — exactly the record restore() would fold — the
+// next resume refuses BEFORE any process is created (the journal is not
+// appended to). Skipped on a pinned <= 0.41 binary: v1 resume has no journal
+// replay and the v1 resume path is covered by the default_plan_mode suite.
+suite("real-binary smoke: native-v2 resume re-proves provenance and refuses a plan-tainted journal", () => {
+  const lane = BINARY_IS_V2 ? test : test.skip;
+  lane(
+    "native-v2: fresh → resumed both prove v2 + hook denial; a tainted journal refuses pre-spawn",
+    async () => {
+      const kimiHome = await createTestPluginDataRoot("smoke-home-v2-resume");
+      const workspace = await createTestPluginDataRoot("smoke-ws-v2-resume");
+      const pluginData = await createTestPluginDataRoot("smoke-data-v2-resume");
+      try {
+        await seedKimiHome(SEED_HOME, kimiHome);
+        // PRECONDITION the lane depends on: plan mode is NOT configured on in
+        // the seeded home (the preflight would otherwise refuse the fresh run
+        // for a reason unrelated to resume).
+        await setDefaultPlanMode(kimiHome, false);
+        const setupEnv: NodeJS.ProcessEnv = {
+          ...process.env,
+          KIMI_CODE_HOME: kimiHome,
+          CLAUDE_PLUGIN_DATA: pluginData,
+          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        };
+        const setupResult = await runSetup([], makeContext(workspace, setupEnv));
+        expect(
+          setupResult.probe,
+          `managed-block install probe failed: ${setupResult.probeError ?? ""}`,
+        ).toBe("ok");
+
+        const { command, prefixArgs } = resolveKimiCliCommand(process.env);
+        const baseEnv: NodeJS.ProcessEnv = {
+          ...process.env,
+          KIMI_CODE_HOME: kimiHome,
+          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        };
+        const run = (resumeSessionId?: string) =>
+          runCliPrompt({
+            cwd: workspace,
+            env: baseEnv,
+            command,
+            prefixArgs,
+            executionPlan: smokePlan(command, prefixArgs, "ask"),
+            commandLabel: "ask",
+            prompt: WRITE_PROMPT,
+            ...(resumeSessionId === undefined ? {} : { resumeSessionId }),
+          });
+
+        // Phase 1: fresh run.
+        const fresh = await run();
+        expect(fresh.systemVersion, "fresh v2 run must emit system.version").toBe(BINARY_VERSION);
+        expect(fresh.sessionId, "fresh v2 run must yield a resumable session id").toBeDefined();
+        expect(`${JSON.stringify(fresh.records)}\n${fresh.stderrTail}`).toContain(DENY_MARKER);
+        expect(await fileExists(path.join(workspace, TARGET_FILENAME))).toBe(false);
+        const sessionId = fresh.sessionId as string;
+
+        // The scan's premise, checked against the real layout: at least one
+        // agent wire journal exists for that session where the preflight looks.
+        const journals = await findSessionJournals(kimiHome, sessionId);
+        expect(
+          journals.length,
+          `no agents/*/wire.jsonl found for ${sessionId} under ${kimiHome}/sessions — the preflight's layout assumption drifted`,
+        ).toBeGreaterThan(0);
+
+        // Phase 2: clean resume. The preflight scans the (clean) journal, the
+        // binary replays it, and provenance + hook denial hold on the -r path.
+        const resumed = await run(sessionId);
+        expect(resumed.systemVersion, "resumed v2 run must emit system.version").toBe(BINARY_VERSION);
+        expect(resumed.sessionId, "resume must continue the same session").toBe(sessionId);
+        expect(`${JSON.stringify(resumed.records)}\n${resumed.stderrTail}`).toContain(DENY_MARKER);
+        expect(await fileExists(path.join(workspace, TARGET_FILENAME))).toBe(false);
+
+        // Phase 3: taint the REAL journal with the durable record restore()
+        // would fold, then prove the next resume refuses before any process is
+        // created — the journal must not grow (a spawned child appends to it).
+        const taintTarget = journals[0] as string;
+        await appendFile(
+          taintTarget,
+          `${JSON.stringify({ type: "plan_mode.enter", agentId: "main", id: "smoke-taint" })}\n`,
+          "utf8",
+        );
+        const sizeAfterTaint = (await stat(taintTarget)).size;
+        await expect(run(sessionId)).rejects.toMatchObject({
+          code: "KIMI_SESSION_PLAN_TAINTED",
+          details: { refusal_kind: "session-plan-tainted", record_type: "plan_mode.enter" },
+        });
+        expect(
+          (await stat(taintTarget)).size,
+          "a refused resume must not have spawned a child (journal grew)",
+        ).toBe(sizeAfterTaint);
+        expect(await fileExists(path.join(workspace, TARGET_FILENAME))).toBe(false);
       } finally {
         await cleanupTestPath(kimiHome);
         await cleanupTestPath(workspace);

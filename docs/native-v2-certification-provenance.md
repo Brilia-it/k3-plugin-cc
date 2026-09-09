@@ -52,7 +52,7 @@ later certified tag:
    on plan mode being active (`features/plan/planService.ts`).
 2. Every route by which plan mode can become active in a `kimi -p` session is
    enumerated, and each is either unreachable from the plugin's spawn or closed
-   by the plugin before spawn: the `default_plan_mode` config key (pre-spawn
+   by the plugin before spawn: the `default_plan_mode` config key under every spelling upstream normalizes to `defaultPlanMode` (pre-spawn
    parse of the same file, `runtime/native-v2-preflight.ts`), the
    `EnterPlanMode`/`ExitPlanMode` tools (managed hook deny), and restored plan
    state (own native-v2 lineage only, raw journal scan of every agent journal).

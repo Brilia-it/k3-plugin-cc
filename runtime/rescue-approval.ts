@@ -232,7 +232,10 @@ const RESCUE_READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
  * without juggling a factory + a closure.
  *
  * Inputs come from kimi-code's hook stdin:
- *   - `workspaceRoot`: the `cwd` field of the hook payload
+ *   - `workspaceRoot`: the plugin-owned trusted root — the per-spawn
+ *     `KIMI_PLUGIN_CC_WORKSPACE_ROOT` the hook entry passes through, NEVER the
+ *     hook payload's top-level `cwd` (at kimi-code 0.42.0 that field is the
+ *     process cwd, and the model cannot forge an env var on its own process)
  *   - `toolName`: e.g. `Bash`, `Write`, `Edit`, `MultiEdit`, etc.
  *   - `toolInput`: the raw arguments kimi will pass to the tool
  */

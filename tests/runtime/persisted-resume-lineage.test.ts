@@ -75,11 +75,19 @@ describe("assertPersistedResumeLineage", () => {
     });
   });
 
-  test("exempts a fresh session (no resumedFromJobId)", async () => {
+  // Codex second-round F4: a row that carries a session id but records no
+  // source job has no plugin lineage and can never be a managed resume. (A
+  // genuinely fresh session has no session id yet, so callers never reach this
+  // check for it.)
+  test("refuses a session id with no recorded source job", async () => {
     await withStore(async (store) => {
-      store.createJob(jobInput({ job_id: "fresh", status: "running", kimi_session_id: "sess-x" }));
-      // resumed_from_job_id is null → returns without touching the store.
-      await assertPersistedResumeLineage(store, planFrom(store.getJob("fresh")), "sess-x", "ask");
+      store.createJob(jobInput({ job_id: "orphan", status: "running", kimi_session_id: "sess-x" }));
+      await expect(
+        assertPersistedResumeLineage(store, planFrom(store.getJob("orphan")), "sess-x", "ask"),
+      ).rejects.toMatchObject({
+        code: "KIMI_SESSION_LINEAGE_UNKNOWN",
+        details: { refusal_kind: "session-lineage-unknown", source_job_id: null },
+      });
     });
   });
 

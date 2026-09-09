@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
   assertNativeV2Preflight,
   inspectExperimentalSelectors,
   inspectPlanModeConfig,
+  upstreamSnakeToCamel,
   scanSessionJournalsForPlan,
 } from "../../runtime/native-v2-preflight.js";
 import { RuntimeError } from "../../runtime/errors.js";
@@ -450,6 +451,80 @@ describe("assertNativeV2Preflight", () => {
         expect(runtimeError.details.retryable_after_setup).toBe(false);
         expect(runtimeError.message).not.toContain("/kimi:setup");
         expect(runtimeError.message).not.toContain("hook drift");
+      }
+    });
+  });
+});
+
+// Codex second-round F1: upstream's config loader camelCases every top-level
+// TOML key (app/config/toml.ts::snakeToCamel) before the plan section reads
+// `defaultPlanMode`, so a literal `default_plan_mode` check is bypassable by
+// any spelling that normalizes to the same domain.
+describe("inspectPlanModeConfig — upstream key normalization", () => {
+  test.each([
+    "defaultPlanMode = true",
+    "default_planMode = true",
+    "defaultPlan_mode = true",
+    'defaultPlanMode = "false"',
+    "default_plan_mode = false\ndefaultPlanMode = true",
+  ])("%s → refuse v2-plan-mode-configured", async (contents) => {
+    await withHome("preflight-camel", async (home) => {
+      await writeConfig(home, `${contents}\n`);
+      const result = await inspectPlanModeConfig(home);
+      expect(result).toMatchObject({ kind: "refuse", refusalKind: "v2-plan-mode-configured" });
+      expect((result as { reason: string }).reason).toContain("default_plan_mode");
+    });
+  });
+
+  test("defaultPlanMode = false → ok:false", async () => {
+    await withHome("preflight-camel-false", async (home) => {
+      await writeConfig(home, "defaultPlanMode = false\n");
+      expect(await inspectPlanModeConfig(home)).toEqual({ kind: "ok", setting: "false" });
+    });
+  });
+
+  test("DEFAULT_PLAN_MODE = true is not normalized upstream (uppercase after _) → ok:absent", async () => {
+    await withHome("preflight-camel-upper", async (home) => {
+      await writeConfig(home, "DEFAULT_PLAN_MODE = true\n");
+      expect(await inspectPlanModeConfig(home)).toEqual({ kind: "ok", setting: "absent" });
+    });
+  });
+
+  test("upstreamSnakeToCamel mirrors upstream's regex exactly", () => {
+    expect(upstreamSnakeToCamel("default_plan_mode")).toBe("defaultPlanMode");
+    expect(upstreamSnakeToCamel("defaultPlanMode")).toBe("defaultPlanMode");
+    expect(upstreamSnakeToCamel("a__b")).toBe("a_B");
+    expect(upstreamSnakeToCamel("a_B")).toBe("a_B");
+    expect(upstreamSnakeToCamel("_x")).toBe("X");
+    expect(upstreamSnakeToCamel("experimental")).toBe("experimental");
+  });
+
+  test("[experimental] keeps raw keys upstream: subagentFork is NOT a selector, subagent_fork is", async () => {
+    await withHome("preflight-exp-raw", async (home) => {
+      await writeConfig(home, "[experimental]\nsubagentFork = true\n");
+      expect(await inspectExperimentalSelectors(home, NO_ENV)).toEqual({ kind: "ok" });
+      await writeConfig(home, "[experimental]\nsubagent_fork = true\n");
+      expect(await inspectExperimentalSelectors(home, NO_ENV)).toMatchObject({ kind: "refuse" });
+    });
+  });
+});
+
+// Kimi second-round finding 3: an enumeration error other than ENOENT/ENOTDIR
+// (EACCES on one workspace dir under sessions/) must land in the classified
+// `unavailable` refusal, not escape as an untyped fs error.
+describe("scanSessionJournalsForPlan — enumeration errors are classified", () => {
+  test("an unreadable workspace directory → unavailable (not a thrown fs error)", async () => {
+    if (typeof process.getuid === "function" && process.getuid() === 0) return; // root ignores mode bits
+    await withHome("preflight-eacces", async (home) => {
+      const locked = path.join(home, "sessions", "wd_locked");
+      await mkdir(path.join(locked, "session_x", "agents", "main"), { recursive: true });
+      await chmod(locked, 0o000);
+      try {
+        const result = await scanSessionJournalsForPlan(home, "session_x");
+        expect(result.kind).toBe("unavailable");
+        expect((result as { reason: string }).reason).toContain("could not enumerate");
+      } finally {
+        await chmod(locked, 0o700);
       }
     });
   });

@@ -108,30 +108,51 @@ async function readParsedConfig(kimiHome) {
     }
 }
 /**
- * Inspect `<kimiHome>/config.toml` for the upstream `default_plan_mode` key.
+ * Upstream's EXACT top-level key normalization
+ * (`packages/agent-core-v2/src/app/config/toml.ts::snakeToCamel`, applied to
+ * every top-level key by `transformTomlData` before the config registry sees
+ * it). The plan section is registered under the camelCase domain
+ * `defaultPlanMode`, so the operator can spell it `default_plan_mode`,
+ * `defaultPlanMode`, `default_planMode`, … and upstream reads the same
+ * setting. The plugin MUST inspect the same normalized view — a literal
+ * `default_plan_mode` check lets `defaultPlanMode = true` arm plan mode.
+ * Pinned by tests/audit/v2-tag-scan.test.ts (toml.ts hash + regex text).
+ * NOTE: the `[experimental]` section registers its own `fromToml` that keeps
+ * raw keys, and its flag ids are snake_case (`subagent_fork`), so that table
+ * is deliberately NOT normalized here.
+ */
+export function upstreamSnakeToCamel(key) {
+    return key.replace(/_([a-z])/g, (_match, ch) => ch.toUpperCase());
+}
+const DEFAULT_PLAN_MODE_DOMAIN = "defaultPlanMode";
+/**
+ * Inspect `<kimiHome>/config.toml` for the upstream default-plan-mode setting
+ * under EVERY spelling upstream normalizes to the `defaultPlanMode` domain.
  * ENOENT → ok:"absent" (upstream default is false; the missing hook is caught
  * separately). Any other read error, a symlinked file (open with O_NOFOLLOW),
  * an oversized file, or a TOML parse failure → refuse "v2-config-unreadable".
- * Key present with literal boolean `false` → ok:"false". Key present with ANY
- * other value (true, string, number, table, array) → refuse
- * "v2-plan-mode-configured".
+ * Every matching key holding literal boolean `false` → ok:"false". ANY matching
+ * key with any other value (true, string, number, table, array) → refuse
+ * "v2-plan-mode-configured", naming the raw key(s) found.
  */
 export async function inspectPlanModeConfig(kimiHome) {
     const parsed = await readParsedConfig(kimiHome);
     if (parsed.kind === "unreadable") {
         return { kind: "refuse", refusalKind: "v2-config-unreadable", reason: parsed.reason };
     }
-    if (parsed.config === null || !("default_plan_mode" in parsed.config)) {
+    if (parsed.config === null)
         return { kind: "ok", setting: "absent" };
-    }
-    const value = parsed.config["default_plan_mode"];
-    if (value === false)
+    const matching = Object.entries(parsed.config).filter(([rawKey]) => upstreamSnakeToCamel(rawKey) === DEFAULT_PLAN_MODE_DOMAIN);
+    if (matching.length === 0)
+        return { kind: "ok", setting: "absent" };
+    const offending = matching.filter(([, value]) => value !== false).map(([rawKey]) => rawKey);
+    if (offending.length === 0)
         return { kind: "ok", setting: "false" };
     const configPath = path.join(kimiHome, "config.toml");
     return {
         kind: "refuse",
         refusalKind: "v2-plan-mode-configured",
-        reason: `\`default_plan_mode\` is set in ${configPath} and is not \`false\`.`,
+        reason: `\`${offending.join("`, `")}\` (upstream setting \`default_plan_mode\`) is set in ${configPath} and is not \`false\`.`,
     };
 }
 /**
@@ -180,11 +201,12 @@ async function boundedReaddir(dirPath, cap) {
         entries = await readdir(dirPath, { withFileTypes: true });
     }
     catch (error) {
-        if (error.code === "ENOENT")
+        const code = error.code;
+        if (code === "ENOENT" || code === "ENOTDIR")
             return { kind: "absent" };
-        if (error.code === "ENOTDIR")
-            return { kind: "absent" };
-        throw error;
+        // Any other enumeration failure (EACCES, EIO, ELOOP, …) must land in the
+        // classified `unavailable` refusal, not escape as an untyped fs error.
+        return { kind: "unreadable", reason: `${dirPath}: ${error.message}` };
     }
     if (entries.length > cap)
         return { kind: "cap-exceeded" };
@@ -277,6 +299,9 @@ export async function scanSessionJournalsForPlan(kimiHome, sessionId) {
     if (workspaceEntries.kind === "cap-exceeded") {
         return { kind: "unavailable", reason: `too many entries under ${sessionsDir} to scan safely` };
     }
+    if (workspaceEntries.kind === "unreadable") {
+        return { kind: "unavailable", reason: `could not enumerate the session tree: ${workspaceEntries.reason}` };
+    }
     const journalPaths = [];
     for (const workspaceEntry of workspaceEntries.entries) {
         // A symlinked entry in the session tree is refused, not skipped: a
@@ -297,6 +322,9 @@ export async function scanSessionJournalsForPlan(kimiHome, sessionId) {
             continue;
         if (agentEntries.kind === "cap-exceeded") {
             return { kind: "unavailable", reason: `too many agent entries under ${agentsDir} to scan safely` };
+        }
+        if (agentEntries.kind === "unreadable") {
+            return { kind: "unavailable", reason: `could not enumerate agent journals: ${agentEntries.reason}` };
         }
         for (const agentEntry of agentEntries.entries) {
             if (agentEntry.isSymbolicLink()) {

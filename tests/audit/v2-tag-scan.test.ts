@@ -54,8 +54,42 @@ const PINNED_HASHES: Record<string, Record<string, string>> = {
       "0f2f55a070a7a69ea9baac98c5fadb96c3ef47fb44596b044431fc768e7be264",
     [`${CORE}/state/state.ts`]:
       "b1b1de1d3060d29e998292e4a3047eedfbf05bf181c199d8800694e23a567fb5",
+    // The durable plan-state event classes. Their `type` strings are the
+    // fold keys restore() dispatches on AND the prefixes the journal taint scan
+    // keys on (`plan_mode.` / `plan.`); a rename here would blind the scan
+    // while every other check stayed green.
+    [`${CORE}/features/plan/planOps.ts`]:
+      "5fc805219ac755c7f155695f783b553088aab90a1ed44aa8f3d59e2926204dde",
+    // The config loader's key normalization. `transformTomlData` camelCases
+    // every top-level key before the registry sees it, so the preflight
+    // inspects config through the SAME `snakeToCamel` (mirrored verbatim in
+    // runtime/native-v2-preflight.ts::upstreamSnakeToCamel). A change here
+    // changes which spellings arm `defaultPlanMode`.
+    [`${CORE}/app/config/toml.ts`]:
+      "57f3830d4fcbf48bb79f6e400efb53af3198ea64de194b381ff8545ab808e334",
+    // Upstream's own scanner of the on-disk session layout
+    // (`<session>/agents/**/wire.jsonl`) — the layout scanSessionJournalsForPlan
+    // walks. A rename here would make every v2 resume refuse as
+    // "journal unavailable" (fail-closed but functionally broken) with every
+    // other check green; smoke lane 3b catches it at runtime, this pin catches
+    // it at audit time. (Kimi second-round finding.)
+    [`${CORE}/app/sessionExport/wire-scan.ts`]:
+      "29489dabbc2a585a5cc70015a7b160f7c0a13403f102de007bbce89d1a6b5ef9",
   },
 };
+
+/**
+ * Every durable plan-state event type at the pinned tag. The journal taint scan
+ * (runtime/native-v2-preflight.ts::scanJournalLines) treats any record whose
+ * decoded `type` starts with `plan_mode.` or `plan.` as taint; this list is
+ * what makes that prefix test complete rather than a guess.
+ */
+const EXPECTED_PLAN_EVENT_TYPES = [
+  "plan_mode.enter",
+  "plan_mode.cancel",
+  "plan_mode.exit",
+  "plan.revision",
+];
 
 /** Every production subscriber of the before-execute channel at the pinned tag. */
 const EXPECTED_BEFORE_EXECUTE_SUBSCRIBERS = [
@@ -154,6 +188,20 @@ suite("native-v2 tag scan: the no-plan construction holds at this source tree", 
     expect(section).toContain("z.boolean().optional()");
     expect(section).toContain("defaultValue: false");
     expect(section).not.toMatch(/\benv\s*:/);
+    // The section is registered under the camelCase domain; the loader maps
+    // every top-level TOML key through snakeToCamel with EXACTLY this regex
+    // (the preflight mirrors it). The experimental section, by contrast,
+    // registers a fromToml that keeps raw keys, so its flag ids stay
+    // snake_case and the preflight must NOT normalize that table.
+    expect(section).toContain("DEFAULT_PLAN_MODE_SECTION = 'defaultPlanMode'");
+    const toml = read(`${CORE}/app/config/toml.ts`);
+    expect(toml).toContain("return str.replaceAll(/_([a-z])/g, (_, ch: string) => ch.toUpperCase());");
+    expect(toml).toContain("const domain = snakeToCamel(key);");
+    const flag = read(`${CORE}/app/flag/flag.ts`);
+    expect(flag).toContain("isPlainObject(rawSnake) ? cloneRecord(rawSnake) : rawSnake");
+    expect(flag).toContain("fromToml: experimentalFromToml");
+    expect(read(`${CORE}/session/subagent/flag.ts`)).toContain("SUBAGENT_FORK_FLAG_ID = 'subagent_fork'");
+    expect(read(`${CORE}/features/tower/tower.ts`)).toContain("TOWER_FLAG_ID = 'tower'");
   });
 
   test("print mode still rejects --plan and intercepts only /goal", () => {
@@ -211,6 +259,51 @@ suite("native-v2 tag scan: the no-plan construction holds at this source tree", 
     expect(dispatcher).not.toMatch(/\b(loadSnapshot|readSnapshot|readCheckpoint|restoreSnapshot)\s*\(/);
     // Fork must keep plan state out of the snapshot it copies to children.
     expect(read(`${CORE}/state/state.ts`)).toContain("snapshotExcluded");
+    // restore() folds a journal record by its literal `type` string — so the
+    // type strings declared on the plan event classes ARE what a resumed
+    // session replays, and what the taint scan must recognise.
+    expect(dispatcher).toContain("this.folded.events.get(record.type)");
+  });
+
+  test("every durable plan-state event type carries a prefix the journal taint scan keys on", () => {
+    const ops = read(`${CORE}/features/plan/planOps.ts`);
+    const declared = [...ops.matchAll(/static override readonly type = '([^']+)'/g)].map(
+      (m) => m[1],
+    );
+    expect(declared).toEqual(EXPECTED_PLAN_EVENT_TYPES);
+    for (const type of declared) {
+      expect(
+        type.startsWith("plan_mode.") || type.startsWith("plan."),
+        `plan event type "${type}" would not be recognised by scanJournalLines`,
+      ).toBe(true);
+    }
+    // The plan state key is defined in planOps.ts and no other production file
+    // declares a plan-typed event: a new plan event elsewhere is a new taint
+    // source the scan does not know about.
+    expect(ops).toContain("defineState('plan'");
+    const otherDeclarers = filesContaining(
+      [CORE, CLI, KAP],
+      /static override readonly type = '(plan_mode|plan)\./,
+    ).filter((rel) => rel !== `${CORE}/features/plan/planOps.ts`);
+    expect(otherDeclarers).toEqual([]);
+    // Permission mode is a separate state (manual|yolo|auto); it never carries
+    // plan mode, so a `permission.set_mode` record is not a taint source.
+    expect(read(`${CORE}/agent/permissionPolicy/types.ts`)).toContain(
+      "export type PermissionMode = 'manual' | 'yolo' | 'auto';",
+    );
+  });
+
+  test("the session store layout the journal scan walks is unchanged", () => {
+    // <KIMI_CODE_HOME>/sessions/<workspaceId>/session_<uuid>/agents/<agentId>/wire.jsonl
+    expect(read(`${CORE}/app/bootstrap/bootstrapService.ts`)).toContain(
+      "this.sessionsDir = join(options.homeDir, 'sessions');",
+    );
+    expect(read(`${CORE}/workspace/sessionLifecycle/sessionLifecycleService.ts`)).toContain(
+      "return `session_${randomUUID()}`;",
+    );
+    const wireScan = read(`${CORE}/app/sessionExport/wire-scan.ts`);
+    expect(wireScan).toContain("const WIRE_FILENAME = 'wire.jsonl';");
+    expect(wireScan).toContain("const agentsDir = join(sessionDir, 'agents');");
   });
 
   test("the legacy engine selector is gone (v2-only print mode)", () => {

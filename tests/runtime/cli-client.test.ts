@@ -1283,6 +1283,95 @@ describe("native-v2 provenance", () => {
     }
   });
 
+  // Codex second-round F5: the marker-first rule must apply to EVERY line,
+  // including roles the parser does not model and lines it cannot parse.
+  test("refuses an unknown-role record that arrives before the marker", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-unknown-before-marker");
+    try {
+      await expect(
+        runCliPrompt(
+          v2Options(root, {
+            cwd: root,
+            emitAnnounce: false,
+            records: [{ role: "future-role", content: "?" }, V2_MARKER, { role: "assistant", content: "x" }],
+            escalationMs: 50,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { intended_engine: "native-v2", observed_engine: null },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("refuses a malformed line that arrives before the marker", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-malformed-before-marker");
+    try {
+      await expect(
+        runCliPrompt(
+          v2Options(root, {
+            cwd: root,
+            emitAnnounce: false,
+            records: ["not a record", V2_MARKER, { role: "assistant", content: "x" }],
+            escalationMs: 50,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { intended_engine: "native-v2", observed_engine: null },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  // Codex second-round F6: the stderr resume-hint channel is a legacy-v1
+  // (kimi 0.1.x) fallback; on a native-v2 plan it must never pin a session id.
+  test("ignores a stderr resume hint on a native-v2 plan (stdout meta is the only source)", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-stderr-hint-ignored");
+    try {
+      const result = await runCliPrompt(
+        v2Options(root, {
+          cwd: root,
+          records: [V2_MARKER, { role: "assistant", content: "x" }],
+          announceVia: "stderr",
+          sessionId: "44444444-4444-4444-4444-444444444444",
+        }),
+      );
+      expect(result.observedEngine).toBe("native-v2");
+      expect(result.sessionId).toBeUndefined();
+      expect(result.stderrTail).toContain("44444444-4444-4444-4444-444444444444");
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  // Codex second-round F7: the marker's version is a structured field; a
+  // multi-line value must not be normalized into the certified version by
+  // taking its first line.
+  test("refuses a multi-line marker version that would first-line-normalize to the certified one", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-multiline-version");
+    try {
+      await expect(
+        runCliPrompt(
+          v2Options(root, {
+            cwd: root,
+            emitAnnounce: false,
+            records: [{ ...V2_MARKER, version: "0.42.0\n0.43.0" }, { role: "assistant", content: "x" }],
+            escalationMs: 50,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { intended_engine: "native-v2", observed_engine: "native-v2", system_version: "0.42.0\n0.43.0" },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
   test("refuses a clean exit with no marker, but reports an early failure exit as unknown engine", async () => {
     const root = await createTestPluginDataRoot("cli-v2-marker-exit");
     try {

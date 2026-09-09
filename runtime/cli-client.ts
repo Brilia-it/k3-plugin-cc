@@ -379,7 +379,11 @@ export async function runCliPrompt(opts: CliClientOptions): Promise<CliClientRes
         // H3 forward-compat: a stream-json line with a role we don't model
         // (a future kimi-code role). Log it for diagnostics but keep it OUT of
         // records[] and out of onRecord — consumers iterate records[] expecting
-        // assistant/tool only. Tolerated, not treated as malformed/error.
+        // assistant/tool only. Tolerated, not treated as malformed/error —
+        // EXCEPT that on a native-v2 plan nothing may precede the marker.
+        if (requireMarkerBeforeOutput(`an unknown-role (${outcome.unknownRecord.role}) record`)) {
+          return;
+        }
         appendLogLine({
           event: "unknown_record",
           role: outcome.unknownRecord.role,
@@ -451,8 +455,19 @@ export async function runCliPrompt(opts: CliClientOptions): Promise<CliClientRes
               });
               return;
             }
-            const observedVersion =
-              parseVersionLine(outcome.record.version)?.raw ?? outcome.record.version;
+            // The marker's `version` is a structured field, not a CLI banner:
+            // require a single well-formed semver token. A multi-line or
+            // otherwise decorated value must not be normalized into a certified
+            // one by taking its first line.
+            const observedVersion = parseExactVersionToken(outcome.record.version);
+            if (observedVersion === undefined) {
+              handleEngineMismatch?.({
+                observedEngine: "native-v2",
+                systemVersion: outcome.record.version,
+                reason: `the system.version marker carries a malformed version value ${JSON.stringify(outcome.record.version)}; the started engine's version cannot be established.`,
+              });
+              return;
+            }
             if (plannedVersion !== null && observedVersion !== plannedVersion) {
               handleEngineMismatch?.({
                 observedEngine: "native-v2",
@@ -469,6 +484,10 @@ export async function runCliPrompt(opts: CliClientOptions): Promise<CliClientRes
         appendLogLine({ event: "record", record: outcome.record });
         invokeOnRecord(outcome.record);
       } else if (outcome.malformedLine !== undefined) {
+        // Diagnostics-only in general, but on a native-v2 plan a line that is
+        // not the marker arriving first still violates marker-first: the
+        // engine that produced it cannot be established.
+        if (requireMarkerBeforeOutput("a malformed stream-json line")) return;
         const entry = {
           line: truncateChars(outcome.malformedLine, 200),
           reason: outcome.malformedReason ?? "unknown",
@@ -808,7 +827,13 @@ export async function runCliPrompt(opts: CliClientOptions): Promise<CliClientRes
       ) {
         return;
       }
-      const sessionId = announcedSessionId ?? extractSessionIdFromStderr(stderrTail);
+      // The stderr resume-hint channel is the kimi 0.1.x fallback and exists
+      // only for legacy-v1 plans; a native-v2 plan pins a session id from the
+      // stdout meta record alone (after the marker), so stderr can never pin
+      // an id ahead of, or different from, the provenance-checked stream.
+      const sessionId =
+        announcedSessionId ??
+        (plannedEngine === "legacy-v1" ? extractSessionIdFromStderr(stderrTail) : undefined);
       appendLogLine({
         event: "exit",
         exit_code: exitCode,
@@ -856,8 +881,11 @@ export async function runCliPrompt(opts: CliClientOptions): Promise<CliClientRes
       child.stderr.on("data", (chunk: string) => {
         // First-announce-wins across both channels: once a session id is
         // pinned (from the stdout meta record or an earlier stderr line),
-        // never let a later stderr line overwrite it.
-        if (announcedSessionId === undefined) {
+        // never let a later stderr line overwrite it. The stderr channel is
+        // the 0.1.x fallback and is consulted ONLY for legacy-v1 plans — on a
+        // native-v2 plan a stderr line could otherwise pin a session id before
+        // (or different from) the provenance-checked stdout stream.
+        if (plannedEngine === "legacy-v1" && announcedSessionId === undefined) {
           const nextSessionId = extractSessionIdFromStderr(stderrTail + chunk);
           if (nextSessionId !== undefined) {
             announcedSessionId = nextSessionId;
@@ -1002,6 +1030,17 @@ interface EngineMismatch {
   readonly observedEngine: KimiEngine | null;
   readonly systemVersion: string | undefined;
   readonly reason: string;
+}
+
+/**
+ * Parse a structured version FIELD (the system.version marker), not a CLI
+ * banner: the whole value must be one semver token (optional leading `v`,
+ * optional pre-release/build suffix) with no surrounding whitespace or extra
+ * lines. Returns the normalized `raw` form, or undefined when malformed.
+ */
+function parseExactVersionToken(value: string): string | undefined {
+  if (/\s/.test(value) || value.length === 0) return undefined;
+  return parseVersionLine(value)?.raw;
 }
 
 const KIMI_LEGACY_ENV = "KIMI_CODE_LEGACY_FLAG";

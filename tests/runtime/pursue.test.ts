@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { MAX_DURATION_MS, parseDurationMs, parsePursueArgs } from "../../runtime/parsing.js";
-import { buildGoalPrompt, classifyGoalExit } from "../../runtime/commands/pursue.js";
+import { assertGoalRunProvenance, buildGoalPrompt, classifyGoalExit } from "../../runtime/commands/pursue.js";
 import { RuntimeError } from "../../runtime/errors.js";
 
 describe("parseDurationMs", () => {
@@ -102,5 +102,48 @@ describe("classifyGoalExit", () => {
     expect(classifyGoalExit(1)).toBe("unknown");
     expect(classifyGoalExit(2)).toBe("unknown");
     expect(classifyGoalExit(143)).toBe("unknown");
+  });
+});
+
+// Kimi second-round finding 2: a goal-terminal exit (3/6) skips
+// assertCliResultSuccess, so a v2 plan must independently require the marker.
+describe("assertGoalRunProvenance", () => {
+  const base = { exitCode: 3, observedEngine: null, aborted: false } as const;
+
+  test("native-v2 plan + silent goal-terminal exit → CLI_ENGINE_PROVENANCE_MISMATCH", () => {
+    let threw: unknown;
+    try {
+      assertGoalRunProvenance({ intendedEngine: "native-v2" }, { ...base, systemVersion: undefined });
+    } catch (err) {
+      threw = err;
+    }
+    expect(threw).toBeInstanceOf(RuntimeError);
+    expect((threw as RuntimeError).code).toBe("CLI_ENGINE_PROVENANCE_MISMATCH");
+    expect((threw as RuntimeError).details).toMatchObject({
+      intended_engine: "native-v2",
+      exit_code: 3,
+      retryable_after_setup: false,
+    });
+  });
+
+  test("native-v2 plan with the marker → ok", () => {
+    expect(() =>
+      assertGoalRunProvenance(
+        { intendedEngine: "native-v2" },
+        { ...base, observedEngine: "native-v2", systemVersion: "0.42.0" },
+      ),
+    ).not.toThrow();
+  });
+
+  test("aborted (budget) results are handled by the caller, not here", () => {
+    expect(() =>
+      assertGoalRunProvenance({ intendedEngine: "native-v2" }, { ...base, aborted: true, systemVersion: undefined }),
+    ).not.toThrow();
+  });
+
+  test("legacy-v1 plan never requires the marker", () => {
+    expect(() =>
+      assertGoalRunProvenance({ intendedEngine: "legacy-v1" }, { ...base, systemVersion: undefined }),
+    ).not.toThrow();
   });
 });

@@ -501,13 +501,16 @@ export function assertResumeEngineCompatible(
  * dispatch path checks resume lineage against `resumeSource`, but a worker (or
  * a forged/corrupt queued row) reloads the plan and hands `kimi_session_id`
  * straight to the spawn — so the binding and lineage must be re-established
- * from the store here, not trusted from the row. A fresh session (no
- * `resumedFromJobId`) that only captures its id after the run is exempt.
+ * from the store here, not trusted from the row. Callers invoke this ONLY when
+ * the row carries a session id to resume; a genuinely fresh session has none
+ * yet (kimi assigns it after the run), so it never reaches this check.
  *
- * Refuses when: the recorded source job is missing; the source it names does
- * not actually own the session being resumed (binding forgery); or the source's
- * proven engine is incompatible with the plan's engine (incl. unknown lineage
- * on a native-v2 target). The v2 preflight separately re-scans that session's
+ * Refuses when: the row carries a session id but the plan records no source
+ * job (a session with no plugin lineage can never be a plugin-managed resume);
+ * the recorded source job is missing; the source it names does not actually
+ * own the session being resumed (binding forgery); or the source's proven
+ * engine is incompatible with the plan's engine (incl. unknown lineage on a
+ * native-v2 target). The v2 preflight separately re-scans that session's
  * journal for plan taint at the spawn boundary.
  */
 export async function assertPersistedResumeLineage(
@@ -516,7 +519,20 @@ export async function assertPersistedResumeLineage(
   resumeSessionId: string,
   operationKind: "ask" | "rescue",
 ): Promise<void> {
-  if (plan.resumedFromJobId === null) return;
+  if (plan.resumedFromJobId === null) {
+    throw new RuntimeError(
+      "KIMI_SESSION_LINEAGE_UNKNOWN",
+      `Refusing to resume session ${resumeSessionId}: the persisted job carries a session id but records no source job, so its lineage cannot be established. Start a fresh session.`,
+      `${operationKind}.resume`,
+      {
+        details: {
+          refusal_kind: "session-lineage-unknown",
+          retryable_after_setup: false,
+          source_job_id: null,
+        },
+      },
+    );
+  }
   const source = store.getJob(plan.resumedFromJobId);
   if (!source) {
     throw new RuntimeError(

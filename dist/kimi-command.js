@@ -39,10 +39,18 @@ export function resolveKimiCliCommand(env) {
  * by both foreground and detached-worker spawns.
  */
 const RESERVED_PREFIX_FLAGS = new Set([
-    "-r", "--resume", "-S", "--session", "-c", "--continue",
+    // Session selection — incl. the HIDDEN `-C` alias of `--continue`
+    // (apps/kimi-code/src/cli/commands.ts), which resumes the latest session for
+    // the cwd without any plugin-chosen resumeSessionId, so no journal scan runs.
+    "-r", "--resume", "-S", "--session", "-c", "-C", "--continue",
+    // Prompt / output.
     "-p", "--prompt", "--output-format",
-    "--plan", "--auto", "--yolo",
+    // Permission / plan mode.
+    "--plan", "--auto", "-y", "--yolo", "--yes", "--auto-approve", "--manual",
+    // Model / profile / roots.
     "-m", "--model", "--skills-dir", "--agent", "--agent-file", "--add-dir",
+    // Terminal informational flags (would replace the run with a banner).
+    "-V", "--version", "-h", "--help",
 ]);
 export function assertPrefixArgsSafe(prefixArgs, raw) {
     for (const token of prefixArgs) {

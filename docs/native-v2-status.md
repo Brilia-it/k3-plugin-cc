@@ -21,7 +21,9 @@ plugin-managed session, and every executed tool call passes the managed hook.
   string-equals the plan path under `<KIMI_CODE_HOME>/sessions/…/plans/<id>.md` (`:238-240`,
   `:259-270`; `..` collapsed by `pathe.normalize`, no realpath).
 - Plan mode arms from a `kimi -p` session in exactly three ways:
-  1. `default_plan_mode = true` in the single user `config.toml`, read once inside
+  1. `default_plan_mode = true` — or any spelling the loader's `snakeToCamel` maps to the
+     `defaultPlanMode` domain (`app/config/toml.ts`; the `[experimental]` table keeps raw keys) —
+     in the single user `config.toml`, read once inside
      `sessions.create()` (`sessionLifecycleService.ts:221-227`; no env, argv or project overlay;
      `printDefaults.ts` leaves it alone). **Closed pre-spawn** by
      `runtime/native-v2-preflight.ts::inspectPlanModeConfig` (`CLI_V2_PLAN_MODE_CONFIGURED`).
@@ -34,7 +36,12 @@ plugin-managed session, and every executed tool call passes the managed hook.
      ONLY `agents/<agentId>/wire.jsonl` (`eventDispatcherService.ts:776-826`; `rehydrateStates`
      reloads blobs only; fork excludes plan state, `state.ts:72`). **Closed** by resuming only
      proven native-v2 plugin lineage after a raw journal scan
-     (`scanSessionJournalsForPlan` → `KIMI_SESSION_PLAN_TAINTED`).
+     (`scanSessionJournalsForPlan` → `KIMI_SESSION_PLAN_TAINTED`). Confirmed live on 0.42.0
+     (smoke lane 3b, `tests/runtime/real-binary-smoke.test.ts`): a fresh run's real
+     `sessions/<ws>/<session>/agents/main/wire.jsonl` is found where the scan looks; the `-r`
+     resume re-emits `system.version` first, keeps the same session id and is still hook-denied
+     on a write; and a `plan_mode.enter` record appended to that journal makes the next resume
+     refuse before any process is created (the journal does not grow).
 - Not reachable from `-p`: kap-server `sessionAgentConfig` (`kimi web/server` only), the TUI
   `/plan` command (`-p` intercepts only `/goal`), `--plan` (rejected with `-p`), agent profiles
   (no plan field; builtin `plan` profile excludes `EnterPlanMode`), subagents/AgentSwarm/`Agent`/
@@ -72,9 +79,12 @@ ON (monitor control), the plan-file `Write` bypasses the hook in both unflagged 
   construction is re-proven per certified tag by `tests/audit/v2-tag-scan.test.ts` plus the
   plan-ON live control, and certification is exact-version (`0.42.0`), per operation. The scan
   sha256-pins not only the allow gate and plan guard but the restore-folding source
-  (`state/eventDispatcherService.ts`, `state/state.ts`), so a future patch that widens what
-  `restore()` loads — the one closure the journal taint scan depends on — fails the audit
-  loudly instead of silently outflanking `scanSessionJournalsForPlan`.
+  (`state/eventDispatcherService.ts`, `state/state.ts`) and the plan event classes
+  (`features/plan/planOps.ts`, asserting the durable type set is exactly
+  `plan_mode.enter|cancel|exit` + `plan.revision` — the prefixes the journal scan keys on —
+  and that `restore()` folds by literal `record.type`), so a future patch that widens what
+  `restore()` loads or renames a plan event — the closures the journal taint scan depends on —
+  fails the audit loudly instead of silently outflanking `scanSessionJournalsForPlan`.
 - The upstream hook runner still fails open on its own internal errors; allowed repo test/build
   commands still execute repo code. Unchanged from v1.
 - Native plan mode, tower, subagent fork, Remote Control, `--add-dir` are out of scope and
