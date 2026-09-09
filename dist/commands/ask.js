@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { createCliCancellationHandlers } from "../cli-cancellation.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
-import { assertResumeEngineCompatible, executionPlanFromPersisted, observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, reconcileHistoricalJobProvenance, } from "../kimi-engine.js";
+import { assertPersistedResumeLineage, executionPlanFromPersisted, observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, reconcileHistoricalJobProvenance, } from "../kimi-engine.js";
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
@@ -55,8 +55,9 @@ export async function runAsk(argv, context) {
             operationKind: "ask",
             cwd: context.cwd,
             env: context.env,
-            intendedEngine: "legacy-v1",
             resumedFromJobId: sessionResolution.resumedFromJobId,
+            resumeSessionId: sessionResolution.kimiSessionId ?? undefined,
+            resumeSource: sessionResolution.sourceJob,
         });
         const logPath = path.join(paths.logsDir, `ask-${jobId}.jsonl`);
         const job = store.createJob({
@@ -138,6 +139,13 @@ export async function executeAskJob(jobId, prompt, context, options) {
         }
         handlers = createCliCancellationHandlers();
         const executionPlan = executionPlanFromPersisted(job);
+        // Re-validate resume lineage from the store before spawning: a detached
+        // worker (or a forged queued row) reloads the persisted plan and would
+        // otherwise hand kimi_session_id to the spawn without the dispatch-time
+        // lineage check. Fresh sessions (no resumedFromJobId) are exempt.
+        if (job.kimi_session_id !== null) {
+            await assertPersistedResumeLineage(store, executionPlan, job.kimi_session_id, "ask");
+        }
         if (options?.workerPid) {
             store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
         }
@@ -238,7 +246,7 @@ async function requireAskHookInstalled(context) {
 }
 async function resolveAskSession(store, repoId, fresh, resume, resumeTarget) {
     if (fresh) {
-        return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null };
+        return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null, sourceJob: null };
     }
     if (resumeTarget) {
         const byJob = store.getJob(resumeTarget);
@@ -254,7 +262,6 @@ async function resolveAskSession(store, repoId, fresh, resume, resumeTarget) {
         // accurate "already running" error.
         const source = await reconcileHistoricalJobProvenance(store, exact);
         ensureAskSessionIsNotRunning(source);
-        assertResumeEngineCompatible(source, "legacy-v1", "ask");
         if (!source.kimi_session_id) {
             throw new RuntimeError("ASK_RESUME_NOT_FOUND", `No ask job or session matched ${resumeTarget}.`, "ask.resume");
         }
@@ -262,6 +269,7 @@ async function resolveAskSession(store, repoId, fresh, resume, resumeTarget) {
             kimiSessionId: source.kimi_session_id,
             reusedSession: true,
             resumedFromJobId: source.job_id,
+            sourceJob: source,
         };
     }
     if (resume) {
@@ -271,7 +279,6 @@ async function resolveAskSession(store, repoId, fresh, resume, resumeTarget) {
         }
         const source = await reconcileHistoricalJobProvenance(store, latest);
         ensureAskSessionIsNotRunning(source);
-        assertResumeEngineCompatible(source, "legacy-v1", "ask");
         if (!source.kimi_session_id) {
             throw new RuntimeError("ASK_RESUME_NOT_FOUND", "No prior ask session exists for this repository.", "ask.resume");
         }
@@ -279,9 +286,10 @@ async function resolveAskSession(store, repoId, fresh, resume, resumeTarget) {
             kimiSessionId: source.kimi_session_id,
             reusedSession: true,
             resumedFromJobId: source.job_id,
+            sourceJob: source,
         };
     }
-    return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null };
+    return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null, sourceJob: null };
 }
 function ensureAskSessionIsNotRunning(job) {
     if (job.status === "running") {

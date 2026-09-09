@@ -263,6 +263,26 @@ export async function evaluateRescueHookRequest(
         reason: "rescue cannot evaluate Bash input with no command field",
       };
     }
+    const cwd = isObject(toolInput) ? toolInput.cwd : undefined;
+    if (cwd !== undefined) {
+      if (typeof cwd !== "string" || cwd.length === 0) {
+        return { decision: "deny", reason: "rescue requires Bash cwd to be a non-empty string" };
+      }
+      try {
+        const outcome = await checkApprovedDirectory(root, cwd);
+        if (outcome === "symlink") {
+          return { decision: "deny", reason: `rescue rejects Bash cwd symlinks: ${cwd}` };
+        }
+        if (outcome === "missing") {
+          return { decision: "deny", reason: `rescue rejects Bash cwd that is missing or not a directory: ${cwd}` };
+        }
+        if (outcome === "reject") {
+          return { decision: "deny", reason: `rescue rejects Bash cwd outside the workspace or inside .git: ${cwd}` };
+        }
+      } catch (err) {
+        return { decision: "deny", reason: `rescue cannot inspect Bash cwd ${cwd}: ${(err as Error).message}` };
+      }
+    }
     const result = validateShellCommand(command);
     return result.response === "approve"
       ? { decision: "allow" }
@@ -383,6 +403,22 @@ export async function checkApprovedPath(
     isWithin(workspaceRoot, candidatePath) &&
     !relativeToRoot.split(path.sep).includes(".git")
   )
+    ? "allow"
+    : "reject";
+}
+
+async function checkApprovedDirectory(
+  workspaceRoot: string,
+  rawCwd: string,
+): Promise<"allow" | "symlink" | "reject" | "missing"> {
+  const candidate = path.resolve(workspaceRoot, rawCwd);
+  const stats = await statIfExists(candidate);
+  if (stats?.isSymbolicLink()) return "symlink";
+  if (!stats?.isDirectory()) return "missing";
+
+  const resolved = await realpath(candidate);
+  return isWithin(workspaceRoot, resolved) &&
+    !path.relative(workspaceRoot, resolved).split(path.sep).includes(".git")
     ? "allow"
     : "reject";
 }

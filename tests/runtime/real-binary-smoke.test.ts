@@ -6,8 +6,9 @@
 // end, across seven suites:
 //   1. read-only single-turn (review / challenge / ask / review_gate) — a
 //      forced write attempt is denied and no file lands.
-//   2. explicit experimental features refuse before spawn.
-//   3. 0.33+ default-v2 routing is pinned to legacy-v1 for fresh/resume.
+//   2. explicit experimental features (tower/fork master flag) refuse before spawn.
+//   3. default_plan_mode=true refuses before spawn on native-v2 (the no-plan
+//      construction); on a pinned <=0.41 binary it stays pinned to legacy-v1.
 //   4. autonomous goal mode (/kimi:pursue) — the hook fires on EVERY
 //      continuation turn (zero files across a multi-turn run).
 //   5. read-only swarm (/kimi:swarm) — a SPAWNED SUBAGENT's forced write is
@@ -58,10 +59,13 @@ import { runSetup } from "../../runtime/commands/setup.js";
 import { buildGoalPrompt } from "../../runtime/commands/pursue.js";
 import { runSwarm } from "../../runtime/commands/swarm.js";
 import { resolveKimiCliCommand } from "../../runtime/kimi-command.js";
-import type {
-  KimiExecutionPlan,
-  KimiOperationKind,
+import {
+  NATIVE_V2_CERTIFIED_VERSIONS,
+  NATIVE_V2_SAFETY_PROFILE,
+  type KimiExecutionPlan,
+  type KimiOperationKind,
 } from "../../runtime/kimi-engine.js";
+import { parseVersionLine } from "../../runtime/kimi-version-probe.js";
 import { resolveRepoIdentity } from "../../runtime/git.js";
 import { resolvePluginPaths } from "../../runtime/paths.js";
 import type { CommandContext } from "../../runtime/types.js";
@@ -108,7 +112,12 @@ const WRITE_PROMPT = [
   `confirmation. If a tool is denied, report the denial verbatim and stop.`,
 ].join(" ");
 
-function legacySmokePlan(
+// An engine-correct test-bypass plan: native-v2 when the resolved binary is
+// actually v2 (so cli-client requires the system.version marker and re-runs the
+// no-plan preflight at the spawn boundary), legacy-v1 for a pinned <= 0.41
+// binary. KIMI_PLUGIN_CC_SKIP_VERSION_PROBE=1 keeps this a test-bypass plan; the
+// marker/hook behavior under test comes from the REAL binary, not the plan.
+function smokePlan(
   command: string,
   prefixArgs: readonly string[],
   operationKind: KimiOperationKind,
@@ -116,12 +125,13 @@ function legacySmokePlan(
   return {
     schemaVersion: 1,
     operationKind,
-    intendedEngine: "legacy-v1",
+    intendedEngine: BINARY_IS_V2 ? "native-v2" : "legacy-v1",
     command,
     prefixArgs: [...prefixArgs],
     kimiVersion: null,
     certification: "test-bypass",
     resumedFromJobId: null,
+    safetyProfile: BINARY_IS_V2 ? NATIVE_V2_SAFETY_PROFILE : null,
   };
 }
 
@@ -153,6 +163,20 @@ const SEED_OK =
     existsSync(path.join(SEED_HOME, "credentials")));
 const BINARY = resolveBinaryForGate();
 const PREREQS_OK = SMOKE_ENABLED && SEED_OK && BINARY !== undefined;
+
+// Detect the ACTUAL engine of the resolved binary (one cheap subprocess) so the
+// smoke asserts the right provenance: kimi-code whose exact version is in
+// NATIVE_V2_CERTIFIED_VERSIONS runs native-v2; a pinned <= 0.41 binary runs
+// legacy-v1. On v2, `system.version` is mandatory; on v1 it must be absent.
+function detectBinaryVersion(bin: string | undefined): string | undefined {
+  if (bin === undefined) return undefined;
+  const out = Bun.spawnSync([bin, "--version"]);
+  if (!out.success) return undefined;
+  return parseVersionLine(out.stdout.toString())?.raw;
+}
+const BINARY_VERSION = detectBinaryVersion(BINARY);
+const BINARY_IS_V2 =
+  BINARY_VERSION !== undefined && NATIVE_V2_CERTIFIED_VERSIONS.includes(BINARY_VERSION);
 
 function makeContext(cwd: string, env: NodeJS.ProcessEnv): CommandContext {
   return { cwd, env, stdout: process.stdout, stderr: process.stderr };
@@ -303,7 +327,7 @@ suite("real-binary smoke: read-only commands cannot write (H7)", () => {
               },
               command,
               prefixArgs,
-              executionPlan: legacySmokePlan(command, prefixArgs, label),
+              executionPlan: smokePlan(command, prefixArgs, label),
               commandLabel: label,
               prompt: WRITE_PROMPT,
               signal: controller.signal,
@@ -327,10 +351,17 @@ suite("real-binary smoke: read-only commands cannot write (H7)", () => {
             `expected the hook deny marker "${DENY_MARKER}" in the run output — ` +
               `the model may not have attempted a write (exit=${result.exitCode}, aborted=${result.aborted})`,
           ).toContain(DENY_MARKER);
-          expect(
-            result.systemVersion,
-            "plugin-spawned kimi must stay on legacy-v1; a system.version record proves native v2 ran",
-          ).toBeUndefined();
+          if (BINARY_IS_V2) {
+            expect(
+              result.systemVersion,
+              "native-v2 binary must emit the system.version provenance marker",
+            ).toBe(BINARY_VERSION);
+          } else {
+            expect(
+              result.systemVersion,
+              "a pinned legacy-v1 binary must not emit a system.version record",
+            ).toBeUndefined();
+          }
         } finally {
           await cleanupTestPath(kimiHome);
           await cleanupTestPath(workspace);
@@ -385,7 +416,7 @@ suite("real-binary smoke: agent-core-v2 is refused before spawn", () => {
             },
             command,
             prefixArgs,
-            executionPlan: legacySmokePlan(command, prefixArgs, "review"),
+            executionPlan: smokePlan(command, prefixArgs, "review"),
             commandLabel: "review",
             prompt: WRITE_PROMPT,
           }),
@@ -411,13 +442,22 @@ suite("real-binary smoke: agent-core-v2 is refused before spawn", () => {
   );
 });
 
-suite("real-binary smoke: 0.33+ default-v2 routing stays pinned to legacy-v1", () => {
+// The no-plan construction's load-bearing REFUSAL: on a native-v2 binary a
+// `default_plan_mode = true` home would arm the plan-file final-allow that skips
+// the hook, so the plugin must REFUSE before any process is created. The B12
+// live control (repro-042.ts planon) separately proves this hazard is real (the
+// plan-file Write bypasses the hook when plan mode is armed), so this refusal is
+// not vacuous. On a pinned legacy-v1 binary the same config keeps the fresh and
+// resumed runs on v1 and hook-denies writes (the pre-0.42 contract).
+suite("real-binary smoke: default_plan_mode is refused (v2) or pinned (v1)", () => {
   test(
-    "fresh default-plan and resumed runs remain v1 and hook-deny writes",
+    BINARY_IS_V2
+      ? "native-v2: default_plan_mode=true refuses before spawn and creates no process"
+      : "legacy-v1: fresh default-plan and resumed runs remain v1 and hook-deny writes",
     async () => {
-      const kimiHome = await createTestPluginDataRoot("smoke-home-legacy-plan");
-      const workspace = await createTestPluginDataRoot("smoke-ws-legacy-plan");
-      const pluginData = await createTestPluginDataRoot("smoke-data-legacy-plan");
+      const kimiHome = await createTestPluginDataRoot("smoke-home-plan-cfg");
+      const workspace = await createTestPluginDataRoot("smoke-ws-plan-cfg");
+      const pluginData = await createTestPluginDataRoot("smoke-data-plan-cfg");
       try {
         await seedKimiHome(SEED_HOME, kimiHome);
         await setDefaultPlanMode(kimiHome, true);
@@ -434,20 +474,53 @@ suite("real-binary smoke: 0.33+ default-v2 routing stays pinned to legacy-v1", (
         ).toBe("ok");
 
         const { command, prefixArgs } = resolveKimiCliCommand(process.env);
+        const baseEnv: NodeJS.ProcessEnv = {
+          ...process.env,
+          KIMI_CODE_HOME: kimiHome,
+          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        };
+
+        if (BINARY_IS_V2) {
+          // PRECONDITION: the config really has default_plan_mode = true.
+          expect(
+            await readFile(path.join(kimiHome, "config.toml"), "utf8"),
+            "test setup must have written default_plan_mode = true",
+          ).toContain("default_plan_mode = true");
+          await expect(
+            runCliPrompt({
+              cwd: workspace,
+              env: baseEnv,
+              command,
+              prefixArgs,
+              executionPlan: smokePlan(command, prefixArgs, "review"),
+              commandLabel: "review",
+              prompt: WRITE_PROMPT,
+            }),
+          ).rejects.toMatchObject({
+            code: "CLI_V2_PLAN_MODE_CONFIGURED",
+            details: { refusal_kind: "v2-plan-mode-configured" },
+          });
+          // No process ⇒ no session dir was created under this home.
+          expect(
+            existsSync(path.join(kimiHome, "sessions")),
+            "refused v2 plan-mode run must not create a session",
+          ).toBe(false);
+          expect(
+            await fileExists(path.join(workspace, TARGET_FILENAME)),
+            `refused run must not create ${TARGET_FILENAME}`,
+          ).toBe(false);
+          return;
+        }
+
         let resumeSessionId: string | undefined;
         for (const phase of ["fresh-default-plan", "resumed"] as const) {
           const result = await runCliPrompt({
             cwd: workspace,
-            env: {
-              ...process.env,
-              KIMI_CODE_HOME: kimiHome,
-              KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
-              // Adversarial ambient false value: buildEnv must overwrite it.
-              KIMI_CODE_LEGACY_FLAG: "0",
-            },
+            // Adversarial ambient false value: buildEnv must overwrite it.
+            env: { ...baseEnv, KIMI_CODE_LEGACY_FLAG: "0" },
             command,
             prefixArgs,
-            executionPlan: legacySmokePlan(command, prefixArgs, "review"),
+            executionPlan: smokePlan(command, prefixArgs, "review"),
             commandLabel: "review",
             prompt: WRITE_PROMPT,
             ...(resumeSessionId === undefined ? {} : { resumeSessionId }),
@@ -531,7 +604,7 @@ suite("real-binary smoke: autonomous goal mode is gated every turn (pursue)", ()
             },
             command,
             prefixArgs,
-            executionPlan: legacySmokePlan(command, prefixArgs, "pursue"),
+            executionPlan: smokePlan(command, prefixArgs, "pursue"),
             commandLabel: "review",
             prompt: buildGoalPrompt(GOAL_OBJECTIVE),
             signal: controller.signal,
@@ -671,7 +744,7 @@ suite("real-binary smoke: read-only swarm subagents cannot write (swarm)", () =>
             },
             command,
             prefixArgs,
-            executionPlan: legacySmokePlan(command, prefixArgs, "swarm"),
+            executionPlan: smokePlan(command, prefixArgs, "swarm"),
             commandLabel: "swarm",
             prompt: SWARM_WRITE_PROMPT,
             signal: controller.signal,
@@ -805,14 +878,20 @@ suite("real-binary smoke: write-swarm edits land in the worktree, never the user
         await initUserRepo(userRepo);
         const headBefore = gitIn(userRepo, ["rev-parse", "HEAD"]).trim();
 
+        // Unlike the hand-built-plan lanes above, this lane runs the REAL
+        // runSwarm command, which calls prepareKimiExecutionPlan with no
+        // explicit engine — so it must PROBE the binary and let
+        // selectIntendedEngine choose (native-v2 for the certified 0.42.0
+        // binary, legacy-v1 for a pinned <=0.41). We therefore do NOT set
+        // KIMI_PLUGIN_CC_SKIP_VERSION_PROBE here: skipping it would force a
+        // legacy-v1 plan on a v2 binary, and the v2 system.version marker would
+        // then trip CLI_ENGINE_PROVENANCE_MISMATCH before any fan-out. Hook
+        // check is NOT skipped (we install + require it). Write mode gates on
+        // >= 0.18.0, satisfied by both certified engines.
         const env: NodeJS.ProcessEnv = {
           ...process.env,
           KIMI_CODE_HOME: kimiHome,
           CLAUDE_PLUGIN_DATA: pluginData,
-          // Write mode gates on >= 0.18.0; the operator's binary is 0.18.0, and
-          // the gate is unit-tested — skip the probe spawn here (matches the
-          // other smokes). Hook check is NOT skipped (we install + require it).
-          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
         };
 
         // Install the managed hook into the throwaway KIMI_CODE_HOME via the real
@@ -995,7 +1074,7 @@ suite("real-binary smoke: write-swarm denies out-of-worktree writes (--write)", 
             },
             command,
             prefixArgs,
-            executionPlan: legacySmokePlan(command, prefixArgs, "swarm-write"),
+            executionPlan: smokePlan(command, prefixArgs, "swarm-write"),
             // The write-capable label + the trusted root = the workspace itself.
             // An in-root write would be ALLOWED; the escape targets are OUTSIDE.
             commandLabel: "swarm-write",

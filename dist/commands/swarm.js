@@ -196,7 +196,6 @@ async function runReadSwarm(parsed, objective, context) {
             operationKind: "swarm",
             cwd: context.cwd,
             env: context.env,
-            intendedEngine: "legacy-v1",
         });
         const prompt = buildSwarmPrompt(objective, parsed.cap);
         const jobId = randomUUID();
@@ -296,7 +295,6 @@ async function runWriteSwarm(parsed, objective, context) {
                 operationKind: "swarm-write",
                 cwd: worktreePath,
                 env: context.env,
-                intendedEngine: "legacy-v1",
             });
             const job = store.createJob({
                 job_id: jobId,

@@ -88,7 +88,6 @@ export async function runReview(
     operationKind: commandType,
     cwd: context.cwd,
     env: context.env,
-    intendedEngine: "legacy-v1",
   });
   const store = new JobStore(paths);
 

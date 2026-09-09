@@ -2,6 +2,52 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.10.0 — 2026-09-09
+
+**Full migration to native agent-core-v2, certified at exact kimi-code 0.42.0.**
+kimi-code 0.42.0 deleted the legacy agent-core-v1 package and `KIMI_CODE_LEGACY_FLAG`
+(#3542, not in its changelog), making `kimi -p` native-v2 unconditionally and rendering
+the plugin's forced-v1 pin inert. All eight operations (ask, review, challenge,
+review_gate, rescue, pursue, swarm, swarm-write) now run on unmodified native v2.
+
+- **Certification basis changed (docs/native-v2-certification-provenance.md §2).** Upstream
+  still registers the plan feature before external hooks and provides no ordering guarantee
+  (confirmed in the shipped 0.42.0 bundle). Native v2 is instead certified on a construction:
+  the plan-file guard is the engine's ONLY chain-breaking final allow, it fires only while
+  plan mode is ACTIVE, and the plugin proves plan mode is never armed in a plugin-managed
+  session. `event.allow` count and the before-execute subscriber set are re-verified per tag
+  by `tests/audit/v2-tag-scan.test.ts`, backed by a live plan-mode-ON control.
+- **New pre-spawn preflight (`runtime/native-v2-preflight.ts`).** Refuses `default_plan_mode`
+  unless absent/`false` (`CLI_V2_PLAN_MODE_CONFIGURED`), refuses `[experimental]`
+  tower/subagent_fork from config or per-flag env (`CLI_V2_EXPERIMENTAL_UNSAFE`), and refuses
+  resuming a session whose wire journal holds any `plan_mode.*`/`plan.*` record
+  (`KIMI_SESSION_PLAN_TAINTED`). Fail-closed on unreadable/oversized/symlinked inputs. Run
+  before spawn and re-run at the cli-client spawn boundary (config and journals are mutable).
+- **Engine selection is plugin-owned (`selectIntendedEngine`).** Exact version in
+  `NATIVE_V2_CERTIFIED` → native-v2; a minor in `KIMI_TESTED_MINORS` (≤ 0.41) → legacy-v1 with
+  the child-only legacy pin; otherwise refuse. Certification is per exact version and per
+  operation. `KIMI_TESTED_MINORS` is unchanged and never gains 0.42.
+- **Provenance.** A native-v2 plan requires the `system.version` marker as the first
+  stream-json line and requires it to equal the probed version; a legacy plan still refuses
+  it. Either mismatch tears down the process tree before any record reaches the caller.
+  Jobs persist a `safety_profile` column (`native-v2-no-plan/1` for v2, null for v1); forged
+  or unknown-profile plans refuse at the spawn boundary. Resume refuses unknown lineage
+  (`KIMI_SESSION_LINEAGE_UNKNOWN`) and cross-engine sources.
+- **Bash cwd confinement (`runtime/rescue-approval.ts`).** v2's `Bash` tool accepts a separate
+  `cwd`; the allowlist now validates `tool_input.cwd` against the trusted root (realpath,
+  symlink, `.git`, existence) before the command-string policy. Closes the 0.40.0
+  out-of-workspace-cwd gap for write-capable operations.
+- **Hook policy.** `EnterPlanMode` and `ExitPlanMode` denied for every label. Every spawn
+  exports `KIMI_CODE_NO_AUTO_UPDATE=1` and an absolute `KIMI_CODE_HOME`. The master
+  `KIMI_CODE_EXPERIMENTAL_FLAG` still refuses before spawn.
+- **Continuation cost:** sessions created before this release (v1 or unknown provenance) are
+  no longer resumable — the v1 engine no longer exists in the binary. `ask --resume` /
+  `rescue --resume` on such jobs refuse with a fresh-session remedy; nothing is deleted;
+  status/result/replay stay inspectable.
+- **Out of scope / refused:** native plan mode, tower mode, subagent fork, Remote Control,
+  `--add-dir`, and the singular `Agent` tool. #3431 stays open as the preferred end state (a
+  released ordering guarantee would let native plan mode return).
+
 ## 1.9.14 — 2026-09-06
 
 **Certifies kimi-code 0.41.0 on forced legacy-v1.** Model jobs on 0.41.x now

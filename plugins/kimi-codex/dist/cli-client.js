@@ -21,7 +21,10 @@ import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { RuntimeError, formatError } from "./errors.js";
 import { assertNoUnsafeExperimentalSelector, assertExecutionPlanMatchesSpawn, } from "./kimi-engine.js";
+import { assertPrefixArgsSafe } from "./kimi-command.js";
 import { resolveKimiHome } from "./kimi-home.js";
+import { assertNativeV2Preflight } from "./native-v2-preflight.js";
+import { parseVersionLine } from "./kimi-version-probe.js";
 import { StreamJsonParser, extractSessionIdFromStderr, } from "./stream-json.js";
 import { collectDescendantIdentities, revalidateProcessIdentities, waitForProcessTreeExit, } from "./process-tree.js";
 /** Bytes of stderr retained for diagnostics on completion. Rolling buffer. */
@@ -52,17 +55,26 @@ export async function runCliPrompt(opts) {
         !opts.trustedWorkspaceRoot) {
         throw new RuntimeError("CLI_TRUSTED_WORKSPACE_ROOT_MISSING", `Refusing ${opts.commandLabel}: write-capable plugin launches require a plugin-owned trusted workspace root.`, "cli-client.pre-spawn", { details: { command_label: opts.commandLabel } });
     }
-    // agent-core-v2 registers its plan-file guard before external PreToolUse
-    // hooks. An active-plan Write/Edit to the exact KIMI_CODE_HOME plan file calls
-    // final `allow()`, preventing the later managed hook from running. This is
-    // reachable even on a fresh session when user config has
-    // `default_plan_mode=true`; resume also restores persisted plan state. Refuse
-    // the unsafe experimental selector before spawn until upstream gives external
-    // hooks a guaranteed veto position ahead of that final allow. Match
-    // kimi-code's truth table exactly. Since 0.33.0 this flag enables experimental
-    // features without selecting the engine; we still refuse it conservatively,
-    // while buildEnv independently pins every accepted spawn to legacy-v1.
+    // The master experimental flag enables v2-only features (tower, subagent
+    // fork) outside the certified no-plan profile. Refuse it at the final
+    // boundary too, in case the environment changed after plan creation.
     assertNoUnsafeExperimentalSelector(opts.env, "cli-client.pre-spawn");
+    // Validate the ACTUAL prefix argv used for this spawn — not only the
+    // env-resolved value — so a forged/corrupt persisted plan cannot smuggle a
+    // reserved kimi flag (e.g. `-r <session>`, which would resume a session the
+    // v2 preflight never scanned for plan taint).
+    assertPrefixArgsSafe(opts.prefixArgs ?? []);
+    if (opts.executionPlan.intendedEngine === "native-v2") {
+        // Re-run the cheap no-plan preconditions at the final boundary: the
+        // operator's config.toml and the resume journal are mutable between plan
+        // creation (possibly in another process) and this spawn.
+        await assertNativeV2Preflight({
+            kimiHome: resolveKimiHome(opts.env, opts.cwd),
+            env: opts.env,
+            resumeSessionId: opts.resumeSessionId,
+            stage: "cli-client.spawn",
+        });
+    }
     const args = buildArgs(opts);
     const env = buildEnv(opts);
     if (opts.logPath !== undefined) {
@@ -112,8 +124,12 @@ export async function runCliPrompt(opts) {
     let announcedSessionId;
     let announcedGoalSummary;
     let announcedSystemVersion;
-    let engineMismatchVersion;
+    let engineMismatchDetected = false;
     let handleEngineMismatch;
+    const plannedEngine = opts.executionPlan.intendedEngine;
+    const plannedVersion = opts.executionPlan.kimiVersion === null
+        ? null
+        : (parseVersionLine(opts.executionPlan.kimiVersion)?.raw ?? opts.executionPlan.kimiVersion);
     let logChain = Promise.resolve();
     const appendLogLine = (payload) => {
         if (opts.logPath === undefined)
@@ -133,6 +149,7 @@ export async function runCliPrompt(opts) {
         intended_engine: opts.executionPlan.intendedEngine,
         kimi_version: opts.executionPlan.kimiVersion,
         plan_certification: opts.executionPlan.certification,
+        safety_profile: opts.executionPlan.safetyProfile,
         swarm_max_concurrency: opts.swarmMaxConcurrency ?? null,
         legacy_v1_forced: env.KIMI_CODE_LEGACY_FLAG === KIMI_LEGACY_FORCED_VALUE,
     });
@@ -146,9 +163,21 @@ export async function runCliPrompt(opts) {
             // Caller-supplied callback must never destabilize the parse loop.
         }
     };
+    // A native-v2 plan must see agent-core-v2's pre-tool system.version marker
+    // before any consumer-facing output; a legacy plan must never see it.
+    const requireMarkerBeforeOutput = (what) => {
+        if (plannedEngine !== "native-v2" || announcedSystemVersion !== undefined)
+            return false;
+        handleEngineMismatch?.({
+            observedEngine: null,
+            systemVersion: undefined,
+            reason: `${what} arrived before the native-v2 system.version marker; the engine that started cannot be established.`,
+        });
+        return true;
+    };
     const consumeOutcomes = (outcomes) => {
         for (const outcome of outcomes) {
-            if (engineMismatchVersion !== undefined)
+            if (engineMismatchDetected)
                 return;
             if (outcome.unknownRecord !== undefined) {
                 // H3 forward-compat: a stream-json line with a role we don't model
@@ -162,6 +191,8 @@ export async function runCliPrompt(opts) {
                 continue;
             }
             if (outcome.goalSummary !== undefined) {
+                if (requireMarkerBeforeOutput("goal.summary"))
+                    return;
                 // Goal-mode summary is out-of-band metadata for our wrapper, not a
                 // consumer-facing record. First-announce wins (a run emits exactly one,
                 // at session end); capture and skip so records[] stays assistant/tool.
@@ -187,6 +218,14 @@ export async function runCliPrompt(opts) {
                 // stable while preserving the resume hint as the primary session-id
                 // source under kimi 0.2.0+.
                 if (outcome.record.role === "meta") {
+                    // Contract: on a native-v2 plan the system.version marker is the
+                    // FIRST stream-json line. Any other meta (e.g. session.resume_hint)
+                    // arriving before it violates the ordering and means the started
+                    // engine cannot be established — refuse before pinning a session id.
+                    if (outcome.record.type !== "system.version" &&
+                        requireMarkerBeforeOutput(`a ${outcome.record.type} record`)) {
+                        return;
+                    }
                     if (outcome.record.type === "session.resume_hint" &&
                         announcedSessionId === undefined) {
                         announcedSessionId = outcome.record.sessionId;
@@ -204,14 +243,28 @@ export async function runCliPrompt(opts) {
                             source: "stream-json.meta",
                             version: outcome.record.version,
                         });
-                        if (opts.executionPlan.intendedEngine !== "native-v2") {
-                            engineMismatchVersion = outcome.record.version;
-                            handleEngineMismatch?.(outcome.record.version);
+                        if (plannedEngine !== "native-v2") {
+                            handleEngineMismatch?.({
+                                observedEngine: "native-v2",
+                                systemVersion: outcome.record.version,
+                                reason: `the pre-tool system.version marker proves native-v2 ${outcome.record.version} started.`,
+                            });
+                            return;
+                        }
+                        const observedVersion = parseVersionLine(outcome.record.version)?.raw ?? outcome.record.version;
+                        if (plannedVersion !== null && observedVersion !== plannedVersion) {
+                            handleEngineMismatch?.({
+                                observedEngine: "native-v2",
+                                systemVersion: outcome.record.version,
+                                reason: `the system.version marker reports ${outcome.record.version}, but the plan certified ${plannedVersion}.`,
+                            });
                             return;
                         }
                     }
                     continue;
                 }
+                if (requireMarkerBeforeOutput(`a ${outcome.record.role} record`))
+                    return;
                 records.push(outcome.record);
                 appendLogLine({ event: "record", record: outcome.record });
                 invokeOnRecord(outcome.record);
@@ -397,23 +450,25 @@ export async function runCliPrompt(opts) {
             }
         };
         let engineMismatchError;
-        handleEngineMismatch = (version) => {
+        handleEngineMismatch = (mismatch) => {
             if (engineMismatchError !== undefined)
                 return;
-            engineMismatchError = new RuntimeError("CLI_ENGINE_PROVENANCE_MISMATCH", `Refusing kimi output: execution plan required ${opts.executionPlan.intendedEngine}, but the pre-tool system.version marker proves native-v2 ${version} started.`, "cli-client.engine-provenance", {
+            engineMismatchDetected = true;
+            engineMismatchError = new RuntimeError("CLI_ENGINE_PROVENANCE_MISMATCH", `Refusing kimi output: execution plan required ${plannedEngine}, but ${mismatch.reason}`, "cli-client.engine-provenance", {
                 details: {
                     operation_kind: opts.executionPlan.operationKind,
-                    intended_engine: opts.executionPlan.intendedEngine,
-                    observed_engine: "native-v2",
+                    intended_engine: plannedEngine,
+                    observed_engine: mismatch.observedEngine,
                     planned_kimi_version: opts.executionPlan.kimiVersion,
-                    system_version: version,
+                    system_version: mismatch.systemVersion ?? null,
                 },
             });
             appendLogLine({
                 event: "engine_provenance_mismatch",
-                intended_engine: opts.executionPlan.intendedEngine,
-                observed_engine: "native-v2",
-                system_version: version,
+                intended_engine: plannedEngine,
+                observed_engine: mismatch.observedEngine,
+                system_version: mismatch.systemVersion ?? null,
+                reason: mismatch.reason,
             });
             cancellationTeardown = teardownChildTree().then(() => ({ ok: true }), (error) => ({ ok: false, error }));
             settle("reject", engineMismatchError);
@@ -479,6 +534,12 @@ export async function runCliPrompt(opts) {
         }
         child.on("close", async (exitCode, signal) => {
             consumeOutcomes(parser.flush());
+            if (!engineMismatchDetected &&
+                exitCode === 0 &&
+                !aborted &&
+                requireMarkerBeforeOutput("a clean exit")) {
+                return;
+            }
             const sessionId = announcedSessionId ?? extractSessionIdFromStderr(stderrTail);
             appendLogLine({
                 event: "exit",
@@ -498,10 +559,11 @@ export async function runCliPrompt(opts) {
                 systemVersion: announcedSystemVersion,
                 observedEngine: announcedSystemVersion !== undefined
                     ? "native-v2"
-                    : exitCode === 0 ||
-                        records.length > 0 ||
-                        sessionId !== undefined ||
-                        announcedGoalSummary !== undefined
+                    : plannedEngine === "legacy-v1" &&
+                        (exitCode === 0 ||
+                            records.length > 0 ||
+                            sessionId !== undefined ||
+                            announcedGoalSummary !== undefined)
                         ? "legacy-v1"
                         : null,
                 records,
@@ -678,6 +740,9 @@ function buildEnv(opts) {
     if (opts.executionPlan.intendedEngine === "legacy-v1") {
         env[KIMI_LEGACY_ENV] = KIMI_LEGACY_FORCED_VALUE;
     }
+    // The update preflight runs on the `-p` path too; a plugin spawn must never
+    // swap the certified binary underneath the execution plan.
+    env.KIMI_CODE_NO_AUTO_UPDATE = "1";
     env.KIMI_CODE_HOME = resolveKimiHome(opts.env, opts.cwd);
     if (opts.commandLabel !== undefined) {
         env.KIMI_PLUGIN_CC_CMD = opts.commandLabel;

@@ -1,7 +1,7 @@
 # Native v2 certification and engine-provenance contract
 
-**Approved:** 2026-08-28
-**Current production state:** native v2 disabled; every model-spawning operation is forced to `legacy-v1`.
+**Approved:** 2026-08-28 · **Amended:** 2026-09-09 (§2 alternate basis, §4 matrix, §5 fields)
+**Current production state:** native v2 certified at exact kimi-code `0.42.0` for every operation under the §2 construction; `legacy-v1` remains selectable only for a pinned binary ≤ 0.41.x.
 
 For the dated upstream evidence and follow-up, see [Native v2 status](native-v2-status.md).
 
@@ -31,24 +31,55 @@ that v2 is safe and does not waive any gate below.
 - **Capability certification** is per operation, engine, and tested kimi-code
   version. One green operation does not certify another.
 
-## 2. Non-negotiable native-v2 entry gate
+## 2. Native-v2 entry gate
 
-Native v2 remains unavailable until an exact released kimi-code tag guarantees
-that the managed external `PreToolUse` veto runs before **every** final allow.
-The guarantee must cover the plan-file guard's `event.allow()`, not merely say
-that external hooks run before ordinary tool execution.
+Two bases are admissible. The first is preferred and would permit native plan
+mode; the second is the one in force since kimi-code 0.42.0 deleted the v1
+engine, and it excludes native plan mode from plugin-managed sessions.
 
-The current source fails that gate: the plan service registers before external
-hooks and final-allows exact plan-file writes. A fresh session can reach it via
-`default_plan_mode=true`; a resumed session can restore plan state. The writes
-are under `KIMI_CODE_HOME`, not the user's worktree, but bypassing the managed
-hook violates the every-tool safety contract.
+**Basis A — released ordering guarantee (original, preferred, not available).**
+An exact released kimi-code tag guarantees that the managed external
+`PreToolUse` veto runs before **every** final allow, including the plan-file
+guard's `event.allow()`. Passing an options-shaped value as the second argument
+to `Event<T>` is not acceptable (that argument is `thisArg`). #3431 tracks this.
 
-An acceptable upstream change must be a genuinely additive ordering API or a
-released fixed ordering. Passing an options-shaped value as the second argument
-to `Event<T>` is not acceptable: that argument is `thisArg`, not listener
-priority. In-verifier auto-repin, hook skipping, and relaxed verification are
-not migration mechanisms.
+**Basis B — reachability by construction (amended 2026-09-09, in force).**
+For an exact candidate tag, all of the following are established by source
+audit, a mechanized tag scan, and live control, and re-established for every
+later certified tag:
+
+1. The engine contains exactly one chain-breaking final allow, and it is gated
+   on plan mode being active (`features/plan/planService.ts`).
+2. Every route by which plan mode can become active in a `kimi -p` session is
+   enumerated, and each is either unreachable from the plugin's spawn or closed
+   by the plugin before spawn: the `default_plan_mode` config key (pre-spawn
+   parse of the same file, `runtime/native-v2-preflight.ts`), the
+   `EnterPlanMode`/`ExitPlanMode` tools (managed hook deny), and restored plan
+   state (own native-v2 lineage only, raw journal scan of every agent journal).
+3. Every tool execution passes the executor path that fires the external hook,
+   including subagent, swarm, and MCP tools; a hook veto beats every approve.
+4. A live control on the exact binary shows the plan-file write bypassing the
+   hook when plan mode IS armed (proving the refusals are load-bearing), and
+   the managed hook denying an ordinary write and an `EnterPlanMode` attempt
+   when it is not.
+
+Under Basis B the headline claim is: *every executed tool call in a
+plugin-managed session passes the managed hook, and the engine's sole final
+allow is never armed.* It is NOT a claim that the hook precedes every final
+allow. Certification is per exact version (not per minor) and per operation.
+
+Residual assumptions, accepted explicitly: (i) `<KIMI_CODE_HOME>/config.toml`
+and the session journals are trusted operator state — an actor who can write
+them could already delete the `[[hooks]]` entry, so the check-to-use window
+adds no new trust class; (ii) the upstream hook runner fails open on its own
+internal errors (unchanged from v1); (iii) `writesOnlyPlanFile` compares
+normalized strings without realpath — a symlink at the plan path would need a
+prior hook-allowed write, which the construction denies.
+
+In-verifier auto-repin, hook skipping, relaxed verification, and silent
+rewriting of operator config remain forbidden migration mechanisms. A refusal
+raised by the preflight is never hook drift and `/kimi:setup` is never its
+remedy.
 
 ## 3. Certification gate for one operation
 
@@ -85,21 +116,21 @@ expanding routing is a separate human decision and release slice.
 
 | Engine | Operation | Production state |
 |---|---|---|
-| `legacy-v1` | review, challenge, ask, rescue, review_gate | certified within `KIMI_TESTED_MINORS` |
-| `legacy-v1` | pursue | certified from kimi-code 0.8 within `KIMI_TESTED_MINORS` |
-| `legacy-v1` | swarm | certified from kimi-code 0.12 within `KIMI_TESTED_MINORS` |
-| `legacy-v1` | swarm-write | certified from kimi-code 0.18 within `KIMI_TESTED_MINORS` |
-| `native-v2` | **none** | fail-closed unavailable |
+| `native-v2` | review, challenge, ask, rescue, review_gate, pursue, swarm, swarm-write | certified at exact `0.42.0` (`NATIVE_V2_CERTIFIED` in `runtime/kimi-engine.ts`), safety profile `native-v2-no-plan/1` |
+| `legacy-v1` | review, challenge, ask, rescue, review_gate | certified within `KIMI_TESTED_MINORS` (≤ 0.41) for an explicitly pinned binary |
+| `legacy-v1` | pursue / swarm / swarm-write | certified from kimi-code 0.8 / 0.12 / 0.18 within `KIMI_TESTED_MINORS` |
 
-An exact version outside `KIMI_TESTED_MINORS` is likewise unavailable to
-production model jobs, even when setup can parse and warn about it. This is a
-deliberate fail-closed stop for out-of-band auto-upgrades: update the plugin to
-a release that certifies the new minor, or select a certified binary with
-`KIMI_PLUGIN_CC_KIMI_BIN`. There is no production override.
+Engine selection is plugin-owned (`selectIntendedEngine`): the probed exact
+version picks `native-v2` when it is in that operation's certified list, else
+`legacy-v1` when it is in the legacy tested minors, else the job refuses. A
+new patch of a certified minor is NOT certified until its tag scan, live
+control, and smoke pass; append it explicitly. `KIMI_TESTED_MINORS` is the
+legacy table and never gains 0.42.
 
-The code representation of the last row is intentionally an empty
-`NATIVE_V2_CERTIFIED_OPERATIONS` set. A deserialized or forged v2 plan is
-rejected again at the subprocess boundary.
+An exact version outside both tables is unavailable to production model jobs,
+even when setup can parse and warn about it. Recovery is a plugin release that
+certifies it, or `KIMI_PLUGIN_CC_KIMI_BIN` pointing at a certified binary.
+`KIMI_PLUGIN_CC_SKIP_VERSION_PROBE` is tests/smoke only.
 
 ## 5. Execution-plan and provenance contract
 
@@ -117,9 +148,12 @@ Every newly created model job persists:
 
 The plan is created before the job row and before model spawn. The prompt spawn
 must byte-match its command tuple. Detached ask/rescue workers reload the plan
-from the job instead of resolving ambient command settings again. Today every
-production caller explicitly requests `legacy-v1`, and `buildEnv` overwrites the
-child's `KIMI_CODE_LEGACY_FLAG` to `1`.
+from the job instead of resolving ambient command settings again. Every production caller passes the engine chosen by `selectIntendedEngine`.
+For `legacy-v1` plans `buildEnv` overwrites the child's `KIMI_CODE_LEGACY_FLAG`
+to `1`; for `native-v2` plans it does not set the flag (0.42.0 ignores it) and
+the plan additionally persists `safety_profile = "native-v2-no-plan/1"`, which
+the preflight re-validates at the final spawn boundary. Every spawn exports
+`KIMI_CODE_NO_AUTO_UPDATE=1` and an absolute `KIMI_CODE_HOME`.
 
 `KIMI_PLUGIN_CC_SKIP_VERSION_PROBE=1` produces a visible `test-bypass` plan with
 `kimi_version=null`; it is a test/smoke seam, not production certification. A
@@ -131,8 +165,10 @@ On a successful forced-v1 run, absence of the native-v2-only pre-tool
 `system.version` marker plus the plugin-owned legacy pin records observed
 `legacy-v1`. If `system.version` appears under a legacy plan, cli-client stops
 consuming records, tears down the owned process tree, and raises
-`CLI_ENGINE_PROVENANCE_MISMATCH`. No later assistant/tool record is delivered to
-the caller.
+`CLI_ENGINE_PROVENANCE_MISMATCH`. A `native-v2` plan REQUIRES the marker before
+any assistant/tool record and requires its version to equal the probed
+version; a missing, late, or disagreeing marker is the same mismatch and the
+same teardown. No later assistant/tool record is delivered to the caller.
 
 Write-capable launches also export the plugin-owned
 `KIMI_PLUGIN_CC_WORKSPACE_ROOT`: rescue/pursue use the job cwd and swarm-write
@@ -162,25 +198,24 @@ It is not inferred from current npm state, the current binary, repository docs,
 or another host's cache.
 
 A resume source proven to have run on the other engine is refused with
-`KIMI_SESSION_ENGINE_MISMATCH`; the operator must start fresh. Unknown historical
-rows retain the pre-slice forced-v1 resume behavior for now so this provenance
-slice does not strand old sessions. Before any native-v2 routing is enabled,
-the canary policy must require proven same-engine lineage or a fresh session.
+`KIMI_SESSION_ENGINE_MISMATCH`. A native-v2 plan additionally refuses an
+unknown-provenance source (`KIMI_SESSION_LINEAGE_UNKNOWN`) and a source whose
+journal holds any plan record (`KIMI_SESSION_PLAN_TAINTED`); the operator
+starts fresh, and nothing saved is modified. Unknown rows still resume under a
+legacy-v1 plan on a pinned ≤ 0.41 binary.
 
 ## 7. Rollout and rollback
 
-The migration state machine is:
+The migration state machine:
 
-1. **Now:** explicit certified forced-v1 plans; v2 matrix empty.
-2. **Certification candidate:** one exact v2 version and operation passes every
-   gate, but routing remains off.
-3. **Human-enabled canary:** a separate authorized change may route only that
-   capability while preserving engine-sticky sessions and immediate mismatch
-   teardown.
-4. **Expansion:** add operations one at a time after their own gates.
+1. Forced-v1 plans, v2 matrix empty (v1.9.x).
+2. **Now (v1.10.0):** every operation certified at exact 0.42.0 under Basis B;
+   routing chooses v2 for 0.42.0 and v1 for a pinned ≤ 0.41 binary.
+3. Each later kimi-code version is appended per operation after its own tag
+   scan, live control, and smoke.
 
 Rollback removes a v2 capability/routing decision; it never resumes a v2-touched
-session under v1. Starting a fresh forced-v1 session is the safe fallback. Hook
+session under v1. Starting a fresh session is the safe fallback. Hook
 verification, read/write allowlists, swarm defaults/concurrency, finite budgets,
 worktree confinement, and the explicit experimental-feature refusal remain
 unchanged throughout.

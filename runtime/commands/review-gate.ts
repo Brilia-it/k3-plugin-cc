@@ -172,7 +172,6 @@ async function executeReviewGate(
       operationKind: "review_gate",
       cwd: payload.cwd,
       env: context.env,
-      intendedEngine: "legacy-v1",
     });
 
     // Header-before-job-row mirrors v0.4's reordering (the comment

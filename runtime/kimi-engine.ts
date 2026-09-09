@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { RuntimeError } from "./errors.js";
 import { resolveKimiCliCommand } from "./kimi-command.js";
+import { resolveKimiHome } from "./kimi-home.js";
+import { assertNativeV2Preflight } from "./native-v2-preflight.js";
 import {
   isInTestedRange,
   parseVersionLine,
@@ -31,6 +33,16 @@ export type KimiOperationKind =
 
 export type KimiPlanCertification = "certified" | "test-bypass";
 
+/**
+ * Plugin-owned safety construction a native-v2 plan is certified under.
+ * "native-v2-no-plan/1": plan mode is never armed in the managed session
+ * (default_plan_mode refused pre-spawn, EnterPlanMode hook-denied,
+ * plan-tainted journals never resumed), so agent-core-v2's sole final allow
+ * is unreachable and every executed tool call passes the managed hook.
+ */
+export type KimiSafetyProfile = "native-v2-no-plan/1";
+export const NATIVE_V2_SAFETY_PROFILE: KimiSafetyProfile = "native-v2-no-plan/1";
+
 /** Immutable description of the exact subprocess route authorized to run. */
 export interface KimiExecutionPlan {
   readonly schemaVersion: 1;
@@ -41,14 +53,29 @@ export interface KimiExecutionPlan {
   readonly kimiVersion: string | null;
   readonly certification: KimiPlanCertification;
   readonly resumedFromJobId: string | null;
+  /** Required for native-v2 plans; always null for legacy-v1. */
+  readonly safetyProfile: KimiSafetyProfile | null;
 }
 
 export interface PrepareKimiExecutionPlanOptions {
   readonly operationKind: KimiOperationKind;
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
+  /**
+   * Explicit engine (tests/smoke). Production callers omit it: the engine is
+   * selected from the probed exact version via `selectIntendedEngine`, so a
+   * 0.42.0 binary routes to native-v2 and a pinned <=0.41 binary to legacy-v1.
+   * Test-bypass plans without an explicit engine default to legacy-v1.
+   */
   readonly intendedEngine?: KimiEngine;
   readonly resumedFromJobId?: string | null;
+  /** kimi session the plan will resume; lets the v2 preflight scan its journal. */
+  readonly resumeSessionId?: string;
+  /**
+   * Source job of a resume. Its proven/unknown engine is checked against the
+   * SELECTED engine (not a caller guess) before the preflight runs.
+   */
+  readonly resumeSource?: JobRecord | null;
 }
 
 /**
@@ -67,11 +94,63 @@ const LEGACY_V1_MINIMUMS: Readonly<Record<KimiOperationKind, { major: number; mi
 };
 
 /**
- * Intentionally empty. Native v2 is not a production route until the released
- * hook-before-final-allow contract and every operation-specific gate in
- * docs/native-v2-certification-provenance.md are green.
+ * Exact kimi-code releases certified for native v2 under
+ * NATIVE_V2_SAFETY_PROFILE. Exact, not minor-ranged: upstream ships
+ * behavioural changes in patch releases, and the no-plan construction must be
+ * re-proven (mechanized tag scan + real-binary smoke) per tag before a version
+ * is appended. PROVISIONAL: 0.42.0 stays here only while the v1.10.0 release
+ * campaign (docs/native-v2-certification-provenance.md §3) is green.
  */
-export const NATIVE_V2_CERTIFIED_OPERATIONS: ReadonlySet<KimiOperationKind> = new Set();
+export const NATIVE_V2_CERTIFIED_VERSIONS: readonly string[] = Object.freeze(["0.42.0"]);
+
+/** Per-operation native-v2 certification. One green operation never certifies another. */
+export const NATIVE_V2_CERTIFIED: ReadonlyMap<KimiOperationKind, readonly string[]> = new Map<
+  KimiOperationKind,
+  readonly string[]
+>([
+  ["review", NATIVE_V2_CERTIFIED_VERSIONS],
+  ["challenge", NATIVE_V2_CERTIFIED_VERSIONS],
+  ["ask", NATIVE_V2_CERTIFIED_VERSIONS],
+  ["rescue", NATIVE_V2_CERTIFIED_VERSIONS],
+  ["review_gate", NATIVE_V2_CERTIFIED_VERSIONS],
+  ["pursue", NATIVE_V2_CERTIFIED_VERSIONS],
+  ["swarm", NATIVE_V2_CERTIFIED_VERSIONS],
+  ["swarm-write", NATIVE_V2_CERTIFIED_VERSIONS],
+]);
+
+export function isNativeV2Certified(
+  operationKind: KimiOperationKind,
+  version: string,
+): boolean {
+  const normalized = parseVersionLine(version)?.raw;
+  if (normalized === undefined) return false;
+  return NATIVE_V2_CERTIFIED.get(operationKind)?.includes(normalized) ?? false;
+}
+
+/**
+ * True when this exact version is certified for native v2 for ANY operation.
+ * Used by setup to phrase its version notice: a v2-certified version is NOT an
+ * "out of tested range, will refuse" case even though it is outside the legacy
+ * `KIMI_TESTED_MINORS` table (that table intentionally never gains 0.42).
+ */
+export function isNativeV2CertifiedVersion(version: string): boolean {
+  const normalized = parseVersionLine(version)?.raw;
+  if (normalized === undefined) return false;
+  return NATIVE_V2_CERTIFIED_VERSIONS.includes(normalized);
+}
+
+/**
+ * Engine selection for a probed binary: native v2 when the exact version is
+ * certified for this operation, else legacy-v1 (whose own tested-range check
+ * still applies). kimi-code 0.42.0 removed the v1 engine, so a v1 plan on a
+ * ≥0.42 binary is refused by the legacy range rather than silently run on v2.
+ */
+export function selectIntendedEngine(
+  operationKind: KimiOperationKind,
+  probe: Pick<KimiVersionProbeOk, "version">,
+): KimiEngine {
+  return isNativeV2Certified(operationKind, probe.version) ? "native-v2" : "legacy-v1";
+}
 
 const UNSAFE_EXPERIMENTAL_VALUES = new Set(["1", "true", "yes", "on"]);
 
@@ -90,7 +169,7 @@ export function assertNoUnsafeExperimentalSelector(
   if (!enabled) return;
   throw new RuntimeError(
     "CLI_V2_HOOK_ORDER_UNSAFE",
-    "Refusing kimi-code experimental features because native-v2 plan-mode writes can final-allow before external PreToolUse hooks run. Unset KIMI_CODE_EXPERIMENTAL_FLAG; kimi-plugin-cc pins accepted runs to the legacy-v1 engine.",
+    "Refusing kimi-code experimental features: the master KIMI_CODE_EXPERIMENTAL_FLAG enables unreviewed agent-core-v2 features (tower, subagent fork) that kimi-plugin-cc has not certified under its no-plan safety profile. Unset KIMI_CODE_EXPERIMENTAL_FLAG and retry.",
     stage,
     {
       details: {
@@ -110,15 +189,13 @@ export function assertNoUnsafeExperimentalSelector(
 export async function prepareKimiExecutionPlan(
   options: PrepareKimiExecutionPlanOptions,
 ): Promise<KimiExecutionPlan> {
-  const intendedEngine = options.intendedEngine ?? "legacy-v1";
-
   assertNoUnsafeExperimentalSelector(options.env);
 
   if (
-    intendedEngine === "native-v2" &&
-    !NATIVE_V2_CERTIFIED_OPERATIONS.has(options.operationKind)
+    options.intendedEngine === "native-v2" &&
+    !NATIVE_V2_CERTIFIED.has(options.operationKind)
   ) {
-    throw nativeV2NotCertified(options.operationKind);
+    throw nativeV2NotCertified(options.operationKind, null);
   }
 
   const kimi = resolveKimiCliCommand(options.env);
@@ -129,7 +206,24 @@ export async function prepareKimiExecutionPlan(
     options.env,
   );
 
+  const runPreflight = async (intendedEngine: KimiEngine) => {
+    if (options.resumeSource) {
+      assertResumeEngineCompatible(options.resumeSource, intendedEngine, options.operationKind);
+    }
+    if (intendedEngine !== "native-v2") return;
+    // Safety, not certification: runs for test-bypass plans too.
+    await assertNativeV2Preflight({
+      kimiHome: resolveKimiHome(options.env, options.cwd),
+      env: options.env,
+      resumeSessionId: options.resumeSessionId,
+      stage: "kimi-engine.plan",
+    });
+  };
+
   if (options.env.KIMI_PLUGIN_CC_SKIP_VERSION_PROBE === "1") {
+    const intendedEngine = options.intendedEngine ?? "legacy-v1";
+    const safetyProfile = intendedEngine === "native-v2" ? NATIVE_V2_SAFETY_PROFILE : null;
+    await runPreflight(intendedEngine);
     return Object.freeze({
       schemaVersion: 1,
       operationKind: options.operationKind,
@@ -139,6 +233,7 @@ export async function prepareKimiExecutionPlan(
       kimiVersion: null,
       certification: "test-bypass",
       resumedFromJobId: options.resumedFromJobId ?? null,
+      safetyProfile,
     });
   }
 
@@ -156,7 +251,7 @@ export async function prepareKimiExecutionPlan(
       {
         details: {
           operation_kind: options.operationKind,
-          intended_engine: intendedEngine,
+          intended_engine: options.intendedEngine ?? null,
           command: exactCommand,
           prefix_args: kimi.prefixArgs,
         },
@@ -164,7 +259,11 @@ export async function prepareKimiExecutionPlan(
     );
   }
 
+  const intendedEngine =
+    options.intendedEngine ?? selectIntendedEngine(options.operationKind, probe);
+  const safetyProfile = intendedEngine === "native-v2" ? NATIVE_V2_SAFETY_PROFILE : null;
   assertCertifiedCapability(intendedEngine, options.operationKind, probe);
+  await runPreflight(intendedEngine);
 
   return Object.freeze({
     schemaVersion: 1,
@@ -175,6 +274,7 @@ export async function prepareKimiExecutionPlan(
     kimiVersion: probe.version,
     certification: "certified",
     resumedFromJobId: options.resumedFromJobId ?? null,
+    safetyProfile,
   });
 }
 
@@ -215,6 +315,7 @@ export interface PersistedExecutionPlanFields {
   kimi_prefix_args: string;
   plan_certification: KimiPlanCertification;
   resumed_from_job_id: string | null;
+  safety_profile: KimiSafetyProfile | null;
 }
 
 export function persistedExecutionPlanFields(
@@ -230,6 +331,7 @@ export function persistedExecutionPlanFields(
     kimi_prefix_args: JSON.stringify(plan.prefixArgs),
     plan_certification: plan.certification,
     resumed_from_job_id: plan.resumedFromJobId,
+    safety_profile: plan.safetyProfile,
   };
 }
 
@@ -251,6 +353,7 @@ export function executionPlanFromPersisted(fields: {
   kimi_prefix_args: string | null;
   plan_certification: KimiPlanCertification | null;
   resumed_from_job_id: string | null;
+  safety_profile?: KimiSafetyProfile | null;
 }): KimiExecutionPlan {
   if (
     fields.operation_kind === null ||
@@ -300,6 +403,7 @@ export function executionPlanFromPersisted(fields: {
     kimiVersion: fields.kimi_version,
     certification: fields.plan_certification,
     resumedFromJobId: fields.resumed_from_job_id,
+    safetyProfile: fields.safety_profile ?? null,
   });
   assertExecutionPlanShape(plan);
   return plan;
@@ -348,12 +452,34 @@ export async function reconcileHistoricalJobProvenance(
   }
 }
 
-/** Known cross-engine resumes are forbidden; unknown historical rows retain legacy behavior. */
+/**
+ * Known cross-engine resumes are forbidden. Unknown historical rows keep the
+ * pre-provenance legacy-v1 behavior, but can never be continued on native v2:
+ * a v2 resume replays the saved journal, so only proven, plugin-managed v2
+ * lineage is accepted there.
+ */
 export function assertResumeEngineCompatible(
   source: JobRecord,
   targetEngine: KimiEngine,
-  operationKind: "ask" | "rescue",
+  operationKind: KimiOperationKind,
 ): void {
+  if (source.observed_engine === null && targetEngine === "native-v2") {
+    throw new RuntimeError(
+      "KIMI_SESSION_LINEAGE_UNKNOWN",
+      `Refusing to resume session ${source.kimi_session_id ?? "<unknown>"}: job ${source.job_id} has no proven engine provenance, and native-v2 continues only plugin-managed native-v2 sessions. Start a fresh ${operationKind} session instead; the old job's status/result/replay remain available.`,
+      `${operationKind}.resume`,
+      {
+        details: {
+          refusal_kind: "session-lineage-unknown",
+          retryable_after_setup: false,
+          source_job_id: source.job_id,
+          source_engine: null,
+          target_engine: targetEngine,
+          operation_kind: operationKind,
+        },
+      },
+    );
+  }
   if (source.observed_engine === null || source.observed_engine === targetEngine) return;
   throw new RuntimeError(
     "KIMI_SESSION_ENGINE_MISMATCH",
@@ -368,6 +494,60 @@ export function assertResumeEngineCompatible(
       },
     },
   );
+}
+
+/**
+ * Re-validate a PERSISTED resume before a detached worker spawns it. The
+ * dispatch path checks resume lineage against `resumeSource`, but a worker (or
+ * a forged/corrupt queued row) reloads the plan and hands `kimi_session_id`
+ * straight to the spawn — so the binding and lineage must be re-established
+ * from the store here, not trusted from the row. A fresh session (no
+ * `resumedFromJobId`) that only captures its id after the run is exempt.
+ *
+ * Refuses when: the recorded source job is missing; the source it names does
+ * not actually own the session being resumed (binding forgery); or the source's
+ * proven engine is incompatible with the plan's engine (incl. unknown lineage
+ * on a native-v2 target). The v2 preflight separately re-scans that session's
+ * journal for plan taint at the spawn boundary.
+ */
+export async function assertPersistedResumeLineage(
+  store: JobStore,
+  plan: KimiExecutionPlan,
+  resumeSessionId: string,
+  operationKind: "ask" | "rescue",
+): Promise<void> {
+  if (plan.resumedFromJobId === null) return;
+  const source = store.getJob(plan.resumedFromJobId);
+  if (!source) {
+    throw new RuntimeError(
+      "KIMI_SESSION_LINEAGE_UNKNOWN",
+      `Refusing to resume session ${resumeSessionId}: the persisted source job ${plan.resumedFromJobId} no longer exists, so its engine lineage cannot be established. Start a fresh session.`,
+      `${operationKind}.resume`,
+      {
+        details: {
+          refusal_kind: "session-lineage-unknown",
+          retryable_after_setup: false,
+          source_job_id: plan.resumedFromJobId,
+        },
+      },
+    );
+  }
+  const reconciled = await reconcileHistoricalJobProvenance(store, source);
+  if (reconciled.kimi_session_id !== resumeSessionId) {
+    throw new RuntimeError(
+      "KIMI_SESSION_LINEAGE_UNKNOWN",
+      `Refusing to resume session ${resumeSessionId}: the persisted source job ${plan.resumedFromJobId} owns a different session (${reconciled.kimi_session_id ?? "<none>"}). Start a fresh session.`,
+      `${operationKind}.resume`,
+      {
+        details: {
+          refusal_kind: "session-lineage-unknown",
+          retryable_after_setup: false,
+          source_job_id: plan.resumedFromJobId,
+        },
+      },
+    );
+  }
+  assertResumeEngineCompatible(reconciled, plan.intendedEngine, operationKind);
 }
 
 /**
@@ -454,7 +634,12 @@ function assertCertifiedCapability(
   operationKind: KimiOperationKind,
   probe: KimiVersionProbeOk,
 ): void {
-  if (engine === "native-v2") throw nativeV2NotCertified(operationKind);
+  if (engine === "native-v2") {
+    if (!isNativeV2Certified(operationKind, probe.version)) {
+      throw nativeV2NotCertified(operationKind, probe.version);
+    }
+    return;
+  }
 
   const minimum = LEGACY_V1_MINIMUMS[operationKind];
   const meetsMinimum =
@@ -490,10 +675,13 @@ function assertPlanCertification(
   plan: KimiExecutionPlan,
   env: Readonly<NodeJS.ProcessEnv>,
 ): void {
-  if (plan.intendedEngine === "native-v2") {
-    // The production matrix is empty today. Keep this independent of the plan
-    // constructor so a forged/deserialized plan cannot reach spawn.
-    throw nativeV2NotCertified(plan.operationKind);
+  if (plan.intendedEngine === "native-v2" && plan.safetyProfile !== NATIVE_V2_SAFETY_PROFILE) {
+    // A forged/deserialized v2 row cannot reach spawn without the profile it
+    // was certified under.
+    throw invalidPersistedPlan("native-v2 plans require the native-v2-no-plan safety profile");
+  }
+  if (plan.intendedEngine === "legacy-v1" && plan.safetyProfile !== null) {
+    throw invalidPersistedPlan("legacy-v1 plans must not carry a safety profile");
   }
   if (plan.certification === "test-bypass") {
     if (plan.kimiVersion !== null) {
@@ -558,18 +746,29 @@ function assertExecutionPlanShape(plan: KimiExecutionPlan): void {
   ) {
     throw invalidPersistedPlan("resumedFromJobId is invalid");
   }
+  if (candidate.safetyProfile !== null && candidate.safetyProfile !== NATIVE_V2_SAFETY_PROFILE) {
+    throw invalidPersistedPlan("safetyProfile is invalid");
+  }
 }
 
-function nativeV2NotCertified(operationKind: KimiOperationKind): RuntimeError {
+function nativeV2NotCertified(
+  operationKind: KimiOperationKind,
+  version: string | null,
+): RuntimeError {
+  const certified = NATIVE_V2_CERTIFIED.get(operationKind) ?? [];
+  const observed = version === null ? "an unprobed version" : `kimi-code ${version}`;
   return new RuntimeError(
-    "CLI_V2_HOOK_ORDER_UNSAFE",
-    `Native v2 is not certified for ${operationKind}; its production capability matrix is empty until a released external-hook-before-final-allow contract passes the full gate.`,
+    "KIMI_CAPABILITY_NOT_CERTIFIED",
+    `Refusing ${operationKind} on native v2: ${observed} is not in this operation's exactly certified set [${certified.join(", ")}]. Update kimi-plugin-cc to a release that certifies this kimi-code version, or point KIMI_PLUGIN_CC_KIMI_BIN at a certified binary. KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production repair path.`,
     "kimi-engine.capability",
     {
       details: {
-        refusal_kind: "v2-hook-order-unsafe",
+        refusal_kind: "v2-version-not-certified",
+        retryable_after_setup: false,
         operation_kind: operationKind,
         intended_engine: "native-v2",
+        kimi_version: version,
+        certified_versions: [...certified],
       },
     },
   );

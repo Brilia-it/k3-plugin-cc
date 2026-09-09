@@ -1,0 +1,456 @@
+import { describe, expect, test } from "bun:test";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+import {
+  assertNativeV2Preflight,
+  inspectExperimentalSelectors,
+  inspectPlanModeConfig,
+  scanSessionJournalsForPlan,
+} from "../../runtime/native-v2-preflight.js";
+import { RuntimeError } from "../../runtime/errors.js";
+import { cleanupTestPath, createTestPluginDataRoot } from "../helpers/test-env.js";
+
+async function withHome(prefix: string, run: (home: string) => Promise<void>): Promise<void> {
+  const home = await createTestPluginDataRoot(prefix);
+  try {
+    await run(home);
+  } finally {
+    await cleanupTestPath(home);
+  }
+}
+
+async function writeConfig(home: string, contents: string): Promise<void> {
+  await writeFile(path.join(home, "config.toml"), contents, "utf8");
+}
+
+async function writeJournal(
+  home: string,
+  workspaceId: string,
+  sessionId: string,
+  agentId: string,
+  lines: readonly string[],
+): Promise<string> {
+  const agentDir = path.join(home, "sessions", workspaceId, sessionId, "agents", agentId);
+  await mkdir(agentDir, { recursive: true });
+  const journalPath = path.join(agentDir, "wire.jsonl");
+  await writeFile(journalPath, lines.map((l) => `${l}\n`).join(""), "utf8");
+  return journalPath;
+}
+
+const NO_ENV: Readonly<NodeJS.ProcessEnv> = {};
+
+describe("inspectPlanModeConfig", () => {
+  test("absent config → ok:absent", async () => {
+    await withHome("plan-absent-config", async (home) => {
+      expect(await inspectPlanModeConfig(home)).toEqual({ kind: "ok", setting: "absent" });
+    });
+  });
+
+  test("no default_plan_mode key → ok:absent", async () => {
+    await withHome("plan-no-key", async (home) => {
+      await writeConfig(home, 'some_other_key = "value"\n');
+      expect(await inspectPlanModeConfig(home)).toEqual({ kind: "ok", setting: "absent" });
+    });
+  });
+
+  test("default_plan_mode = false → ok:false", async () => {
+    await withHome("plan-false", async (home) => {
+      await writeConfig(home, "default_plan_mode = false\n");
+      expect(await inspectPlanModeConfig(home)).toEqual({ kind: "ok", setting: "false" });
+    });
+  });
+
+  test("default_plan_mode = true → refuse v2-plan-mode-configured", async () => {
+    await withHome("plan-true", async (home) => {
+      await writeConfig(home, "default_plan_mode = true\n");
+      const result = await inspectPlanModeConfig(home);
+      expect(result.kind).toBe("refuse");
+      expect((result as { refusalKind: string }).refusalKind).toBe("v2-plan-mode-configured");
+    });
+  });
+
+  test('default_plan_mode = "false" (string) → refuse', async () => {
+    await withHome("plan-string-false", async (home) => {
+      await writeConfig(home, 'default_plan_mode = "false"\n');
+      const result = await inspectPlanModeConfig(home);
+      expect(result.kind).toBe("refuse");
+      expect((result as { refusalKind: string }).refusalKind).toBe("v2-plan-mode-configured");
+    });
+  });
+
+  test("default_plan_mode = 1 (number) → refuse", async () => {
+    await withHome("plan-number", async (home) => {
+      await writeConfig(home, "default_plan_mode = 1\n");
+      const result = await inspectPlanModeConfig(home);
+      expect(result.kind).toBe("refuse");
+      expect((result as { refusalKind: string }).refusalKind).toBe("v2-plan-mode-configured");
+    });
+  });
+
+  test("key of same name inside a nested table is ignored → ok:absent", async () => {
+    await withHome("plan-nested-key", async (home) => {
+      await writeConfig(home, "[foo]\ndefault_plan_mode = true\n");
+      expect(await inspectPlanModeConfig(home)).toEqual({ kind: "ok", setting: "absent" });
+    });
+  });
+
+  test("malformed TOML → refuse v2-config-unreadable", async () => {
+    await withHome("plan-malformed", async (home) => {
+      await writeConfig(home, "this is not = = valid toml [[[\n");
+      const result = await inspectPlanModeConfig(home);
+      expect(result.kind).toBe("refuse");
+      expect((result as { refusalKind: string }).refusalKind).toBe("v2-config-unreadable");
+    });
+  });
+
+  test("symlinked config → refuse v2-config-unreadable", async () => {
+    await withHome("plan-symlink", async (home) => {
+      const real = await createTestPluginDataRoot("plan-symlink-target");
+      try {
+        await writeFile(path.join(real, "real-config.toml"), "default_plan_mode = false\n", "utf8");
+        await symlink(path.join(real, "real-config.toml"), path.join(home, "config.toml"));
+        const result = await inspectPlanModeConfig(home);
+        expect(result.kind).toBe("refuse");
+        expect((result as { refusalKind: string }).refusalKind).toBe("v2-config-unreadable");
+      } finally {
+        await cleanupTestPath(real);
+      }
+    });
+  });
+
+  test("oversized config → refuse v2-config-unreadable", async () => {
+    await withHome("plan-oversized", async (home) => {
+      const big = `# ${"x".repeat(1024 * 1024 + 16)}\ndefault_plan_mode = false\n`;
+      await writeConfig(home, big);
+      const result = await inspectPlanModeConfig(home);
+      expect(result.kind).toBe("refuse");
+      expect((result as { refusalKind: string }).refusalKind).toBe("v2-config-unreadable");
+    });
+  });
+});
+
+describe("inspectExperimentalSelectors", () => {
+  test("no config, no env → ok", async () => {
+    await withHome("exp-clean", async (home) => {
+      expect(await inspectExperimentalSelectors(home, NO_ENV)).toEqual({ kind: "ok" });
+    });
+  });
+
+  test("[experimental].tower = true → refuse", async () => {
+    await withHome("exp-tower", async (home) => {
+      await writeConfig(home, "[experimental]\ntower = true\n");
+      const result = await inspectExperimentalSelectors(home, NO_ENV);
+      expect(result.kind).toBe("refuse");
+      expect((result as { selectors: readonly string[] }).selectors).toEqual([
+        "config:[experimental].tower",
+      ]);
+    });
+  });
+
+  test('[experimental].subagent_fork = "yes" → refuse', async () => {
+    await withHome("exp-fork-yes", async (home) => {
+      await writeConfig(home, '[experimental]\nsubagent_fork = "yes"\n');
+      const result = await inspectExperimentalSelectors(home, NO_ENV);
+      expect(result.kind).toBe("refuse");
+      expect((result as { selectors: readonly string[] }).selectors).toEqual([
+        "config:[experimental].subagent_fork",
+      ]);
+    });
+  });
+
+  test("env KIMI_CODE_EXPERIMENTAL_TOWER=On → refuse", async () => {
+    await withHome("exp-env-tower", async (home) => {
+      const result = await inspectExperimentalSelectors(home, { KIMI_CODE_EXPERIMENTAL_TOWER: "On" });
+      expect(result.kind).toBe("refuse");
+      expect((result as { selectors: readonly string[] }).selectors).toEqual([
+        "env:KIMI_CODE_EXPERIMENTAL_TOWER",
+      ]);
+    });
+  });
+
+  test("both config and env set → selectors lists both", async () => {
+    await withHome("exp-both", async (home) => {
+      await writeConfig(home, "[experimental]\ntower = true\n");
+      const result = await inspectExperimentalSelectors(home, {
+        KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK: "1",
+      });
+      expect(result.kind).toBe("refuse");
+      expect((result as { selectors: readonly string[] }).selectors).toEqual([
+        "config:[experimental].tower",
+        "env:KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK",
+      ]);
+    });
+  });
+
+  test("unreadable config → refuse with empty selectors", async () => {
+    await withHome("exp-unreadable", async (home) => {
+      await writeConfig(home, "not [ valid = toml\n");
+      const result = await inspectExperimentalSelectors(home, NO_ENV);
+      expect(result.kind).toBe("refuse");
+      expect((result as { selectors: readonly string[] }).selectors).toEqual([]);
+    });
+  });
+});
+
+describe("scanSessionJournalsForPlan", () => {
+  test("no session directory → unavailable", async () => {
+    await withHome("journal-no-session", async (home) => {
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("unavailable");
+    });
+  });
+
+  test("clean journal (assistant/tool records only) → clean", async () => {
+    await withHome("journal-clean", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        JSON.stringify({ type: "assistant.message", text: "hi" }),
+        JSON.stringify({ type: "tool.call", name: "Read" }),
+      ]);
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("clean");
+    });
+  });
+
+  test("plan_mode.enter record → tainted", async () => {
+    await withHome("journal-plan-mode-enter", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        JSON.stringify({ type: "assistant.message", text: "hi" }),
+        JSON.stringify({ type: "plan_mode.enter" }),
+      ]);
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("tainted");
+      expect((result as { recordType: string }).recordType).toBe("plan_mode.enter");
+    });
+  });
+
+  test("plan.revision record → tainted", async () => {
+    await withHome("journal-plan-revision", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        JSON.stringify({ type: "plan.revision" }),
+      ]);
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("tainted");
+      expect((result as { recordType: string }).recordType).toBe("plan.revision");
+    });
+  });
+
+  test("suspicious unparseable line → tainted with <unparseable>", async () => {
+    await withHome("journal-unparseable", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        '{"type":"plan_mode.enter", this is not valid json',
+      ]);
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("tainted");
+      expect((result as { recordType: string }).recordType).toBe("<unparseable>");
+    });
+  });
+
+  test("substring match in a non-type field that parses cleanly is not tainted", async () => {
+    await withHome("journal-coincidental-substring", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        JSON.stringify({ type: "assistant.message", text: "see \"plan.md\" for details" }),
+      ]);
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("clean");
+    });
+  });
+
+  test("two agents, only the second tainted → tainted", async () => {
+    await withHome("journal-two-agents", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        JSON.stringify({ type: "assistant.message", text: "hi" }),
+      ]);
+      await writeJournal(home, "ws1", "session-1", "sub-1", [
+        JSON.stringify({ type: "plan_mode.exit" }),
+      ]);
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("tainted");
+      expect((result as { recordType: string }).recordType).toBe("plan_mode.exit");
+    });
+  });
+
+  test("no matching session id → unavailable", async () => {
+    await withHome("journal-no-match", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        JSON.stringify({ type: "assistant.message" }),
+      ]);
+      const result = await scanSessionJournalsForPlan(home, "session-does-not-exist");
+      expect(result.kind).toBe("unavailable");
+    });
+  });
+
+  test("symlinked journal → unavailable", async () => {
+    await withHome("journal-symlink", async (home) => {
+      const real = await createTestPluginDataRoot("journal-symlink-target");
+      try {
+        const realJournal = path.join(real, "wire.jsonl");
+        await writeFile(realJournal, `${JSON.stringify({ type: "assistant.message" })}\n`, "utf8");
+        const agentDir = path.join(home, "sessions", "ws1", "session-1", "agents", "main");
+        await mkdir(agentDir, { recursive: true });
+        await symlink(realJournal, path.join(agentDir, "wire.jsonl"));
+        const result = await scanSessionJournalsForPlan(home, "session-1");
+        expect(result.kind).toBe("unavailable");
+      } finally {
+        await cleanupTestPath(real);
+      }
+    });
+  });
+
+  test("oversized journal → unavailable", async () => {
+    await withHome("journal-oversized", async (home) => {
+      const agentDir = path.join(home, "sessions", "ws1", "session-1", "agents", "main");
+      await mkdir(agentDir, { recursive: true });
+      const bigLine = JSON.stringify({ type: "assistant.message", text: "x".repeat(65 * 1024 * 1024) });
+      await writeFile(path.join(agentDir, "wire.jsonl"), `${bigLine}\n`, "utf8");
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("unavailable");
+    });
+  });
+
+  // Codex review P1.3: a JSON-escaped record type has no literal "plan_mode."
+  // substring but decodes to one on parse.
+  test("JSON-escaped plan record type → tainted (parse decodes it)", async () => {
+    await withHome("journal-escaped-type", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        '{"type":"plan_\\u006dode.enter","agentId":"main","id":"p"}',
+      ]);
+      const result = await scanSessionJournalsForPlan(home, "session-1");
+      expect(result.kind).toBe("tainted");
+      expect((result as { recordType: string }).recordType).toBe("plan_mode.enter");
+    });
+  });
+
+  // Codex review P1.2: a symlinked agent dir has isDirectory() === false, so a
+  // naive scan would skip it and miss the tainted journal behind it.
+  test("symlinked agent directory → unavailable, not silently skipped", async () => {
+    await withHome("journal-symlink-agent", async (home) => {
+      // A real (clean) sibling agent, plus a tainted directory reached only via
+      // a symlink named `main`.
+      await writeJournal(home, "ws1", "session-1", "child", [
+        '{"type":"assistant.message"}',
+      ]);
+      const tainted = await createTestPluginDataRoot("tainted-agent");
+      await writeFile(path.join(tainted, "wire.jsonl"), '{"type":"plan_mode.enter"}\n', "utf8");
+      try {
+        await symlink(
+          tainted,
+          path.join(home, "sessions", "ws1", "session-1", "agents", "main"),
+        );
+        const result = await scanSessionJournalsForPlan(home, "session-1");
+        expect(result.kind).toBe("unavailable");
+      } finally {
+        await cleanupTestPath(tainted);
+      }
+    });
+  });
+});
+
+describe("assertNativeV2Preflight", () => {
+  test("passes on a clean home without resumeSessionId", async () => {
+    await withHome("assert-clean-no-resume", async (home) => {
+      await expect(assertNativeV2Preflight({ kimiHome: home, env: NO_ENV })).resolves.toBeUndefined();
+    });
+  });
+
+  test("passes on a clean home with a clean resumeSessionId", async () => {
+    await withHome("assert-clean-with-resume", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        JSON.stringify({ type: "assistant.message" }),
+      ]);
+      await expect(
+        assertNativeV2Preflight({ kimiHome: home, env: NO_ENV, resumeSessionId: "session-1" }),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  test("throws CLI_V2_PLAN_MODE_CONFIGURED when default_plan_mode is truthy", async () => {
+    await withHome("assert-plan-mode", async (home) => {
+      await writeConfig(home, "default_plan_mode = true\n");
+      try {
+        await assertNativeV2Preflight({ kimiHome: home, env: NO_ENV });
+        throw new Error("expected assertNativeV2Preflight to throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(RuntimeError);
+        const runtimeError = error as RuntimeError;
+        expect(runtimeError.code).toBe("CLI_V2_PLAN_MODE_CONFIGURED");
+        expect(runtimeError.details.refusal_kind).toBe("v2-plan-mode-configured");
+        expect(runtimeError.details.retryable_after_setup).toBe(false);
+        expect(runtimeError.message).not.toContain("/kimi:setup");
+      }
+    });
+  });
+
+  test("throws CLI_V2_CONFIG_UNREADABLE when config cannot be parsed", async () => {
+    await withHome("assert-config-unreadable", async (home) => {
+      await writeConfig(home, "not [ valid = toml\n");
+      try {
+        await assertNativeV2Preflight({ kimiHome: home, env: NO_ENV });
+        throw new Error("expected assertNativeV2Preflight to throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(RuntimeError);
+        const runtimeError = error as RuntimeError;
+        expect(runtimeError.code).toBe("CLI_V2_CONFIG_UNREADABLE");
+        expect(runtimeError.details.refusal_kind).toBe("v2-config-unreadable");
+        expect(runtimeError.details.retryable_after_setup).toBe(false);
+        expect(runtimeError.message).not.toContain("/kimi:setup");
+      }
+    });
+  });
+
+  test("throws CLI_V2_EXPERIMENTAL_UNSAFE when an experimental selector is truthy", async () => {
+    await withHome("assert-experimental", async (home) => {
+      await writeConfig(home, "[experimental]\ntower = true\n");
+      try {
+        await assertNativeV2Preflight({ kimiHome: home, env: NO_ENV });
+        throw new Error("expected assertNativeV2Preflight to throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(RuntimeError);
+        const runtimeError = error as RuntimeError;
+        expect(runtimeError.code).toBe("CLI_V2_EXPERIMENTAL_UNSAFE");
+        expect(runtimeError.details.refusal_kind).toBe("v2-experimental-unsafe");
+        expect(runtimeError.details.selectors).toEqual(["config:[experimental].tower"]);
+        expect(runtimeError.details.retryable_after_setup).toBe(false);
+        expect(runtimeError.message).not.toContain("/kimi:setup");
+      }
+    });
+  });
+
+  test("throws KIMI_SESSION_PLAN_TAINTED when the resumed session's journal is tainted", async () => {
+    await withHome("assert-session-tainted", async (home) => {
+      await writeJournal(home, "ws1", "session-1", "main", [
+        JSON.stringify({ type: "plan_mode.enter" }),
+      ]);
+      try {
+        await assertNativeV2Preflight({ kimiHome: home, env: NO_ENV, resumeSessionId: "session-1" });
+        throw new Error("expected assertNativeV2Preflight to throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(RuntimeError);
+        const runtimeError = error as RuntimeError;
+        expect(runtimeError.code).toBe("KIMI_SESSION_PLAN_TAINTED");
+        expect(runtimeError.details.refusal_kind).toBe("session-plan-tainted");
+        expect(runtimeError.details.record_type).toBe("plan_mode.enter");
+        expect(runtimeError.details.retryable_after_setup).toBe(false);
+        expect(runtimeError.message).not.toContain("/kimi:setup");
+        expect(runtimeError.message).not.toContain("hook drift");
+      }
+    });
+  });
+
+  test("throws KIMI_SESSION_JOURNAL_UNAVAILABLE when the resumed session has no journal", async () => {
+    await withHome("assert-session-unavailable", async (home) => {
+      try {
+        await assertNativeV2Preflight({ kimiHome: home, env: NO_ENV, resumeSessionId: "missing" });
+        throw new Error("expected assertNativeV2Preflight to throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(RuntimeError);
+        const runtimeError = error as RuntimeError;
+        expect(runtimeError.code).toBe("KIMI_SESSION_JOURNAL_UNAVAILABLE");
+        expect(runtimeError.details.refusal_kind).toBe("session-journal-unavailable");
+        expect(runtimeError.details.retryable_after_setup).toBe(false);
+        expect(runtimeError.message).not.toContain("/kimi:setup");
+        expect(runtimeError.message).not.toContain("hook drift");
+      }
+    });
+  });
+});

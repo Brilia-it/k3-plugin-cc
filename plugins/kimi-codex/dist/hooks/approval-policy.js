@@ -57,13 +57,15 @@ export const READ_ONLY_TOOLS = new Set([
  */
 const AGENT_SWARM_TOOL = "AgentSwarm";
 /**
- * agent-core-v2 plan mode can final-allow writes to its KIMI_CODE_HOME plan
- * file before later external hooks run. cli-client therefore refuses the v2
- * engine entirely while this ordering exists. Keep the model-reachable entry
- * tool denied as defense in depth and as an explicit invariant for the day v2
- * can safely be re-enabled.
+ * agent-core-v2's ONLY chain-breaking final allow is the plan-file guard, and
+ * it fires only while plan mode is ACTIVE. Native v2 is therefore certified on
+ * the invariant that plan mode is never armed in a plugin-managed session:
+ * `default_plan_mode` is refused pre-spawn (runtime/native-v2-preflight.ts),
+ * plan-tainted sessions are never resumed, and the model-reachable entry tool
+ * is denied HERE for every label. ExitPlanMode is denied too so the deny set
+ * is explicit rather than a side effect of the read-only allowlists.
  */
-const ENTER_PLAN_MODE_TOOL = "EnterPlanMode";
+const PLAN_MODE_TOOLS = new Set(["EnterPlanMode", "ExitPlanMode"]);
 /**
  * Recognized command labels. Sole source of truth; keep in sync with
  * the strings emitted by `runCliPrompt` callers in
@@ -86,10 +88,10 @@ export async function decideHookOutcome(input, ctx) {
         return { decision: "allow" };
     }
     const toolName = typeof input.tool_name === "string" ? input.tool_name : "";
-    if (toolName === ENTER_PLAN_MODE_TOOL) {
+    if (PLAN_MODE_TOOLS.has(toolName)) {
         return {
             decision: "deny",
-            reason: `kimi-plugin-cc safety hook: tool "${ENTER_PLAN_MODE_TOOL}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks.`,
+            reason: `kimi-plugin-cc safety hook: tool "${toolName}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks; native plan mode is never armed in plugin-managed sessions.`,
         };
     }
     switch (label) {

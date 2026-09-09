@@ -108,7 +108,6 @@ async function executeReviewGate(payload, assistantMessage, context) {
             operationKind: "review_gate",
             cwd: payload.cwd,
             env: context.env,
-            intendedEngine: "legacy-v1",
         });
         // Header-before-job-row mirrors v0.4's reordering (the comment
         // chain there explains why). If the disk-bound writeInvocationLogHeader

@@ -4,49 +4,44 @@ How to verify a new kimi-code release against kimi-plugin-cc without breaking th
 
 This document captures the routine that ran on 2026-05-27 for `@moonshot-ai/kimi-code@0.4.0` (reports 31-35 in `.claude/kimi-code-research/reports/`, commit `b67263c`, tag `compat-verified-kimi-code-0.4.0`). Repeat it whenever a new kimi-code minor or major lands. The most recent minor worked example is the 2026-09-06 0.41.0 certification (reports 121-125: hook, stream/bootstrap, CLI, adversarial, synthesis; same-day monitor smoke reused for a boundary-only release); the 2026-08-29 exact-0.39.1 patch check is the most recent patch-checkup example.
 
-## Current certified boundary (2026-09-06)
+## Current certified boundary (2026-09-09)
 
-The plugin certifies `@moonshot-ai/kimi-code@0.41.0` on forced legacy-v1
-(release commit `95478e8c7ba248fd2470d5bb151555ec7fedd19d`). Compared with
-0.40.0, CLI prompt mode, permission, hooks, wire/session, and bootstrap/config
-are 0-byte diffs; the entire v1 core and kaos are unchanged. The 3,933-byte SDK
-diff adds `suggestFiles` (v1 returns `undefined`) and changes a comment.
-The shared `prompt-render.ts`, `goal-prompt.ts`, and `prompt-session.ts` are also
-unchanged. Reports 121–125 provide the independent reviews and synthesis.
+The plugin certifies **native agent-core-v2 at exact `@moonshot-ai/kimi-code@0.42.0`**
+(release commit `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`) for all eight
+operations, and legacy-v1 through 0.41.x for an explicitly pinned binary.
+0.42.0 removed `packages/agent-core` and `KIMI_CODE_LEGACY_FLAG` (#3542; not in
+its changelog): `kimi -p` is v2 unconditionally, so the v1 pin is inert there.
 
-The September 6 monitor ran the exact temporary 0.41.0 binary: **12 pass /
-0 fail / 55 assertions in 383.88s**, including fresh/resumed forced-v1 pinning,
-write denials, pursue/swarm enforcement, confinement, and cleanup. This release
-reuses that same-day evidence: its code changes only the certified boundary
-and version, with a known-minor assertion and comments/docs/generated updates.
-It does not introduce behavior absent from the smoke's source snapshot.
-Post-edit review and the full `bun run check` gate remain required.
+The certification basis is the **no-plan construction** (see
+[`native-v2-certification-provenance.md` §2](native-v2-certification-provenance.md#2-native-v2-entry-gate)),
+not an upstream ordering guarantee — plan still registers before external
+hooks at 0.42.0 (confirmed in `dist/main.mjs`). Certification is per EXACT
+version and per operation; a patch release is NOT certified until the three
+gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
 
-**Re-verify each release:** (1) engine selection reads only
-`KIMI_CODE_LEGACY_FLAG`, with no config selector defeating the pin; (2) the v1
-flag registry remains limited to flags that cannot alter hooks, permissions,
-or cwd (0.41.0: `tool-select`, `secondary-model`); (3) native-v2 Bash's separate
-`resolve()`/`assertAllowed()` behavior remains outside v1 and kaos; (4) run the
-standing `repro-0391/repro.ts both` on the candidate. Count hook payloads for the
-specific plan-file `Write`, not all calls: the liveness-control `Glob` must
-invoke the deny-all hook in the same session.
+**Re-verify each release (all three, in this order):**
 
-Native v2 remains refused. Exact 0.41.0 still imports plan before external
-hooks (`index.ts:329/341`), and `planService.ts:110` remains the sole final
-`event.allow()`. The same-day fresh-default-plan reproduction wrote a 658-byte
-plan file without a Write hook payload; the separate v1 control blocked Write.
-This is not a new restored-v2-plan lifecycle test. Both fresh and restored-plan
-proofs remain required before re-enabling v2.
+1. **Mechanized tag scan.** Clone the exact tag and run
+   `KIMI_CODE_SOURCE_TAG_DIR=<clone> bun test tests/audit/v2-tag-scan.test.ts`.
+   It fails on a missing per-version hash row — read the diff of
+   `beforeToolExecuteEvent.ts` and `planService.ts`, then add the row. Any
+   other red (a second `.allow()`, a new before-execute subscriber, a new
+   `enter()` caller, a changed config section, a new executor entry point,
+   changed tool field names) is a human re-audit, not a pin update. The scan
+   cannot see semantic regressions: also read every NEW subscriber's
+   statements, check for tools with side effects in `resolveExecution`, and
+   grep `os/backends/` for a non-local runtime selector.
+2. **Live control on the exact binary** (`repro-0391/repro.ts` style, isolated
+   seeded home, deny-all hook): with `default_plan_mode = true` the plan-file
+   `Write` must STILL bypass the hook (if it stops bypassing, upstream may have
+   shipped the ordering fix — re-read #3431 and re-decide the basis); with plan
+   mode off, an ordinary `Write` and an `EnterPlanMode` attempt must both reach
+   the hook and be denied. Count payloads for the specific tool, not all calls.
+3. **Real-binary smoke** (Phase 1b) with the v2 lanes green for every operation.
 
-The 0.41.0 release removes `staleGuard` and deletes the old package
-`Permission.md` (#3481). That document's design discussion is historical;
-current ordering claims must cite released source. The dangerous-command
-policy now also skips auto mode; its exclusion from nonInteractive print
-already existed in 0.40.0, so this is not a newly lost print-mode protection.
-See [the dated v2 brief](native-v2-status.md) for released changes, the
-unreleased watchlist, and #3431 follow-up. No maintainer response or released
-external-hook precedence guarantee exists as of September 6; the reference
-fix remains held for `/approve`.
+Do not extend `KIMI_TESTED_MINORS` (legacy table) past 0.41. Do not write a
+"plan-file write denied under plan mode" smoke — under the construction that
+path is never armed and a green result is the vacuous-precondition failure.
 
 ## When to run
 
@@ -266,7 +261,18 @@ KIMI_PLUGIN_CC_SMOKE=1 \
 
 Auth still seeds from the real `~/.kimi-code` (`KIMI_PLUGIN_CC_SMOKE_HOME`) into an isolated `KIMI_CODE_HOME`, so a previously-green smoke proves the token is valid. This is how the 0.9.0 cert earned "tested end-to-end" without altering the operator's 0.8.0 install.
 
-**Current v2 rule (v1.9.4 refusal; v1.9.6 containment for 0.33+).** The real-binary suite expects a truthy `KIMI_CODE_EXPERIMENTAL_FLAG` to fail before spawn with `CLI_V2_HOOK_ORDER_UNSAFE`; that is safety evidence, not v2 compatibility evidence. Since 0.33.0, that flag no longer selects the engine: unflagged v2 is the upstream default. The plugin must also pin `KIMI_CODE_LEGACY_FLAG=1` on every accepted child, and exact-binary smoke must assert the v2-only `system.version` record is absent for fresh and resumed/default-plan runs. Do not convert the refusal case back into an asserted-v2 forced-write run merely because an ordinary fresh home is green. Re-enabling native v2 still requires a released upstream ordering fix plus two non-vacuous exact-binary cases: fresh `default_plan_mode=true` and an out-of-band persisted `plan_mode.enter`, each attempting the exact plan-file Write/Edit and proving the external hook ran and blocked it.
+**Current v2 rule (v1.10.0).** The smoke is engine-aware: for a binary whose
+exact version is in `NATIVE_V2_CERTIFIED` it asserts the `system.version`
+marker is the FIRST stream-json line and equals the probed version, then runs
+every operation lane under the v2 plan; for a pinned ≤ 0.41 binary it runs the
+legacy lanes and asserts the marker is absent. Truthy `KIMI_CODE_EXPERIMENTAL_FLAG`
+and `[experimental] tower`/`subagent_fork` must still fail before spawn; a
+`default_plan_mode = true` home must fail before spawn with
+`CLI_V2_PLAN_MODE_CONFIGURED` and the test must assert the input was effective
+and no process was created; a seeded `plan_mode.enter` journal must make
+resume refuse with `KIMI_SESSION_PLAN_TAINTED`. An `EnterPlanMode` attempt
+must reach the hook and be denied. Write lanes additionally assert an
+out-of-root `Bash.cwd` is denied while an in-root one runs.
 
 **Operator-auth false alarm (seen on the 2026-05-31 0.6.0 run).** The skip-gate only checks that `config.toml` + `credentials/` *exist*, not that the token inside is *still valid*. An expired OAuth token sails past the gate, so the smoke **runs** (not skipped) and goes **red** with every label failing at `auth.login_required: OAuth provider "managed:kimi-code" requires login` — `records` is `[]` and the deny marker never appears because kimi dies before any tool call. This looks alarmingly like a hard break but is pure machine state: re-login (`kimi` interactive auth) and re-run. Distinguish it from a real break by the error string — a true compat break would show the model *attempting* a write and the hook *not* denying, not an auth abort with empty records. Don't pin `COMPAT-BROKEN` on an `auth.login_required` red. Related gotcha: don't pipe the smoke through `... | tail -N` and trust the reported exit code — the pipe's status is `tail`'s, not bun's, so a red suite can look like exit 0. Read the body, or run `bun run smoke:real; echo $?` unpiped.
 

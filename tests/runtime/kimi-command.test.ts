@@ -75,4 +75,28 @@ describe("resolveKimiCliCommand", () => {
       prefixArgs: ["--import", "tsx", "/m.ts"],
     });
   });
+
+  // Codex review P1.1: a reserved kimi flag in the prefix (JSON or plain-text
+  // form, bare or `=`-joined) would smuggle a session/engine/plan change past
+  // the plugin's own argv — e.g. `-r <session>` resumes a session the v2
+  // preflight never scanned for plan taint. Refuse at resolution.
+  test.each([
+    JSON.stringify(["-r", "session_x"]),
+    JSON.stringify(["--resume", "session_x"]),
+    JSON.stringify(["--session=session_x"]),
+    JSON.stringify(["--continue"]),
+    JSON.stringify(["--plan"]),
+    JSON.stringify(["-m", "some-model"]),
+    "-r session_x",
+  ])("rejects a reserved kimi flag in the prefix: %s", (raw) => {
+    let threw: unknown;
+    try {
+      resolveKimiCliCommand({ KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: raw });
+    } catch (err) {
+      threw = err;
+    }
+    expect(threw).toBeInstanceOf(RuntimeError);
+    expect((threw as RuntimeError).code).toBe("INVALID_ENV");
+    expect((threw as RuntimeError).details.reserved_flag).toBeDefined();
+  });
 });

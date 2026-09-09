@@ -135,27 +135,22 @@ uninstalls only its **own** block.
 
 `EnterPlanMode` is explicitly denied before any per-label write evaluator for every managed label. Denied tool calls exit the hook with code 2 and write a reason to stderr. kimi-code surfaces the reason to the model, which can adapt and try a different approach (e.g., use `Read` instead of `Bash cat`).
 
-### Native agent-core-v2 refusal and legacy-v1 pin
+### Native agent-core-v2: the no-plan construction (v1.10.0)
 
-v1.9.4 corrects an earlier audit claim: agent-core-v2 external PreToolUse hooks are awaited on ordinary calls, but they are **not** registered ahead of every final allow. Production listener order puts `AgentPlanService` before `AgentExternalHooksService`. While plan mode is active, a `Write` or `Edit` whose write accesses target only the exact current plan file calls final `event.allow()`; listener iteration stops and the managed hook is never invoked.
+agent-core-v2 awaits external PreToolUse hooks on ordinary tool calls, but it registers `AgentPlanService` before `AgentExternalHooksService`, and the plan guard final-allows a `Write`/`Edit` whose only write access is the exact current plan file — ending listener iteration before the managed hook runs. Upstream documents no ordering contract; kimi-code 0.42.0 deleted the legacy-v1 engine, so the pin the plugin used since v1.9.6 is inert there.
 
-The permitted path is confined to `<KIMI_CODE_HOME>/sessions/<workspace>/<session>/agents/<agent>/plans/<plan>.md`, not the user worktree. That confinement does not make the path compatible: the plugin's load-bearing promise is that every model tool call reaches its managed policy. The path is reachable on a **fresh** session when user config has `default_plan_mode=true`, and on a resumed session through restored plan state. Denying the model's `EnterPlanMode` tool alone is therefore insufficient.
+The plugin therefore certifies native v2 on a different, explicitly amended basis (see [`native-v2-certification-provenance.md` §2](native-v2-certification-provenance.md#2-native-v2-entry-gate)): the plan guard is the engine's **only** chain-breaking final allow, it fires **only while plan mode is active**, and plugin-managed sessions never arm plan mode:
 
-`runtime/cli-client.ts` fails closed before process creation whenever `KIMI_CODE_EXPERIMENTAL_FLAG` has one of the truthy values `1`, `true`, `yes`, or `on` (trimmed and case-insensitive). The refusal is `CLI_V2_HOOK_ORDER_UNSAFE` with `refusal_kind:"v2-hook-order-unsafe"`. It is **not** hook-install drift and `/kimi:setup` is not the remedy; unset the experimental flag.
+- `default_plan_mode` is refused before spawn by `runtime/native-v2-preflight.ts` (`CLI_V2_PLAN_MODE_CONFIGURED`, remedy: set it to `false` or remove it — never `/kimi:setup`). The key lives only in `<KIMI_CODE_HOME>/config.toml` and is read once inside session creation; the plugin parses that same file just before spawn and again at the spawn boundary.
+- `EnterPlanMode` and `ExitPlanMode` are denied by the managed hook for every label. Nothing final-allows them, and the auto-approve gate uses a non-terminal `pass()`, so the deny wins. Verified live on 0.42.0.
+- A session is resumed only when it is proven native-v2 plugin lineage AND a raw scan of every agent `wire.jsonl` finds no `plan_mode.*`/`plan.*` record (`KIMI_SESSION_PLAN_TAINTED`); unknown-provenance rows refuse (`KIMI_SESSION_LINEAGE_UNKNOWN`). Nothing saved is modified.
+- v2-only experimental features the plugin does not certify (`tower`, `subagent_fork`, whether from `[experimental]` config or per-flag env) and the master `KIMI_CODE_EXPERIMENTAL_FLAG` are refused before spawn.
 
-kimi-code 0.33.0 changed the other half of the routing contract: native v2 is now the unflagged `kimi -p` default, and `KIMI_CODE_LEGACY_FLAG=1` is the upstream-supported v1 opt-out. The plugin does not trust ambient engine state. After accepting the explicit-experimental check, `buildEnv` overwrites the child process's legacy flag to `1` for every fresh or resumed run. Older kimi-code releases ignore the unknown flag. Ambient false values are deliberately overwritten; preserving one would silently reopen native v2 on 0.33+. Unit tests prove the flag reaches both fresh and resumed children, and the exact-binary smoke asserts no v2 `system.version` record appears even when the isolated config enables default plan mode.
+What the headline claim is: **every executed tool call in a plugin-managed session passes the managed hook, and the engine's sole final allow is never armed.** What it is not: a claim that the hook precedes every final allow. Because plan mode is never armed, the property does not depend on listener order at all. It is re-proven per certified tag by a mechanized source scan (`tests/audit/v2-tag-scan.test.ts`) and a live plan-mode-ON control that must still show the bypass (proving the refusal is load-bearing rather than vacuous).
 
-This is a visible engine-selection policy, not a general license to rewrite operator configuration: only the spawned child env changes; the user's shell and `config.toml` are untouched. The experimental flag remains an explicit refusal rather than being deleted silently.
+Provenance: a native-v2 plan requires the `system.version` marker as the first stream-json line and requires it to equal the probed version; a legacy plan still refuses that marker. Either mismatch tears down the owned process tree before any record reaches the caller (`CLI_ENGINE_PROVENANCE_MISMATCH`). Certification is exact-version (`0.42.0`) per operation, not per minor.
 
-Re-enable v2 only after an exact released kimi-code tag guarantees external-hook veto before any final plan allow. The release gate must then cover both a fresh `default_plan_mode=true` session and a session whose plan state was persisted out of band, proving the hook fires and blocks the plan-file write in each case.
-
-The complete operation-by-operation gate, execution-plan schema, historical
-unknown/evidence rules, and rollout state machine are committed in
-[`native-v2-certification-provenance.md`](native-v2-certification-provenance.md).
-New jobs persist an explicit forced-v1 command/version plan today; native v2's
-production capability matrix remains empty. A native-v2 `system.version` marker
-under that plan triggers immediate process-tree teardown before later records
-are delivered.
+Residuals, unchanged from v1 and stated plainly: `config.toml` and the session journals are trusted operator state (an actor who can write them could already delete the `[[hooks]]` entry); the upstream hook runner fails open on its own internal errors; the plan-path comparison does not realpath (a symlink there would need a prior hook-allowed write). Native plan mode, tower, subagent fork, Remote Control and `--add-dir` are out of scope.
 
 ## The rescue allowlist
 
@@ -169,6 +164,10 @@ For `/kimi:rescue`, the hook delegates to [`evaluateRescueHookRequest`](../runti
 - **Report-writing flags on type/test tools**: `mypy --junit-xml`/`--*-report` and `pytest --junitxml`/`--result-log`/`--report-log` write to arbitrary paths and are rejected.
 - **Read-safe commands** (`ls`, `cat`, `head`, `tail`, `rg`, `pwd`, `wc`, `git status`, `git diff`, ...): allowed.
 - **`.git/`**: every file-edit path check excludes anything inside `.git/`. Shell commands cannot include `git commit`, `git push`, `git reset --hard`, etc. Branch and commit ownership stays with the main Claude thread.
+
+### Effective working directory (`Bash.cwd`, v1.10.0)
+
+agent-core-v2's `Bash` tool accepts a separate `cwd` argument and executes there without asserting workspace membership; the hook payload's top-level `cwd` is the kimi process cwd, not the Bash cwd. The allowlist therefore validates `tool_input.cwd` before the command string: absent → the session work dir (the trusted root); present → must be an existing, non-symlinked directory whose realpath is inside the trusted root and not under `.git`. Everything else is denied, and the command-string policy still applies afterwards.
 
 ### Trust boundary: test runners execute workspace code
 

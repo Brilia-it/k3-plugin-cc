@@ -63,7 +63,6 @@ export async function runReview(argv, context, commandType) {
         operationKind: commandType,
         cwd: context.cwd,
         env: context.env,
-        intendedEngine: "legacy-v1",
     });
     const store = new JobStore(paths);
     const jobId = randomUUID();

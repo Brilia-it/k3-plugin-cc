@@ -53,6 +53,7 @@ export class JobStore {
         kimi_prefix_args TEXT,
         plan_certification TEXT,
         resumed_from_job_id TEXT,
+        safety_profile TEXT,
         agent_profile TEXT NOT NULL,
         prompt_digest TEXT NOT NULL,
         summary TEXT NOT NULL,
@@ -78,6 +79,7 @@ export class JobStore {
                 "kimi_prefix_args",
                 "plan_certification",
                 "resumed_from_job_id",
+                "safety_profile",
             ];
             for (const column of provenanceColumns) {
                 if (!tableHasColumn(this.db, column)) {
@@ -159,14 +161,14 @@ export class JobStore {
             job_id, repo_id, command_type, created_at, updated_at, cwd, model, thinking,
             background, pid, kimi_pid, status, kimi_session_id,
             operation_kind, intended_engine, observed_engine, kimi_version, system_version,
-            kimi_command, kimi_prefix_args, plan_certification, resumed_from_job_id,
+            kimi_command, kimi_prefix_args, plan_certification, resumed_from_job_id, safety_profile,
             agent_profile, prompt_digest, summary, phase, final_output_path, stream_log_path, error
           )
           VALUES (
             @job_id, @repo_id, @command_type, @created_at, @updated_at, @cwd, @model, @thinking,
             @background, @pid, @kimi_pid, @status, @kimi_session_id,
             @operation_kind, @intended_engine, @observed_engine, @kimi_version, @system_version,
-            @kimi_command, @kimi_prefix_args, @plan_certification, @resumed_from_job_id,
+            @kimi_command, @kimi_prefix_args, @plan_certification, @resumed_from_job_id, @safety_profile,
             @agent_profile, @prompt_digest, @summary, @phase, @final_output_path, @stream_log_path, @error
           )
         `, {
@@ -280,7 +282,7 @@ export class JobStore {
         "cwd", "model", "thinking", "background", "agent_profile",
         "operation_kind", "intended_engine", "observed_engine", "kimi_version",
         "system_version", "kimi_command", "kimi_prefix_args", "plan_certification",
-        "resumed_from_job_id",
+        "resumed_from_job_id", "safety_profile",
     ]);
     updateWhere(jobId, patch, whereClause) {
         const updates = ["updated_at = @updated_at"];
@@ -327,6 +329,7 @@ function serializeRecord(record) {
         kimi_prefix_args: record.kimi_prefix_args ?? null,
         plan_certification: record.plan_certification ?? null,
         resumed_from_job_id: record.resumed_from_job_id ?? null,
+        safety_profile: record.safety_profile ?? null,
         thinking: record.thinking === null ? null : Number(record.thinking),
         background: Number(record.background),
         error: record.error ? JSON.stringify(record.error) : null,

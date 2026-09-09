@@ -140,7 +140,6 @@ export async function runPursue(argv: string[], context: CommandContext): Promis
       operationKind: "pursue",
       cwd: context.cwd,
       env: context.env,
-      intendedEngine: "legacy-v1",
     });
 
     const prompt = buildGoalPrompt(objective, parsed.turns);
