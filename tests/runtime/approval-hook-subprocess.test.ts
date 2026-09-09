@@ -217,6 +217,25 @@ describe("approval-hook entry script", () => {
     expect(result.exitCode).toBe(0);
   });
 
+  test("rescue + allowlisted Bash with outside tool cwd → exit 2", async () => {
+    const result = await invokeHook(
+      {
+        hook_event_name: "PreToolUse",
+        tool_name: "Bash",
+        tool_input: { command: "bun test", cwd: "/tmp" },
+        cwd: process.cwd(),
+      },
+      {
+        ...process.env,
+        KIMI_PLUGIN_CC_CMD: "rescue",
+        KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+      },
+    );
+    expect(result.exitCode).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Bash cwd");
+  });
+
   test("rescue label + Read → exit 0", async () => {
     const result = await invokeHook(
       { hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: "x" } },

@@ -4,7 +4,7 @@ import path from "node:path";
 import { createCliCancellationHandlers } from "../cli-cancellation.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
 import {
-  assertResumeEngineCompatible,
+  assertPersistedResumeLineage,
   executionPlanFromPersisted,
   observedExecutionFields,
   persistedExecutionPlanFields,
@@ -65,6 +65,8 @@ interface RescueSessionResolution {
   kimiSessionId: string | null;
   reusedSession: boolean;
   resumedFromJobId: string | null;
+  /** Reconciled source job of a resume; its lineage is checked against the selected engine. */
+  sourceJob: JobRecord | null;
 }
 
 export async function runRescue(argv: string[], context: CommandContext): Promise<string> {
@@ -91,8 +93,9 @@ export async function runRescue(argv: string[], context: CommandContext): Promis
       operationKind: "rescue",
       cwd: context.cwd,
       env: context.env,
-      intendedEngine: "legacy-v1",
       resumedFromJobId: sessionResolution.resumedFromJobId,
+      resumeSessionId: sessionResolution.kimiSessionId ?? undefined,
+      resumeSource: sessionResolution.sourceJob,
     });
     const jobId = randomUUID();
     const logPath = path.join(paths.logsDir, `rescue-${jobId}.jsonl`);
@@ -224,6 +227,14 @@ export async function executeRescueJob(
 
   try {
     const executionPlan = executionPlanFromPersisted(job);
+
+    // Re-validate resume lineage from the store before spawning: a detached
+    // worker (or a forged queued row) reloads the persisted plan and would
+    // otherwise hand kimi_session_id to the spawn without the dispatch-time
+    // lineage check. Fresh sessions (no resumedFromJobId) are exempt.
+    if (job.kimi_session_id !== null) {
+      await assertPersistedResumeLineage(store, executionPlan, job.kimi_session_id, "rescue");
+    }
     if (options?.workerPid) {
       store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
     }
@@ -375,7 +386,7 @@ async function resolveRescueSession(
   resumeTarget: string | undefined,
 ): Promise<RescueSessionResolution> {
   if (fresh) {
-    return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null };
+    return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null, sourceJob: null };
   }
 
   if (resumeTarget) {
@@ -391,7 +402,6 @@ async function resolveRescueSession(
     }
     const source = await reconcileHistoricalJobProvenance(store, exact);
     ensureSessionIsNotRunning(source);
-    assertResumeEngineCompatible(source, "legacy-v1", "rescue");
     if (!source.kimi_session_id) {
       throw new RuntimeError(
         "RESCUE_RESUME_NOT_FOUND",
@@ -403,6 +413,7 @@ async function resolveRescueSession(
       kimiSessionId: source.kimi_session_id,
       reusedSession: true,
       resumedFromJobId: source.job_id,
+      sourceJob: source,
     };
   }
 
@@ -417,7 +428,6 @@ async function resolveRescueSession(
     }
     const source = await reconcileHistoricalJobProvenance(store, latest);
     ensureSessionIsNotRunning(source);
-    assertResumeEngineCompatible(source, "legacy-v1", "rescue");
     if (!source.kimi_session_id) {
       throw new RuntimeError(
         "RESCUE_RESUME_NOT_FOUND",
@@ -429,6 +439,7 @@ async function resolveRescueSession(
       kimiSessionId: source.kimi_session_id,
       reusedSession: true,
       resumedFromJobId: source.job_id,
+      sourceJob: source,
     };
   }
 
@@ -436,16 +447,16 @@ async function resolveRescueSession(
     const latest = store.findLatestJob({ repoId, commandType: "rescue" });
     if (latest?.kimi_session_id && latest.status !== "running") {
       const source = await reconcileHistoricalJobProvenance(store, latest);
-      assertResumeEngineCompatible(source, "legacy-v1", "rescue");
       return {
         kimiSessionId: source.kimi_session_id,
         reusedSession: true,
         resumedFromJobId: source.job_id,
+        sourceJob: source,
       };
     }
   }
 
-  return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null };
+  return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null, sourceJob: null };
 }
 
 function ensureSessionIsNotRunning(job: JobRecord): void {

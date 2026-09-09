@@ -239,7 +239,6 @@ async function runReadSwarm(
       operationKind: "swarm",
       cwd: context.cwd,
       env: context.env,
-      intendedEngine: "legacy-v1",
     });
 
     const prompt = buildSwarmPrompt(objective, parsed.cap);
@@ -369,7 +368,6 @@ async function runWriteSwarm(
         operationKind: "swarm-write",
         cwd: worktreePath,
         env: context.env,
-        intendedEngine: "legacy-v1",
       });
 
       const job = store.createJob({

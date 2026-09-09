@@ -2,9 +2,10 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { createCliCancellationHandlers } from "../cli-cancellation.js";
-import { runCliPromptWithBudget } from "../cli-client.js";
+import { runCliPromptWithBudget, type CliClientResult } from "../cli-client.js";
 import {
   executionPlanFromPersisted,
+  type KimiExecutionPlan,
   observedExecutionFields,
   persistedExecutionPlanFields,
   prepareKimiExecutionPlan,
@@ -66,6 +67,38 @@ export type GoalExitStatus = "complete" | "blocked" | "paused" | "unknown";
  * anything else is a genuine process failure. Source:
  * apps/kimi-code/src/cli/goal-prompt.ts::GOAL_EXIT_CODES.
  */
+/**
+ * Goal-terminal exits (3 = blocked, 6 = paused) are NOT failures, so
+ * `assertCliResultSuccess` never runs for them — which means a native-v2 plan
+ * whose child exited 3/6 emitting nothing would otherwise resolve with an
+ * empty artifact and unproven provenance (cli-client enforces marker-first on
+ * every emitted line and on a clean exit, but not on a silent non-zero exit).
+ * Require the marker on every non-aborted goal-terminal result of a v2 plan.
+ * (Kimi second-round finding 2.)
+ */
+export function assertGoalRunProvenance(
+  plan: Pick<KimiExecutionPlan, "intendedEngine">,
+  result: Pick<CliClientResult, "exitCode" | "systemVersion" | "observedEngine" | "aborted">,
+): void {
+  if (plan.intendedEngine !== "native-v2" || result.aborted || result.systemVersion !== undefined) {
+    return;
+  }
+  throw new RuntimeError(
+    "CLI_ENGINE_PROVENANCE_MISMATCH",
+    `Refusing pursue result: the execution plan required native-v2, but the child exited ${String(result.exitCode)} without the system.version marker, so the engine that ran cannot be established.`,
+    "pursue.provenance",
+    {
+      details: {
+        operation_kind: "pursue",
+        intended_engine: "native-v2",
+        observed_engine: result.observedEngine ?? null,
+        exit_code: result.exitCode,
+        retryable_after_setup: false,
+      },
+    },
+  );
+}
+
 export function classifyGoalExit(exitCode: number): GoalExitStatus {
   switch (exitCode) {
     case 0:
@@ -140,7 +173,6 @@ export async function runPursue(argv: string[], context: CommandContext): Promis
       operationKind: "pursue",
       cwd: context.cwd,
       env: context.env,
-      intendedEngine: "legacy-v1",
     });
 
     const prompt = buildGoalPrompt(objective, parsed.turns);
@@ -291,6 +323,7 @@ async function executePursueJob(
     if (goalStatus === "unknown") {
       assertCliResultSuccess(result, "pursue.runtime");
     }
+    assertGoalRunProvenance(executionPlan, result);
 
     if (
       result.sessionId !== undefined &&

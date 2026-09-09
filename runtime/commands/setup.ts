@@ -78,6 +78,7 @@ import {
   formatVersionOutOfRangeWarning,
   probeKimiVersion,
 } from "../kimi-version-probe.js";
+import { isNativeV2CertifiedVersion } from "../kimi-engine.js";
 import { resolveKimiHome } from "../kimi-home.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import type { CommandContext } from "../types.js";
@@ -1295,7 +1296,11 @@ async function collectKimiVersionWarnings(
     // clearer message. Avoid double-noise.
     return;
   }
-  if (probe.inTestedRange) return;
+  // Certified for EITHER engine is "in range": the legacy tested minors, or an
+  // exact native-v2 certified version (which is deliberately outside
+  // KIMI_TESTED_MINORS — that table never gains 0.42). Without this, setup on a
+  // v2-certified binary would wrongly warn "not certified, commands will refuse".
+  if (probe.inTestedRange || isNativeV2CertifiedVersion(probe.version)) return;
   warnings.push(formatVersionOutOfRangeWarning(probe, KIMI_PLUGIN_CC_VERSION));
 }
 

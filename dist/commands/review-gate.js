@@ -16,6 +16,7 @@ import { writeInvocationLogHeader } from "../logging.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import { renderManagedJobOutput, writeArtifact, } from "../render.js";
 import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import { resolveKimiHome } from "../kimi-home.js";
 import { assertCliResultSuccess, reassembleProseFromRecords } from "./cli-helpers.js";
 const DEFAULT_REVIEW_GATE_MODEL = "kimi-for-coding";
 const REVIEW_GATE_AGENT_PROFILE_PLACEHOLDER = "<cli-client>";
@@ -43,6 +44,15 @@ export async function runReviewGateStopHook(payload, context) {
         return reviewGateSkipped("stop hook already active");
     }
     const cwd = payload.cwd || context.cwd;
+    // Resolve KIMI_CODE_HOME ONCE, against the SAME cwd the child will be
+    // spawned with, and use that env for hook verification, the execution plan
+    // and the spawn. The Stop-hook entry script runs from the plugin root, so a
+    // relative KIMI_CODE_HOME would otherwise be verified under the plugin root
+    // while the child (cwd = payload.cwd) read a different home.
+    context = {
+        ...context,
+        env: { ...context.env, KIMI_CODE_HOME: resolveKimiHome(context.env, cwd) },
+    };
     const assistantMessage = extractText(payload.last_assistant_message) ??
         (await extractLastAssistantMessage(payload.transcript_path));
     if (!assistantMessage) {
@@ -108,7 +118,6 @@ async function executeReviewGate(payload, assistantMessage, context) {
             operationKind: "review_gate",
             cwd: payload.cwd,
             env: context.env,
-            intendedEngine: "legacy-v1",
         });
         // Header-before-job-row mirrors v0.4's reordering (the comment
         // chain there explains why). If the disk-bound writeInvocationLogHeader

@@ -56,6 +56,7 @@ function makeJob(commandType: ManagedCommandType): JobRecord {
     kimi_prefix_args: null,
     plan_certification: null,
     resumed_from_job_id: null,
+    safety_profile: null,
     agent_profile: "<cli-client>",
     prompt_digest: "digest",
     summary: "running",

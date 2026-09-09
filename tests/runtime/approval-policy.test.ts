@@ -20,18 +20,17 @@ describe("decideHookOutcome", () => {
     });
   });
 
-  test.each([
-    "ask",
-    "review",
-    "challenge",
-    "review_gate",
-    "rescue",
-    "swarm",
-    "swarm-write",
-  ])("denies EnterPlanMode for the %s label before any write evaluator", async (label) => {
+  test.each(
+    (["ask", "review", "challenge", "review_gate", "rescue", "swarm", "swarm-write"] as const).flatMap(
+      (label) => [
+        [label, "EnterPlanMode"],
+        [label, "ExitPlanMode"],
+      ],
+    ),
+  )("denies %s / %s before any write evaluator", async (label, tool) => {
     let evaluatorCalled = false;
     const decision = await decideHookOutcome(
-      { tool_name: "EnterPlanMode", tool_input: {} },
+      { tool_name: tool, tool_input: {} },
       {
         commandLabel: label,
         trustedWorkspaceRoot: "/wt",
@@ -42,7 +41,7 @@ describe("decideHookOutcome", () => {
       },
     );
     expect(decision.decision).toBe("deny");
-    expect(decision.reason).toContain("EnterPlanMode");
+    expect(decision.reason).toContain(tool);
     expect(evaluatorCalled).toBe(false);
   });
 

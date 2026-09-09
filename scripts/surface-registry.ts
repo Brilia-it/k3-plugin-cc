@@ -34,8 +34,8 @@ export interface CodexSkillSpec {
 }
 
 export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
-  { path: ".claude-plugin/plugin.json", sha256: "6bdf27b49c127758f3024fc0b72b44aef12b13f785f7d03633e840c47ee06490" },
-  { path: ".claude-plugin/marketplace.json", sha256: "f3f40eade45a07f632ad30a8e5d17d2950f11a590eb2ec8ffaacdb719ea80336" },
+  { path: ".claude-plugin/plugin.json", sha256: "b982afdbccce39131266b4e2f90412d4deb58303a626f55250d462e20f460cd0" },
+  { path: ".claude-plugin/marketplace.json", sha256: "929a97c1ee7886f335aa91bf5ed187918ed70b5106fcfbae1f45c6ba252ffc10" },
   { path: "commands/README.md", sha256: "f996a084f8c7762c2405c3990443cff49d96003416da8fead8fd875a0f50fd23" },
   { path: "commands/ask.md", sha256: "5ffcd405b1f905f400c00520d210afc6dbf35cae3a0b07c6189866fa639bf778" },
   { path: "commands/cancel.md", sha256: "4d1c1e9d0534fac113fea18e2c8993d99f3ada1335186f66cd995a45f1057db4" },
@@ -47,10 +47,10 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: "commands/review.md", sha256: "2a5103029d91bd1f204979e8a52a9726ecfb171bcdc0b273be155ec7ced7c243" },
   { path: "commands/setup.md", sha256: "17e0e2c274f3cc4cb36780ea62c078bb1bbeeee81bfd1b0c8e0594f7e7f4fc8c" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
-  { path: "commands/swarm.md", sha256: "85b36b2c67994540aa5ac94e7d7701ce65c2d7921ddfe89c705ddeec7dd22efa" },
+  { path: "commands/swarm.md", sha256: "e894a66863e607cca0185bea780bb2fac4fa8950edcbfef01990b2f6727143bb" },
   { path: "agents/kimi-ask.md", sha256: "3bdcf3b92142560026105a232cd61b2141ff97186081f557a0c54ff12a1d159c" },
   { path: "agents/kimi-challenge.md", sha256: "29021277339269d19d9d2e41b18b9a38d4b25c168e3efd8b295d4942f3722938" },
-  { path: "agents/kimi-pursue.md", sha256: "ad931598a517afcdcfc1b63c10d6358baea60b60a77d6643d87a4a75c31f6278" },
+  { path: "agents/kimi-pursue.md", sha256: "e7e78a0b892e1b2fdbb32eb4ce9ec83261b40c271fe35862d31f7e44a31cffce" },
   { path: "agents/kimi-rescue.md", sha256: "7c1f44ae8b7e9ca8311f4d0144689703f79a5c449faca7834342c6598d652d6c" },
   { path: "agents/kimi-review.md", sha256: "44a869d601ae8ed4fa498bdef38d25c6d9baf2576fbf3c80b46ddf9f597bc329" },
   { path: "agents/kimi-swarm-write.md", sha256: "69512905353f32d1d74d4291b8061fcef41de44c51e5a24e26e841abbcacd281" },
