@@ -97,7 +97,7 @@ Verify it is actually enforcing, not just installed:
 ### Coexistence with the upstream plugin
 
 **Partial, and worth understanding before you try it.** The slash commands and the agents no longer
-collide: ours are `/k3:*` and `k3-*`, upstream's are `/k3:*` and `kimi-*`.
+collide: ours are `/k3:*` and `k3-*`, upstream's are `/kimi:*` and `kimi-*`.
 
 The safety hook still does. Both plugins write a managed block into the same
 `~/.kimi-code/config.toml`, keyed by a host id that answers "which editor is driving kimi-code",
@@ -199,7 +199,7 @@ Three Windows fixes, all gated behind `win32`, none of which alter behaviour on 
 
 1. **The hook command is double-quoted.** It was quoted POSIX-style with single quotes, which
    `cmd.exe` does not recognise, so the hook never launched. Since any exit code other than 2 means
-   "allow", enforcement was silently inert while the setup check (upstream's `/k3:setup --check` at
+   "allow", enforcement was silently inert while the setup check (upstream's `/kimi:setup --check` at
    the time we found it) still reported `Probe: ok`.
    Measured with the same command string: `/bin/sh` exits 2, `cmd.exe` exits 255.
 2. **Hook paths are normalised.** The path derived from `CLAUDE_PLUGIN_ROOT` contains backslashes on

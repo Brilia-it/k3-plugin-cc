@@ -30,7 +30,7 @@ Project context for coding agents working in this repository.
 .claude/            Gitignored local audit workspace. Upstream clones/reports live here, including daily monitor reports under kimi-code-research/daily-monitor/
 .agents/            Codex repo marketplace sidecar (plugins/marketplace.json) — generated; source.path points at plugins/k3-codex
 commands/           Slash command markdown — thin wrappers over companion.sh (Claude Code surface)
-agents/             Claude Code subagent definitions (k3-rescue, k3-review, k3-challenge, k3-ask, k3-swarm, k3-pursue, k3-swarm-write)
+agents/             Claude Code subagent definitions (kimi-rescue, kimi-review, kimi-challenge, kimi-ask, kimi-swarm, kimi-pursue, kimi-swarm-write)
 hooks/              Stop hook for the review gate (kimi-code-side PreToolUse hook lives at runtime/hooks/)
 scripts/            Shell entry points (companion.sh, review-gate-hook.sh) + dev-only surface generator (surface-registry.ts, generate-surfaces.ts)
 plugins/k3-codex/ SELF-CONTAINED Codex plugin root — GENERATED, do not hand-edit. Codex copies a plugin root to its install cache and forbids ../ escapes, so this dir bundles everything it needs:
