@@ -163,6 +163,13 @@ describe("runSwarm hook gate", () => {
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
           KIMI_CODE_HOME: kimiHome,
           KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+          // The gate under test is the HOOK check, which sits behind the
+          // execution-plan gate added in 1.10. Without a resolvable binary the
+          // run refuses earlier with KIMI_EXECUTION_PLAN_UNRESOLVED and never
+          // reaches it, so this asserted host state instead of behaviour: it
+          // passed only on machines with kimi-code installed. Pin an executable
+          // that always exists; it is never spawned, only resolved.
+          KIMI_PLUGIN_CC_KIMI_BIN: process.execPath,
         }),
       );
 
