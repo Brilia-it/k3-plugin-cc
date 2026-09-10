@@ -8,6 +8,34 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.10.1-brilia.0.3.0 — 2026-09-10 (fork)
+
+**Re-aligned to upstream v1.10.1, closing a gap of six releases.** The previous entry measured
+that gap weekly and said measuring it was not closing it. This closes it.
+
+- **Upstream v1.10.1 merged.** Their big change is the move to kimi-code's native agent-core-v2,
+  forced by kimi-code 0.42.0 deleting the legacy v1 engine outright. Certification is now per
+  EXACT version rather than per minor, so a kimi-code newer than 0.42.0 refuses every
+  model-spawning command until a release certifies it. Since kimi-code updates itself in the
+  background, that will bite on the next upstream patch. README and
+  [docs/migration.md](./docs/migration.md) now say so before the install instructions.
+- **Your existing kimi-code keeps working.** Legacy v1 stays certified for minors 0.1 through
+  0.41.x, which covers every install we know of. Verified rather than assumed: 30 is in the
+  table.
+- **The three Windows fixes survived the merge, and were re-proven.** Upstream rewrote both
+  `runtime/hooks/install-paths.ts` and `runtime/commands/setup.ts` in v1.10.0, so their surviving
+  a clean merge proves nothing on its own. The enforcement matrix was re-run after merging: nine
+  write vectors denied on `cmd.exe` and on `sh`, positive control allowed, negative control
+  detected, workspace untouched.
+- **Fixed: CI had been red for three days, and the cause was our own tripwire.** The 0.2.x rename
+  changed eleven files that `scripts/surface-registry.ts` pins by sha256, and the pinned hashes
+  were never updated, so `check:surfaces` failed on every push from 2026-09-07. That is the same
+  defect class this fork already hit on 2026-09-05, reopened by the rename. Registry entries
+  brought to parity with upstream (21, same set modulo our rename) and hashes re-pinned to what
+  is actually on disk.
+- **Upstream removed the pursue/swarm version gates** (`assertGoalModeSupported`,
+  `assertSwarmSupported`); their deletion is taken, with no orphaned references left behind.
+
 ## 1.9.8-brilia.0.2.1 — (fork)
 
 **The rename in 0.2.0 was cosmetic, and a cross-vendor review said so.** We had renamed seven
@@ -108,6 +136,183 @@ and a rewritten `README.md`/`SECURITY.md`. No behaviour change on macOS or Linux
 hook, permission, concurrency, budget, confinement or allowlist policy.
 
 Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the upstream plugin.
+## 1.10.1 — 2026-09-09
+
+**Patch: every plugin refusal now states its setup-retryability explicitly.** The 1.10.0
+refusal-code contract (`docs/safety.md § Refusal codes`) says agents key on
+`details.retryable_after_setup`; three pre-1.10 refusal shapes omitted the field —
+`CLI_V2_HOOK_ORDER_UNSAFE`, `INVALID_ENV` (all three `KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` paths)
+and the legacy-v1 branch of `KIMI_CAPABILITY_NOT_CERTIFIED` (which also gains
+`refusal_kind: "v1-version-not-certified"`). Behaviour was already fail-safe (the retry gate
+retries only on literal `true`), so this is a contract-exactness fix: no policy, allowlist,
+engine-selection or certification change; kimi-code 0.42.0 remains the exact certified version.
+Found by Kimi's post-publish release review of 1.10.0. Wrappers must still treat an absent
+field as non-retryable.
+
+## 1.10.0 — 2026-09-09
+
+**Full migration to native agent-core-v2, certified at exact kimi-code 0.42.0.**
+kimi-code 0.42.0 deleted the legacy agent-core-v1 package and `KIMI_CODE_LEGACY_FLAG`
+(#3542, not in its changelog), making `kimi -p` native-v2 unconditionally and rendering
+the plugin's forced-v1 pin inert. All eight operations (ask, review, challenge,
+review_gate, rescue, pursue, swarm, swarm-write) now run on unmodified native v2.
+
+### ⚠️ Breaking changes and upgrade notes
+
+This release changes behaviour that earlier 1.x users may depend on. Strictly by semver it is a major; it ships as 1.10.0 because the plugin is upgraded in place through the marketplace and its 1.x line has always advanced compat by minor releases.
+
+- **Certification is now per EXACT kimi-code version, not per minor.** Native v2 is certified at `0.42.0` only. When kimi-code publishes `0.42.1` (or newer), every model-spawning command refuses with `KIMI_CAPABILITY_NOT_CERTIFIED` until a plugin release certifies it — before 1.10, a patch release inside a tested minor kept working. kimi-code self-upgrades in the background, so expect this on the next upstream patch; pin `KIMI_PLUGIN_CC_KIMI_BIN` to a certified binary if you need continuity, and watch for the next plugin release.
+- **Sessions created before 1.10 cannot be resumed on 0.42.0.** `ask --resume`, `ask -r`, `rescue --resume` and rescue's implicit latest-session reuse refuse (`KIMI_SESSION_LINEAGE_UNKNOWN` / `KIMI_SESSION_ENGINE_MISMATCH`) — the v1 engine no longer exists in the binary, so nothing could replay those sessions. Nothing is deleted; `/k3:status`, `/k3:result` and `/k3:replay` still work on the old jobs. Start fresh sessions.
+- **`default_plan_mode = true` (any spelling) in `~/.kimi-code/config.toml` now blocks every command** (`CLI_V2_PLAN_MODE_CONFIGURED`). On the old forced-v1 path that setting was harmless; on native v2 it would arm the one code path that bypasses the safety hook. Set it to `false` or remove it. `/k3:setup` cannot fix this one.
+- **`KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` may no longer contain kimi flags** (`-r`, `-c`/`-C`, `-S`, `-p`, `-m`, `--plan`, `--yolo`, `--agent`, `--add-dir`, …) — `INVALID_ENV`. The prefix is a launcher shim only (e.g. `["--import","tsx",…]`).
+- **`[experimental] tower` / `subagent_fork` and `KIMI_CODE_EXPERIMENTAL_FLAG` refuse before spawn** (`CLI_V2_EXPERIMENTAL_UNSAFE` / `CLI_V2_HOOK_ORDER_UNSAFE`). Unset them for plugin-managed runs.
+- **Still on kimi-code ≤ 0.41.x?** Nothing changes for you: those versions route to the legacy-v1 engine exactly as before. But the plugin certifies them only for an explicitly pinned binary — kimi-code's auto-update will move you to 0.42.x, at which point the notes above apply.
+
+No action for the job store (one additive nullable column, migrated automatically) or the hook policy (unchanged allowlists). As with every release, run `/k3:setup` (or `$k3-setup`) after updating so the hook is re-pinned to the new install path — a `kimi login` also strips the managed-block markers, and setup restores them.
+
+None of these refusals is repaired by `/k3:setup` (the native-v2 ones carry `retryable_after_setup: false` explicitly; a few pre-1.10 codes omit the field in 1.10.0 and an absent field must be treated as `false`). They are catalogued with remedies in [docs/safety.md § Refusal codes](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100).
+
+- **Certification basis changed (docs/native-v2-certification-provenance.md §2).** Upstream
+  still registers the plan feature before external hooks and provides no ordering guarantee
+  (confirmed in the shipped 0.42.0 bundle). Native v2 is instead certified on a construction:
+  the plan-file guard is the engine's ONLY chain-breaking final allow, it fires only while
+  plan mode is ACTIVE, and the plugin proves plan mode is never armed in a plugin-managed
+  session. `event.allow` count and the before-execute subscriber set are re-verified per tag
+  by `tests/audit/v2-tag-scan.test.ts`, backed by a live plan-mode-ON control.
+- **New pre-spawn preflight (`runtime/native-v2-preflight.ts`).** Refuses `default_plan_mode`
+  unless absent/`false` (`CLI_V2_PLAN_MODE_CONFIGURED`), refuses `[experimental]`
+  tower/subagent_fork from config or per-flag env (`CLI_V2_EXPERIMENTAL_UNSAFE`), and refuses
+  resuming a session whose wire journal holds any `plan_mode.*`/`plan.*` record
+  (`KIMI_SESSION_PLAN_TAINTED`). Fail-closed on unreadable/oversized/symlinked inputs. Run
+  before spawn and re-run at the cli-client spawn boundary (config and journals are mutable).
+- **Resume proven live on the real layout.** The real-binary smoke gains a native-v2 resume
+  lane: a fresh run's real `agents/*/wire.jsonl` is found where the preflight scans, the `-r`
+  resume re-emits `system.version` first with the same session id and the hook still denying
+  writes, and a `plan_mode.enter` record appended to that journal makes the next resume refuse
+  before any process is created. The tag scan additionally pins `features/plan/planOps.ts` and
+  asserts the durable plan event types are exactly `plan_mode.enter|cancel|exit` +
+  `plan.revision` (the prefixes the taint scan keys on) and that `restore()` folds by literal
+  `record.type`; `permission.set_mode` (`manual|yolo|auto`) is verified to be a separate state.
+- **Second-round adversarial review (Codex) — seven findings, all closed with regression tests.**
+  (P1) upstream's config loader camelCases every top-level TOML key before the plan section
+  reads `defaultPlanMode`, so `defaultPlanMode = true` (or any mixed spelling) walked past a
+  literal `default_plan_mode` check — the preflight now mirrors upstream's `snakeToCamel`
+  verbatim (`app/config/toml.ts` is hash-pinned by the tag scan; the `[experimental]` table
+  is verified to keep raw keys and is not normalized). (P1) the hidden `-C` alias of
+  `--continue` resumed the latest cwd session with no journal scan — the reserved-prefix-flag
+  set now covers every kimi root flag incl. `-C`, `-y/--yes/--auto-approve/--manual`, `-V/-h`.
+  (P1) the Stop hook verified the hook under `<plugin-root>/<relative KIMI_CODE_HOME>` while the
+  child read `<payload.cwd>/<…>` — `runReviewGateStopHook` now resolves the home once against
+  the payload cwd for verification, plan and spawn. (P2) a persisted row carrying a session id
+  but no source job is refused (`KIMI_SESSION_LINEAGE_UNKNOWN`) instead of exempted. (P2)
+  unknown-role and malformed stream lines before the `system.version` marker now trip the
+  marker-first rule. (P2) the stderr resume-hint channel (kimi 0.1.x) is consulted only on
+  legacy-v1 plans — a native-v2 plan pins a session id from the stdout meta record alone.
+  (P2) the marker's `version` must be a single well-formed semver token; a multi-line value
+  is no longer first-line-normalized into the certified version.
+- **Second-round review (Kimi) — three findings, all closed.** (1) the v2 resume path had no
+  repeatable proof of the session-store keying → smoke lane 3b (above) plus a tag-scan pin of
+  upstream's own layout scanner (`app/sessionExport/wire-scan.ts`) and the `session_<uuid>` /
+  `sessions/` / `agents/` builders. (2) a goal-terminal pursue exit (3/6) skipped the success
+  assertion, so a native-v2 plan could resolve with no `system.version` marker and an empty
+  artifact — `assertGoalRunProvenance` now refuses that (`CLI_ENGINE_PROVENANCE_MISMATCH`).
+  (3) a readdir failure other than ENOENT/ENOTDIR (e.g. `EACCES`) during the journal scan
+  escaped as an untyped error instead of the classified `KIMI_SESSION_JOURNAL_UNAVAILABLE`.
+- **Engine selection is plugin-owned (`selectIntendedEngine`).** Exact version in
+  `NATIVE_V2_CERTIFIED` → native-v2; a minor in `KIMI_TESTED_MINORS` (≤ 0.41) → legacy-v1 with
+  the child-only legacy pin; otherwise refuse. Certification is per exact version and per
+  operation. `KIMI_TESTED_MINORS` is unchanged and never gains 0.42.
+- **Provenance.** A native-v2 plan requires the `system.version` marker as the first
+  stream-json line and requires it to equal the probed version; a legacy plan still refuses
+  it. Either mismatch tears down the process tree before any record reaches the caller.
+  Jobs persist a `safety_profile` column (`native-v2-no-plan/1` for v2, null for v1); forged
+  or unknown-profile plans refuse at the spawn boundary. Resume refuses unknown lineage
+  (`KIMI_SESSION_LINEAGE_UNKNOWN`) and cross-engine sources.
+- **Bash cwd confinement (`runtime/rescue-approval.ts`).** v2's `Bash` tool accepts a separate
+  `cwd`; the allowlist now validates `tool_input.cwd` against the trusted root (realpath,
+  symlink, `.git`, existence) before the command-string policy. Closes the 0.40.0
+  out-of-workspace-cwd gap for write-capable operations.
+- **Hook policy.** `EnterPlanMode` and `ExitPlanMode` denied for every label. Every spawn
+  exports `KIMI_CODE_NO_AUTO_UPDATE=1` and an absolute `KIMI_CODE_HOME`. The master
+  `KIMI_CODE_EXPERIMENTAL_FLAG` still refuses before spawn.
+- **Continuation cost:** sessions created before this release (v1 or unknown provenance) are
+  no longer resumable — the v1 engine no longer exists in the binary. `ask --resume` /
+  `rescue --resume` on such jobs refuse with a fresh-session remedy; nothing is deleted;
+  status/result/replay stay inspectable.
+- **Out of scope / refused:** native plan mode, tower mode, subagent fork, Remote Control,
+  `--add-dir`, and the singular `Agent` tool. #3431 stays open as the preferred end state (a
+  released ordering guarantee would let native plan mode return).
+
+## 1.9.14 — 2026-09-06
+
+**Certifies kimi-code 0.41.0 on forced legacy-v1.** Model jobs on 0.41.x now
+pass the tested-minor gate. Native v2 remains disabled for every operation.
+
+- **Source audit: COMPAT-PRESERVED.** Four independent reviewers compared
+  exact 0.40.0 and 0.41.0. The v1 core, CLI prompt driver/shared writer, hooks,
+  permissions, session bootstrap/config, and kaos are unchanged. The SDK adds
+  `suggestFiles` (v1 returns `undefined`) and changes a comment.
+- **Runtime evidence:** the September 6 monitor's exact 0.41.0 smoke passed
+  **12 tests / 0 failures / 55 assertions in 383.88s**. This boundary/version
+  and documentation release reuses that same-day smoke; it changes no model
+  execution behavior. The known-minor assertion advances to 0.41; unknown-minor
+  refusal fixtures continue deriving the next boundary automatically.
+- **V2 evidence refreshed:** the exact 0.41.0 fresh-plan reproduction still
+  bypasses the hook on plan-file Write; v1 blocks it. `staleGuard` and the old
+  upstream `Permission.md` are removed in this release, so the docs distinguish
+  historical design evidence from current source. Auto-mode dangerous-command
+  checks are skipped, while their nonInteractive exclusion predates 0.41.0.
+  The [v2 brief](docs/native-v2-status.md) separates released changes from open
+  proposals and retains #3431 as the ordering blocker.
+- Claude/Codex version metadata and bundled runtime are regenerated. Release
+  gates: independent post-edit review and `bun run check`.
+
+## 1.9.13 — 2026-09-02
+
+**Certifies kimi-code 0.40.0 on the forced legacy-v1 path.** Native agent-core-v2 remains fail-closed disabled; no hook, permission, concurrency, budget, confinement, or allowlist policy changed.
+
+- **Scoped source audit preserved the supported contract.** The 0.39.1→0.40.0 diffs (48 commits) are 0 bytes for v1 permission policies, v1 hooks, and wire/session. CLI prompt mode changes only `--yolo`/`--auto` help text and adds top-level `fork`/`session` subcommands, which are off the `-p` path (the plugin passes the prompt as the value of `-p`, never a bare positional). Session bootstrap/config is one additive line — `ModelAliasBaseSchema.protocol` widens to `'anthropic' | 'openai_responses'` — and that line is the entire `packages/agent-core` source change. v1 tools/SDK is additive telemetry, session-list, and tower plumbing; Write/Edit `path`, Bash `command`, kaos path guards, and the v1 `createKimiHarness` entry point are unchanged (the `KimiHarness` class gains one optional telemetry field that entry point does not wire). `KIMI_CODE_LEGACY_FLAG=1` still forces v1 for fresh and resumed `-p` at the top of `runPrompt()`; engine selection reads only that env var, so no `config.toml` key — including `[experimental]` tables, which can enable registered v1 flags (`tool-select`, `secondary-model` only) without the env master switch — can defeat the pin. #3427's config-over-env flag precedence and #3434's removal of the legacy acp-adapter package (touches `KIMI_CODE_LEGACY_FLAG` only inside the `acp` subcommand) are v2-only / off the `-p` transport; the secondary-model pool stays opt-in on v1.
+- **Native-v2 containment remains load-bearing, and 0.40.0 adds a reason.** The plan feature (`index.ts:330`) still registers before external hooks (`:338`), `planService.ts:112` is still the sole `event.allow()`, and `toolExecutor/` is a 0-byte diff; MoonshotAI/kimi-code#3431 is open with no maintainer response. The 2026-09-01 live repro, re-run on 2026-09-02 against the 0.40.0 binary, still bypasses the hook (v2: hook denies `Glob`, plan-file `Write` executes with zero hook payloads; v1 control blocks it). New this release: #3444 removed `RuntimeWorkspaceView.resolve()`'s root assertion, so native-v2 Bash can run with an out-of-workspace `cwd` — confined to agent-core-v2 with no shared code in v1 or kaos, unreachable on the pinned path, and one more reason the refusal stays. The new v2 dangerous-command ask policy is skipped under `nonInteractive` and is not an ordering fix.
+- **Operator notes, not contract.** v2 config writeback (#3392) now preserves `config.toml` formatting per domain, so managed-block markers may survive login/settings writes more often — the marker-less fallback fires less, never incorrectly. `kimi doctor` now validates config against the v2 schema, whose hook schema is field-for-field identical to v1's, so the managed block passes. The new `kimi migrate --run` is a headless entry point that can rewrite `config.toml`, but its merge mode keeps the target's `hooks` entry and writes atomically at mode 0600 — though, like any kimi-code re-serialize, it drops comments and therefore the managed-block markers, the already-documented marker-loss class the parser-based fallback covers (pre-existing logic; if it ever did alter the entry, the per-spawn byte-exact verification refuses as drift).
+- **Certification evidence is green.** The exact-0.40.0 temporary binary passed `bun run smoke:real` with **12 pass / 0 fail / 55 assertions in 383.45s** (the daily monitor's earlier 3/9 red was the documented operator-auth false alarm — `auth.login_required`, `records=[]` — cleared once operator auth was valid again: an isolated-home `kimi -p` probe answered `OK` before the re-run), covering forced-write denials, v2 pre-spawn refusal, fresh/resumed default-plan v1 pinning, pursue's every-turn hook gate, real read-swarm child denial, write-swarm confinement (`patchBytes=306`, user tree clean, worktree removed), and non-vacuous out-of-root denial. `KIMI_TESTED_MINORS` gains `{0,40}`. Tags: `v1.9.13` and `compat-verified-kimi-code-0.40.0`. Reports 117-120; continuity report `.claude/kimi-code-research/daily-monitor/2026-09-02-upstream-monitor.md`.
+- **Release gate.** `bun run check` passed with **706 pass / 10 intentional real-binary skips / 0 fail / 2,209 assertions** across 38 files; the two untested-version test fixtures moved from 0.40.0 to 0.41.0 as the boundary advanced.
+
+## 1.9.12 — 2026-08-29
+
+**Makes forced-legacy engine provenance durable and certifies the exact kimi-code 0.39.1 patch.** Native agent-core-v2 remains fail-closed unavailable; no hook-verification, permission, allowlist, concurrency, budget, or worktree-confinement rule is relaxed.
+
+- **Every model job now carries an immutable execution plan.** Before a job row exists, the runtime resolves the exact executable, probes the same command/prefix/cwd tuple, checks the operation's certified legacy-v1 version range, and persists the real operation, intended/observed engine, kimi version, command tuple, certification source, and resume lineage. Detached ask/rescue workers reload that persisted tuple instead of consulting ambient PATH/config again; the final spawn boundary rejects command drift, corrupt certification, stale test-bypass rows, every native-v2 plan, and untested minors. Setup now says this plainly: it may complete on an out-of-range binary, but model commands refuse until the plugin certifies the minor or `KIMI_PLUGIN_CC_KIMI_BIN` selects a certified binary; the skip-version flag is tests/smoke only.
+- **Observed-engine mismatches tear down before tool output can escape.** A native-v2-only `system.version` marker under a forced-v1 plan stops record delivery, reaps the owned process tree, and raises `CLI_ENGINE_PROVENANCE_MISMATCH`. New SQLite columns are additive and nullable; old rows remain unknown unless bounded saved-log evidence proves an engine. Conflicting evidence stays unknown, historical `rescue` labels no longer guess between rescue and pursue, cross-engine resume refuses only on a proven mismatch, and forensic backfill does not reorder jobs.
+- **Write-capable trust roots are plugin-owned.** Rescue and pursue now export the persisted job cwd, while write-swarm exports its throwaway worktree, through `KIMI_PLUGIN_CC_WORKSPACE_ROOT`; the hook never trusts upstream payload `cwd` and denies write tools when the root is missing. Write-swarm certifies wrappers from the actual spawn worktree cwd, preventing relative prefix arguments from resolving one target during probe and another at execution.
+- **Independent review findings were closed before release.** The Kimi release-blocker pass confirmed no native-v2 containment hole, then caught the stale warn-only operator contract and plan-deserialization calls outside rescue/pursue/swarm cleanup. The warning/recovery policy is now consistent and corrupt/pre-slice plans transition jobs to failed rather than stranding them as running. The review also recorded two bounded costs without weakening the gate: review-gate performs its exact version probe before the 8-second model budget, and permanently unknown historical rows may re-read at most 32 MiB of saved log on inspection.
+- **0.39.1 patch certification is exact and v2 remains blocked.** All six 0.39.0→0.39.1 playbook scopes are 0 bytes. Exact 0.39.1 and live upstream `main` (`9d2304c`) retain the plan service's final `event.allow()` before ordinary external-hook listeners; no upstream issue/PR or released ordering contract exists yet, so `NATIVE_V2_CERTIFIED_OPERATIONS` stays empty. The exact temporary binary passed `bun run smoke:real` with **12 pass / 0 fail / 55 assertions in 400.68s**, including fresh/resumed default-plan legacy pinning, pursue every-turn enforcement, real swarm-child denial, write-swarm confinement (`patchBytes=278`, user tree clean, worktree removed), and out-of-root denial. `KIMI_TESTED_MINORS` is unchanged at `{0,39}`. Tags: `v1.9.12` and `compat-verified-kimi-code-0.39.1`.
+- **Release gate.** `bun run check` passed with **706 pass / 10 intentional real-binary skips / 0 fail / 2,203 assertions** across 38 files after regenerated Claude/Codex surfaces were staged.
+
+## 1.9.11 — 2026-08-27
+
+**Certifies kimi-code 0.39.0 on the forced legacy-v1 path.** Native agent-core-v2 remains fail-closed disabled; no hook, permission, concurrency, budget, confinement, or allowlist policy changed.
+
+- **Scoped source audit preserved the supported contract.** The 0.38.0→0.39.0 diffs were 0 bytes for CLI prompt mode (including the engine selector and all of its call sites), v1 permission policies, v1 hooks, and the wire/session scope; the only non-empty scoped surface (9,060 bytes) is MCP-registry `cwd`/OAuth-verify plumbing that leaves create/resume session bootstrap and the `config/` dir byte-unchanged. The v1 tool-layer files outside the scoped diffs (`path-access.ts`, `bash.ts`) are a win32-only shell-path-bridge refactor, provably identity on POSIX. The audit playbook gains a `06-v1-tools-sdk.diff` scope after the adversarial reviewer showed `packages/node-sdk` (source of `createKimiHarness`) and `packages/kaos` were on the `-p` path but never scoped.
+- **0.39.0's experimental tower mode and subagent fork are v2-only and inert on the pinned path.** Zero v1 flag-registry presence; the v1 `AgentSwarm` schema is `.strict()` so a model-supplied `fork` argument is rejected; both flags are subsumed by the already-refused `KIMI_CODE_EXPERIMENTAL_FLAG`; `[experimental] subagent_fork = true` in the shared config.toml is inert under v1 and does not trip the plugin's hooks-scoped validation. A dedicated v2 veto-ordering re-audit over the release's agent-core-v2 churn (diffstat: 337 changed files under `packages/agent-core-v2/src`, recorded in synthesis report 116) confirmed the plan-file final-allow defect is unchanged — and upstream's own Permission.md documents the bypass as intended with listener ordering an open design question — so both features (and native v2) stay gated on a released ordering contract.
+- **Remote Control (experimental) is contained by existing verification.** A tunneled config patch can remove the managed hook out-of-band; the per-spawn byte-exact `verifyHookInstalled` catches that fail-closed (an altered entry refuses as drift, a removed one as not-installed — same `/k3:setup` remedy). Operator notes on the relay's refresh-token forwarding and permissive loopback branch are recorded in the Post-GA audit log.
+- **Certification evidence is green.** The exact-0.39.0 temporary binary passed `bun run smoke:real` with **12 pass / 0 fail / 55 assertions in 554.49s**, covering forced-write denials, v2 pre-spawn refusal, fresh/resumed default-plan v1 pinning, pursue's every-turn hook gate, read-swarm child denial, write-swarm confinement (`patchBytes=278`, user tree clean, worktree removed), and non-vacuous out-of-root denial. `KIMI_TESTED_MINORS` gains `{0,39}`. Tags: `v1.9.11` and `compat-verified-kimi-code-0.39.0`. Reports 111-116; continuity report `.claude/kimi-code-research/daily-monitor/2026-08-27-upstream-monitor.md`.
+
+## 1.9.10 — 2026-08-24
+
+**Certifies kimi-code 0.37.x and 0.38.0 on the forced legacy-v1 path.** Native agent-core-v2 remains fail-closed disabled; no hook, permission, concurrency, budget, confinement, or allowlist policy changed.
+
+- **Scoped source audit preserved the supported contract.** Intermediate 0.37.0→0.37.1 and 0.37.1→0.37.2 diffs were 0 bytes across all five audit surfaces. The cumulative 0.36.1→0.38.0 audit found 1,805 bytes in CLI prompt mode (only the off-path hidden `__update_download` command), 0 bytes in permission, 0 bytes in hooks, 8,525 bytes in wire/session (MCP OAuth/session plumbing plus a 0.38 background-write drain), and 47,360 bytes in session bootstrap/config (MCP registry/OAuth plus create/resume wiring). Hook merge, cwd, policy order, matching, tool-input keys, and standard swarm-child permission inheritance remain unchanged. The 0.38.0 `WaitFor` tool is v2-only and outside the plugin read-only allowlist.
+- **Native-v2 containment remains load-bearing.** Exact 0.38.0 still permits plan-file final approval before the external hook in native v2. Accepted children therefore overwrite `KIMI_CODE_LEGACY_FLAG=1`, while truthy `KIMI_CODE_EXPERIMENTAL_FLAG` values refuse before spawn. KAP indexing and MoonshotAI/kimi-code#2376 remain upstream follow-ups; v2 is not re-enabled.
+- **Certification evidence is green.** The exact-0.38.0 temporary binary passed `bun run smoke:real` with **12 pass / 0 fail / 55 assertions in 381.64s**, covering forced-write denials, v2 refusal, fresh/resumed default-plan v1 pinning, pursue's every-turn hook gate, real read-swarm child denial, write-swarm confinement (`patchBytes=278`, user tree clean, worktree removed), and non-vacuous out-of-root denial. `KIMI_TESTED_MINORS` gains `{0,37}` and `{0,38}`.
+- **Release scope.** v1.9.10 publishes the verified compatibility boundary and regenerated Claude/Codex surfaces without changing safety defaults. Tags: `v1.9.10` and `compat-verified-kimi-code-0.38.0`. Continuity report: `.claude/kimi-code-research/daily-monitor/2026-08-24-upstream-monitor.md`.
+
+## 1.9.9 — 2026-08-13
+
+**Certifies kimi-code 0.36.0 on the forced legacy-v1 path.** Native agent-core-v2 remains fail-closed disabled; no hook, permission, concurrency, budget, confinement, or allowlist policy changed.
+
+- **Scoped source audit preserved the supported contract.** The immutable 0.35.0→0.36.0 diffs for CLI prompt mode, v1 permission policies, and v1 hooks were all 0 bytes. The 5,056-byte wire/session diff adds MCP OAuth credential coordination; the 22,703-byte bootstrap/config diff adds MCP OAuth inspection/coordinator APIs and v2 secondary-model pool config round-tripping. Neither changes the `-p` stream, create/resume hook merge, permission context, cwd, or workspace-local config loading.
+- **Native-v2 containment remains load-bearing.** Exact 0.36.0 still permits the plan listener to final-allow exact plan-file writes before later external hooks. Accepted children therefore overwrite `KIMI_CODE_LEGACY_FLAG=1`, while truthy `KIMI_CODE_EXPERIMENTAL_FLAG` values still refuse before spawn. The new v2 secondary-model keys are excluded from the v1 derived-model patch recipe.
+- **Certification evidence is green.** The exact-0.36.0 temporary binary passed `bun run smoke:real` with **12 pass / 0 fail / 55 assertions in 534.57s**, including forced-write denials, v2 pre-spawn refusal, fresh/resumed default-plan v1 pinning, pursue's every-turn hook gate, real read-swarm child denial, write-swarm confinement/cleanup, and out-of-root denial. `KIMI_TESTED_MINORS` gains `{0,36}`. Tags: `v1.9.9` and `compat-verified-kimi-code-0.36.0`.
 
 ## 1.9.8 — 2026-08-12
 

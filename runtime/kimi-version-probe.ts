@@ -13,11 +13,11 @@
 //   moved the session resume hint from stderr to a stream-json meta
 //   record, and our plugin captured nothing until we noticed).
 //
-//   The defensible posture: probe kimi-code's version at setup time,
-//   compare against the range we've actively tested, and emit a stderr
-//   warning when the user is outside it. We do NOT block — kimi-code is
-//   the user's tool of choice, our plugin sits beside it — but we
-//   loud-warn so a silent version drift can't sneak by.
+//   The defensible posture has two consumers: setup probes the installed
+//   command and warns outside the tested range; model jobs probe the exact
+//   command + prefix tuple to build a fail-closed execution plan before spawn.
+//   The latter is the durable engine-provenance gate: an operation outside its
+//   certified engine/version range is refused rather than guessed.
 //
 //   This is belt-and-suspenders for the alpha.4 `warnIfSessionIdMissing`
 //   surface: that warning fires when capture demonstrably fails on a
@@ -27,14 +27,15 @@
 //
 // What this module is NOT:
 //
-//   - Not a hard gate. We never refuse to run on version mismatch.
+//   - Not, by itself, the policy decision. setup still warns; the execution-
+//     plan layer (`kimi-engine.ts`) decides whether an exact result is certified.
 //   - Not a substitute for upstream compatibility testing. The right
 //     long-term answer is for kimi-code to advertise wire-protocol
 //     compatibility via a stable feature flag or version field in its
 //     stream-json output. Until upstream lands that, this is the best
 //     signal we can give users.
-//   - Not invoked on every spawn. Setup-time check is sufficient — a
-//     per-spawn probe would slow every command for no real benefit.
+//   - Not a license to infer historical versions. Old job rows remain unknown
+//     unless their saved logs contain positive evidence.
 
 import { spawn } from "node:child_process";
 
@@ -1092,6 +1093,167 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   // writes; forced-write labels, pursue, read-swarm, write-swarm confinement,
   // and out-of-root denial all passed. Daily monitor: 2026-08-12.
   { major: 0, minor: 35 },
+  // 0.36 added in v1.9.9 (2026-08-13) after the scoped source audit and
+  // exact-binary smoke against immutable upstream commit
+  // b6144f94ea6b22455a4e750d1750d220987e7bc2. The canonical CLI, v1
+  // permission, and hook surfaces were 0-byte diffs. The wire/session diff
+  // adds MCP OAuth credential coordination; bootstrap/config adds MCP OAuth
+  // inspection plus v2 secondary-model pool config round-tripping. Neither
+  // changes the supported -p stream, hook merge, permission context, cwd, or
+  // workspace-local config loading.
+  //
+  // Native v2 remains fail-closed: 0.36.0 still allows the plan listener to
+  // final-allow exact plan-file writes before external hooks, so accepted
+  // children stay pinned to legacy v1 and truthy experimental selectors still
+  // refuse before spawn. The added secondary-model pool keys are excluded
+  // from the v1 derived-model patch recipe and do not widen write capability.
+  //
+  // Exact-0.36.0 temp-binary smoke was GREEN: 12 pass / 0 fail, 55 assertions
+  // in 534.57s. Fresh/resumed default-plan runs stayed on v1 with hook-denied
+  // writes; forced-write labels, v2 refusal, pursue, read-swarm, write-swarm
+  // confinement, and out-of-root denial all passed. Daily monitor: 2026-08-13.
+  { major: 0, minor: 36 },
+  // 0.37–0.38 added in the 2026-08-24 compatibility catch-up after the
+  // cumulative audit through immutable upstream commit
+  // 0999454bdcb5ddd98f39bffee434dcf0a810f394 (tag @moonshot-ai/kimi-code@0.38.0).
+  // Intermediate 0.37.0→0.37.1 and 0.37.1→0.37.2 scoped diffs were 0 bytes
+  // across CLI prompt mode, permission, hooks, wire/session, and
+  // session-bootstrap/config. The cumulative 0.36.1→0.38.0 audit likewise
+  // found 0-byte CLI (except the off-path hidden __update_download command),
+  // permission, and hook surfaces; 8,525 bytes of wire/session MCP OAuth and
+  // background-write-drain plumbing; and 47,360 bytes of bootstrap/config
+  // MCP registry/OAuth plus create/resume wiring with hook merge/cwd unchanged.
+  // The 0.38.0 WaitFor tool is v2-only and remains outside the read-only
+  // allowlist. Native v2 remains fail-closed: accepted children force
+  // KIMI_CODE_LEGACY_FLAG=1, while truthy KIMI_CODE_EXPERIMENTAL_FLAG values
+  // refuse before spawn; the plan-file final-allow ordering gap and KAP
+  // follow-up therefore remain contained and uncertified.
+  //
+  // Exact-0.38.0 temp-binary smoke was GREEN: 12 pass / 0 fail, 55 assertions
+  // in 381.64s. It denied every forced-write label, refused v2 before spawn,
+  // kept fresh/resumed default-plan runs on v1, enforced the hook on every
+  // pursue turn, denied a read-swarm child write, confined write-swarm
+  // (patchBytes=278; user tree clean; worktree removed), and denied the
+  // non-vacuous out-of-root coder write. Daily monitor: 2026-08-24.
+  { major: 0, minor: 37 },
+  { major: 0, minor: 38 },
+  // 0.39.0 certified 2026-08-27 (same-day: npm publish 11:36Z, operator binary
+  // self-upgraded within hours; tag @moonshot-ai/kimi-code@0.39.0, commit
+  // 52e8d19d). Scoped diffs vs 0.38.0: CLI prompt mode (incl. the engine
+  // selector experimental-v2.ts), permission, hooks, and wire/session all
+  // 0-byte; bootstrap/config was 9,060 bytes of MCP-registry cwd threading +
+  // OAuth verify tri-state only (create/resume session bootstrap and the
+  // config/ dir byte-unchanged). The v1 tool-layer files outside the scoped
+  // diffs (tools/policies/path-access.ts, tools/builtin/shell/bash.ts) are a
+  // win32-only cygpath shell-path-bridge refactor, provably identity on POSIX
+  // and post-hook defense-in-depth regardless; audits now also scope
+  // packages/node-sdk/src (v1 portions) and packages/kaos/src, which are on
+  // the -p path but were previously un-scoped (this release: additive/benign).
+  //
+  // New experimental features are both agent-core-v2-only and unreachable on
+  // the pinned path: tower (KIMI_CODE_EXPERIMENTAL_TOWER; TUI /tower command;
+  // zero agent-core presence, node-sdk setTowerMode hard-throws on v1) and
+  // subagent fork (KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK / [experimental]
+  // subagent_fork; the v1 flag registry cannot express either flag, and the
+  // v1 AgentSwarm input schema is .strict() so a model-supplied fork arg is
+  // rejected). Both are subsumed by KIMI_CODE_EXPERIMENTAL_FLAG, which still
+  // refuses before spawn. Native v2 remains fail-closed: the plan listener
+  // still final-allows exact plan-file writes before external hooks (sole
+  // event.allow() call site; ordering is import-order with no contract, and
+  // upstream's Permission.md documents the bypass as intended with listener
+  // ordering an open design question), so accepted children stay pinned to
+  // legacy v1. Remote Control (0.39.0, experimental) can patch hooks via a
+  // tunneled config API; the per-spawn byte-exact hook verification catches
+  // that as RECOVERABLE drift — fail-closed, no runtime change needed.
+  //
+  // Exact-0.39.0 temp-binary smoke was GREEN: 12 pass / 0 fail, 55 assertions
+  // in 554.49s. It denied every forced-write label, refused v2 before spawn,
+  // kept fresh/resumed default-plan runs on v1, enforced the hook on every
+  // pursue turn, denied a read-swarm child write, confined write-swarm
+  // (patchBytes=278; user tree clean; worktree removed), and denied the
+  // non-vacuous out-of-root coder write. Reports 111-116; monitor 2026-08-27.
+  //
+  // 0.39.1 patch check certified 2026-08-29 (tag
+  // @moonshot-ai/kimi-code@0.39.1, immutable commit 5efca0c3; published
+  // 2026-08-28T10:01:03.520Z). All six playbook scopes are byte-identical to
+  // 0.39.0: CLI prompt mode, permission, hooks, wire/session,
+  // bootstrap/config, and v1 tools/SDK. Exact 0.39.1 and live upstream main
+  // 9d2304c retain the same v2 plan-before-external-hook final-allow path; no
+  // upstream issue/PR or released ordering API exists, so native v2 remains
+  // fail-closed and the production capability matrix stays empty.
+  //
+  // The exact-0.39.1 temp binary passed the v1.9.12 release-candidate
+  // smoke: 12 pass / 0 fail / 55 assertions in 400.68s. It proved forced-write
+  // denials, v2 pre-spawn refusal, fresh/resumed default-plan legacy pinning,
+  // pursue every-turn enforcement, real read-swarm child denial,
+  // write-swarm confinement (patchBytes=278; user tree clean; worktree
+  // removed), and out-of-root denial. Monitor: 2026-08-29.
+  { major: 0, minor: 39 },
+  // 0.40.0 certified 2026-09-02 (same-day: npm publish 05:58Z; tag
+  // @moonshot-ai/kimi-code@0.40.0, immutable commit e27ee608; 48 commits
+  // past 0.39.1). Scoped diffs vs 0.39.1: permission, hooks, and wire/session
+  // all 0 bytes; CLI prompt mode is --yolo/--auto help text plus new
+  // top-level `fork`/`session` subcommands (off the -p path — the plugin
+  // passes the prompt as the VALUE of -p, never a bare positional);
+  // bootstrap/config is one additive line (ModelAliasBaseSchema.protocol
+  // widens to 'anthropic' | 'openai_responses'); v1 tools/SDK is additive
+  // telemetry/session-list/tower plumbing with tool schemas (Write/Edit
+  // `path`, Bash `command`), kaos, and the v1 createKimiHarness entry point
+  // unchanged (the KimiHarness class gains one optional telemetry field that
+  // entry point does not wire). The
+  // whole packages/agent-core source tree changed by that one schema line.
+  // KIMI_CODE_LEGACY_FLAG=1 still forces v1 for fresh and resumed -p at the
+  // top of runPrompt(); engine selection reads only that env var and never
+  // config, so no config.toml key (incl. [experimental] tables, which can
+  // enable registered v1 flags without the env master switch — v1 registry
+  // holds only tool-select/secondary-model) can defeat the pin. #3427's
+  // config-beats-env flag precedence and #3434's legacy acp-adapter removal are
+  // v2-only / off the -p transport.
+  //
+  // Native v2 stays fail-closed: plan feature (index.ts:330) still registers
+  // before externalHooks (:338); planService.ts:112 is still the sole
+  // event.allow(); toolExecutor/ is a 0-byte diff; MoonshotAI/kimi-code#3431
+  // is open with no maintainer response. 0.40.0 ADDS a v2-only reason to keep
+  // refusing: #3444 removed the RuntimeWorkspaceView.resolve() root assertion,
+  // so v2 Bash can run with an out-of-workspace cwd (zero shared code with v1
+  // or kaos). The new v2 dangerous-command ask policy sits before the first
+  // approve but is skipped under nonInteractive (v2 print sets it) — inert
+  // and not an ordering fix. The 2026-09-01 live repro, re-run 2026-09-02 on the
+  // 0.40.0 binary, still bypasses the hook (REPRO_0391.md Run D).
+  //
+  // Operator-facing, not contract: v2 config writeback (#3392) now preserves
+  // config.toml formatting per domain, so managed-block markers may survive
+  // login/settings writes more often — the marker-less fallback fires less,
+  // never incorrectly; `kimi doctor` now validates config against the v2
+  // schema, whose hook schema is field-for-field identical to v1's.
+  //
+  // Exact-0.40.0 temp-binary smoke was GREEN: 12 pass / 0 fail / 55
+  // assertions in 383.45s (after a morning auth-expiry false alarm — 3/9 with
+  // auth.login_required and records=[] — cleared once operator auth was valid
+  // again; an isolated-home kimi -p probe answered OK before the re-run). It
+  // denied every forced-write label, refused v2 before spawn, kept
+  // fresh/resumed default-plan runs on v1, enforced the hook on every pursue
+  // turn, denied a read-swarm child write, confined write-swarm
+  // (patchBytes=306; user tree clean; worktree removed), and denied the
+  // non-vacuous out-of-root coder write. Reports 117-120; monitor 2026-09-02.
+  { major: 0, minor: 40 },
+  // 0.41.0 certified 2026-09-06; exact release commit 95478e8c.
+  // Compared with 0.40.0: CLI prompt mode, permission, hooks, wire/session,
+  // and bootstrap/config are 0 bytes; the entire v1 core is unchanged.
+  // SDK suggestFiles is additive (v1 returns undefined), plus a comment edit.
+  // Shared prompt-render/goal-prompt/prompt-session are also unchanged.
+  // Env-only legacy selection, the two-entry v1 flag registry, hook index 0,
+  // any-block-wins aggregation, tool input keys and trusted-root confinement
+  // remain load-bearing. No parser, permission or engine-routing change.
+  // Native v2 is NOT certified: plan still precedes external hooks
+  // (index.ts:329/341); planService.ts:110 final-allows the exact plan file.
+  // staleGuard and the old Permission.md are removed; auto-mode dangerous
+  // command checks are skipped. None establishes external-hook precedence.
+  // Exact same-day monitor smoke: 12 pass / 0 fail / 55 assertions, 383.88s.
+  // Fresh v2 reproduction: hook blocks Glob, plan Write bypasses it; v1
+  // control blocks Write. Reused evidence predates only this boundary/docs
+  // patch, not a behavior change. Reports 121-125; monitor 2026-09-06.
+  { major: 0, minor: 41 },
 ];
 
 export interface KimiVersionProbeOk {
@@ -1125,10 +1287,15 @@ export type KimiVersionProbeResult = KimiVersionProbeOk | KimiVersionProbeFailed
  */
 export async function probeKimiVersion(options: {
   kimiBin?: string;
+  /** Prefix argv that identifies the same wrapped CLI used for the real spawn. */
+  prefixArgs?: readonly string[];
+  /** Working directory used by the real spawn; relevant for relative wrappers. */
+  cwd?: string;
   env: NodeJS.ProcessEnv;
   timeoutMs?: number;
 }): Promise<KimiVersionProbeResult> {
   const bin = options.kimiBin ?? "kimi";
+  const args = [...(options.prefixArgs ?? []), "--version"];
   const timeoutMs = options.timeoutMs ?? KIMI_VERSION_PROBE_TIMEOUT_MS;
   return await new Promise<KimiVersionProbeResult>((resolve) => {
     let settled = false;
@@ -1139,7 +1306,8 @@ export async function probeKimiVersion(options: {
     };
     let child: ReturnType<typeof spawn>;
     try {
-      child = spawn(bin, ["--version"], {
+      child = spawn(bin, args, {
+        cwd: options.cwd,
         env: options.env,
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -1166,7 +1334,10 @@ export async function probeKimiVersion(options: {
       } catch {
         // best effort
       }
-      settle({ kind: "failed", reason: `\`${bin} --version\` timed out after ${timeoutMs}ms` });
+      settle({
+        kind: "failed",
+        reason: `\`${[bin, ...args].join(" ")}\` timed out after ${timeoutMs}ms`,
+      });
     }, timeoutMs);
     child.on("error", (err) => {
       clearTimeout(timer);
@@ -1181,7 +1352,7 @@ export async function probeKimiVersion(options: {
         const detail = stderr.trim() !== "" ? stderr.trim() : `exit ${code}`;
         settle({
           kind: "failed",
-          reason: `\`${bin} --version\` failed: ${detail}`,
+          reason: `\`${[bin, ...args].join(" ")}\` failed: ${detail}`,
         });
         return;
       }
@@ -1189,7 +1360,7 @@ export async function probeKimiVersion(options: {
       if (parsed === undefined) {
         settle({
           kind: "failed",
-          reason: `could not parse \`${bin} --version\` output: ${JSON.stringify(stdout.slice(0, 80))}`,
+          reason: `could not parse \`${[bin, ...args].join(" ")}\` output: ${JSON.stringify(stdout.slice(0, 80))}`,
         });
         return;
       }
@@ -1255,8 +1426,8 @@ export function maxTestedMinor(): { major: number; minor: number } {
 
 /**
  * Format a user-facing warning line for an out-of-range version probe.
- * Includes the canonical "not a block, just a heads up" framing so the
- * caller agent doesn't misinterpret this as fatal.
+ * Setup itself may complete, but the execution-plan gate will refuse model
+ * spawns until the operator selects a certified binary or updates the plugin.
  */
 export function formatVersionOutOfRangeWarning(probe: KimiVersionProbeOk, pluginVersion: string): string {
   const tested = KIMI_TESTED_MINORS.map((entry) => `${entry.major}.${entry.minor}.x`).join(", ");
@@ -1268,16 +1439,16 @@ export function formatVersionOutOfRangeWarning(probe: KimiVersionProbeOk, plugin
   ];
   if (aboveMax) {
     // H9: the known-good upper bound. Above it = a release newer than our last
-    // compat audit — usually fine, but unverified (and the case the version
-    // probe exists to flag when out-of-band auto-upgrade drifts the binary).
+    // compat audit — unverified, and exactly the case the version probe exists
+    // to flag when out-of-band auto-upgrade drifts the binary.
     lines.push(
-      `  This is NEWER than the newest version we have tested (${max.major}.${max.minor}.x) — likely fine, but unverified; kimi-code behaviors may have changed since our last compatibility audit.`,
+      `  This is NEWER than the newest version we have tested (${max.major}.${max.minor}.x) and is not yet certified for model execution.`,
     );
   }
   lines.push(
-    `  The plugin will still run, but a silent breakage may exist for behaviors that changed in your version.`,
-    `  If something looks off (missing session ids, malformed records, hook bypasses), check the kimi-code changelog`,
-    `  for changes since the last tested range and report mismatches via the plugin issue tracker.`,
+    `  Setup can complete, but model-spawning commands will refuse before Kimi starts rather than run an unreviewed engine/version route.`,
+    `  Update kimi-plugin-cc to a release that certifies this minor, or point KIMI_PLUGIN_CC_KIMI_BIN at a certified kimi-code binary and retry setup.`,
+    `  KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production compatibility override.`,
   );
   return lines.join("\n");
 }

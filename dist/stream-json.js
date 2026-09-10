@@ -1,7 +1,7 @@
 // Stream-JSON parser for `kimi -p --output-format stream-json`.
 //
 // Canonical record shapes (verified against kimi-code source at
-// apps/kimi-code/src/cli/run-prompt.ts — `PromptJsonWriter` emits one JSON
+// apps/kimi-code/src/cli/prompt-render.ts — `PromptJsonWriter` emits one JSON
 // object per line via `JSON.stringify(message) + '\n'`):
 //
 //   {"role":"assistant","content":"..."}
@@ -129,8 +129,16 @@
 //     and 0.29.2 automatic scope-activation refactor preserved the modeled
 //     system.version signal and terminal session pinning), 2026-07-29 covered
 //     0.30.0, 2026-07-31 covered 0.31.0, 2026-08-01 covered 0.31.1, and
-//     2026-08-08 covered 0.32.0 through 0.34.0, and 2026-08-12 covered 0.35.0.
-//     The legacy-v1 writer remains compatible through 0.35.0; custom profiles can change content/tools but
+//     2026-08-08 covered 0.32.0 through 0.34.0, 2026-08-12 covered 0.35.0,
+//     2026-08-13 covered 0.36.0, 2026-08-24 covered 0.37.0 through
+//     0.38.0, 2026-08-27 covered 0.39.0 (prompt-render.ts byte-identical;
+//     the MCP structured-content and error-code changes shift only prose
+//     inside opaque tool content strings), and 2026-09-02 covered 0.40.0
+//     (wire/session scope 0 bytes; run-prompt.ts absent from the diff). The
+//     2026-09-06 covered 0.41.0 (v1 core, prompt-render.ts, goal-prompt.ts,
+//     and prompt-session.ts unchanged; exact-binary smoke 12/0, 55 assertions).
+//     The legacy-v1 writer remains compatible through 0.41.0;
+//     custom profiles can change content/tools but
 //     not the NDJSON envelope. In 0.33.0 native v2 became the unflagged default,
 //     so v1.9.6 forces KIMI_CODE_LEGACY_FLAG=1 in every accepted child while
 //     retaining the old experimental-selector refusal. This parser continues

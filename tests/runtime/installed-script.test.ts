@@ -28,7 +28,17 @@ beforeAll(async () => {
         return true;
       }
       const parts = relative.split(path.sep);
-      return !parts.includes("node_modules") && !parts.includes(".git");
+      // Exclude node_modules/.git (irrelevant to the companion wrapper) and
+      // `.claude` — the gitignored local audit workspace (upstream clones,
+      // handoff packets) that can grow to hundreds of MB on a dev machine and
+      // has nothing to do with this test. Copying it made the setup hook time
+      // out. `.tmp` is scratch build/test output, also irrelevant.
+      return (
+        !parts.includes("node_modules") &&
+        !parts.includes(".git") &&
+        !parts.includes(".claude") &&
+        !parts.includes(".tmp")
+      );
     },
   });
 
@@ -48,7 +58,10 @@ beforeAll(async () => {
     "utf8",
   );
   await chmod(fakeNode20Path, 0o755);
-});
+  // Generous timeout: the setup recursively copies the repo (minus the excluded
+  // dirs) to a temp dir, which is legitimately slow on a synced/slow disk and
+  // can exceed bun's 5s default hook timeout under parallel test load.
+}, 60_000);
 
 afterAll(async () => {
   if (cleanCopyRoot) {

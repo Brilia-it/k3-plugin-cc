@@ -74,13 +74,15 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
  */
 const AGENT_SWARM_TOOL = "AgentSwarm";
 /**
- * agent-core-v2 plan mode can final-allow writes to its KIMI_CODE_HOME plan
- * file before later external hooks run. cli-client therefore refuses the v2
- * engine entirely while this ordering exists. Keep the model-reachable entry
- * tool denied as defense in depth and as an explicit invariant for the day v2
- * can safely be re-enabled.
+ * agent-core-v2's ONLY chain-breaking final allow is the plan-file guard, and
+ * it fires only while plan mode is ACTIVE. Native v2 is therefore certified on
+ * the invariant that plan mode is never armed in a plugin-managed session:
+ * `default_plan_mode` is refused pre-spawn (runtime/native-v2-preflight.ts),
+ * plan-tainted sessions are never resumed, and the model-reachable entry tool
+ * is denied HERE for every label. ExitPlanMode is denied too so the deny set
+ * is explicit rather than a side effect of the read-only allowlists.
  */
-const ENTER_PLAN_MODE_TOOL = "EnterPlanMode";
+const PLAN_MODE_TOOLS: ReadonlySet<string> = new Set(["EnterPlanMode", "ExitPlanMode"]);
 
 /**
  * Rescue evaluator signature. PR 3 wires
@@ -110,15 +112,14 @@ export interface PolicyContext {
    */
   rescueEvaluator?: RescueEvaluator;
   /**
-   * Trusted workspace root for the "swarm-write" label (v1.4), from the
-   * KIMI_PLUGIN_CC_WORKSPACE_ROOT env the plugin exports on the spawn (the
-   * ephemeral worktree path). The swarm-write case confines writes to THIS
-   * path via the rescue evaluator, NOT the hook payload `cwd` — so confinement
-   * cannot be defeated by upstream changing how it derives the payload cwd, and
-   * the model inside kimi cannot forge it. Undefined ⇒ swarm-write denies all
-   * writes (fail-closed misconfiguration).
+   * Trusted workspace root for write-capable labels, from the
+   * KIMI_PLUGIN_CC_WORKSPACE_ROOT env the plugin exports on the spawn. Rescue
+   * and pursue use the job cwd; swarm-write uses its ephemeral worktree. Writes
+   * are confined to THIS path via the rescue evaluator, never the hook payload
+   * `cwd`, so upstream payload derivation cannot change the trust boundary.
+   * Undefined means write tools are denied (fail-closed misconfiguration).
    */
-  swarmWriteWorkspaceRoot?: string;
+  trustedWorkspaceRoot?: string;
 }
 
 /**
@@ -149,11 +150,11 @@ export async function decideHookOutcome(
 
   const toolName = typeof input.tool_name === "string" ? input.tool_name : "";
 
-  if (toolName === ENTER_PLAN_MODE_TOOL) {
+  if (PLAN_MODE_TOOLS.has(toolName)) {
     return {
       decision: "deny",
       reason:
-        `kimi-plugin-cc safety hook: tool "${ENTER_PLAN_MODE_TOOL}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks.`,
+        `kimi-plugin-cc safety hook: tool "${toolName}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks; native plan mode is never armed in plugin-managed sessions.`,
     };
   }
 
@@ -204,7 +205,7 @@ export async function decideHookOutcome(
       // (off the user's HEAD). Allow AgentSwarm (else the swarm never launches)
       // plus the read-only set; deny the singular Agent. Every write/edit/shell
       // goes through the rescue allowlist — but scoped to the TRUSTED env-provided
-      // worktree root (ctx.swarmWriteWorkspaceRoot), NOT the hook payload `cwd`.
+      // worktree root (ctx.trustedWorkspaceRoot), NOT the hook payload `cwd`.
       // Rationale: the worktree path is exported as KIMI_PLUGIN_CC_WORKSPACE_ROOT
       // by the same trusted plugin spawn that sets KIMI_PLUGIN_CC_CMD, so the
       // model running inside kimi cannot forge it, and confinement does not
@@ -214,7 +215,7 @@ export async function decideHookOutcome(
         return { decision: "allow" };
       }
       const workspaceRoot =
-        typeof ctx.swarmWriteWorkspaceRoot === "string" ? ctx.swarmWriteWorkspaceRoot : "";
+        typeof ctx.trustedWorkspaceRoot === "string" ? ctx.trustedWorkspaceRoot : "";
       if (workspaceRoot.length === 0) {
         return {
           decision: "deny",
@@ -237,11 +238,19 @@ export async function decideHookOutcome(
       };
     }
 
-    case "rescue":
+    case "rescue": {
+      const workspaceRoot =
+        typeof ctx.trustedWorkspaceRoot === "string" ? ctx.trustedWorkspaceRoot : "";
+      if (workspaceRoot.length === 0) {
+        if (READ_ONLY_TOOLS.has(toolName)) return { decision: "allow" };
+        return {
+          decision: "deny",
+          reason:
+            `kimi-plugin-cc safety hook: rescue received no trusted workspace root; tool "${toolName}" denied. ` +
+            "This is a plugin misconfiguration — writes are refused rather than trusting hook payload cwd.",
+        };
+      }
       if (ctx.rescueEvaluator !== undefined) {
-        const workspaceRoot = typeof input.cwd === "string" && input.cwd.length > 0
-          ? input.cwd
-          : process.cwd();
         return await ctx.rescueEvaluator(workspaceRoot, toolName, input.tool_input);
       }
       // Stub for callers that didn't inject the evaluator (e.g.,
@@ -257,6 +266,7 @@ export async function decideHookOutcome(
         reason:
           `kimi-plugin-cc safety hook: rescue evaluator not configured; tool "${toolName}" denied as a safety default.`,
       };
+    }
 
     default:
       if (KNOWN_LABELS.has(label)) {

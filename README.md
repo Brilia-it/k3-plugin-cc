@@ -114,7 +114,7 @@ that does not own the block simply will not run.
 | Platform | Status |
 |---|---|
 | Windows 11 | **Tested.** Enforcement verified end to end inside a real `kimi-code` session |
-| macOS | **Supported, not tested by us.** Every change we made is gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream v1.9.8, which upstream certifies against `kimi-code` 0.35.0 |
+| macOS | **Supported, not tested by us.** Every change we made is gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream v1.10.1, which upstream certifies against `kimi-code` 0.42.0 (native v2) and 0.1-0.41.x (legacy) |
 | Linux | Same as macOS |
 
 If you are the first to run this on macOS or Linux, we would like to hear about it either way.
@@ -164,19 +164,34 @@ its keep; used as an authority it will cost you.
 
 ### Which versions this is
 
-This fork is built on upstream **v1.9.8** (commit `145cf80`), and its version number says so: the
-half before `-brilia.` is the upstream release we are built on, the half after counts our own
-changes.
+This fork is built on upstream **v1.10.1**, and its version number says so: the half before
+`-brilia.` is the upstream release we are built on, the half after counts our own changes. We
+re-aligned to upstream on **2026-09-10**; before that we sat on v1.9.8.
 
-**You are not getting upstream's latest.** As of 2026-09-07 they are at **v1.9.14**, six releases
-ahead of our base. We check for new upstream releases weekly, so that gap is measured rather than
-assumed, but measuring it is not closing it: until we re-align, this is v1.9.8 plus three Windows
-fixes. For what changed in between, read
-[upstream's releases](https://github.com/linxule/kimi-plugin-cc/releases).
+**v1.10 changed how the plugin picks an engine, and it can refuse where v1.9 ran.** Upstream moved
+to kimi-code's native agent-core-v2 because kimi-code **0.42.0 deleted the legacy v1 engine**.
+Engine selection is now:
 
-Newer upstream releases have been tested against newer `kimi-code` builds. This fork's Windows
-enforcement was last exercised locally against `kimi-code` **0.30.0**, on **2026-09-05**. If you run
-a newer CLI, the measurements above still describe 0.30.0, not what you have.
+| Your `kimi-code` | What happens |
+|---|---|
+| **0.1 through 0.41.x** | Legacy v1 engine, as before. Certified per minor. This is most people today. |
+| **exactly 0.42.0** | Native v2. Certified for all eight operations. |
+| **0.42.1 or newer** | **Every model-spawning command refuses** (`KIMI_CAPABILITY_NOT_CERTIFIED`) until a release certifies that exact version. |
+
+That last row is the one to know about, because **kimi-code updates itself in the background**. On
+the next upstream patch after 0.42.0 the plugin will start refusing until upstream certifies it.
+Pin `KIMI_PLUGIN_CC_KIMI_BIN` to a known binary if you need continuity.
+
+Two more v1.10 behaviours worth knowing before you update: **sessions created before 1.10 cannot be
+resumed on 0.42.0** (nothing is deleted, but start fresh ones), and **`default_plan_mode = true` in
+`~/.kimi-code/config.toml` now blocks every command** — that setting would arm the one code path
+that bypasses the safety hook, and `/k3:setup` cannot repair it. Full list in
+[docs/migration.md](./docs/migration.md).
+
+This fork's Windows enforcement was last exercised locally against `kimi-code` **0.30.0**, on
+**2026-09-10**, after the merge with upstream v1.10.1: nine write vectors denied on `cmd.exe` and on
+`sh`, with the positive and negative controls both firing. If you run a different CLI version, that
+measurement describes 0.30.0, not what you have.
 
 ## What this fork changes
 

@@ -12,7 +12,7 @@ kimi-plugin-cc project:
     Copyright 2026 Xule Lin
     Licensed under the Apache License, Version 2.0
 
-This fork is based on upstream tag v1.9.8 (commit 145cf80). Modifications made by
+This fork is based on upstream tag v1.10.1. Modifications made by
 BRILIA are limited to Windows compatibility and are marked in the affected source
 files, as required by section 4(b) of the License. They are released under the
 same Apache License, Version 2.0.

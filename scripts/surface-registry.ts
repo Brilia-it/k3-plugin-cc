@@ -34,27 +34,27 @@ export interface CodexSkillSpec {
 }
 
 export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
-  { path: ".claude-plugin/plugin.json", sha256: "60bb59d93d05c10e0a1298c55f8f7d316a68446e97f4aabce85ab719bd39c663" },
-  { path: ".claude-plugin/marketplace.json", sha256: "dbc4cdf77ecce1cd36d0aa0b3a872962a0d1da302e25f1d7ed6fb2a4988ecba4" },
+  { path: ".claude-plugin/plugin.json", sha256: "7f7994f59c7018586a1eb0d40533523059ea88906303bf0823a5ca68f95ad6c9" },
+  { path: ".claude-plugin/marketplace.json", sha256: "a412738423c39ededccacef48c44fe6c482a094d1e9e12641a683259677512bb" },
   { path: "commands/README.md", sha256: "f996a084f8c7762c2405c3990443cff49d96003416da8fead8fd875a0f50fd23" },
   { path: "commands/ask.md", sha256: "5ffcd405b1f905f400c00520d210afc6dbf35cae3a0b07c6189866fa639bf778" },
   { path: "commands/cancel.md", sha256: "4d1c1e9d0534fac113fea18e2c8993d99f3ada1335186f66cd995a45f1057db4" },
   { path: "commands/challenge.md", sha256: "7131e086e84cbfcdfb6580b6b156480b21aec9e0ae5e2ebeb4e35c8c3ed76ef0" },
-  { path: "commands/pursue.md", sha256: "dcb097c75ec37b4979bde3149f5ce0d9d28d1672f2863422dfa6320b3c75a5fa" },
+  { path: "commands/pursue.md", sha256: "66ef05900edd25f2cdb94b60c6ac9e35d4c9b86abddfda2f428fac0adb37d80a" },
   { path: "commands/replay.md", sha256: "84e46faa17b032f43dccb37190e461d1da3f807226f3814a9e5cd302afcf12e3" },
   { path: "commands/rescue.md", sha256: "7708b9d2a48a25e260d1b711472d32c5a2b772b1e7bbdbd6279f55af75abf130" },
   { path: "commands/result.md", sha256: "d5ae361ea6c95f139e4bf1d2f23cb69e14c23c9e0e2b6e8084274e8245016db5" },
   { path: "commands/review.md", sha256: "2a5103029d91bd1f204979e8a52a9726ecfb171bcdc0b273be155ec7ced7c243" },
   { path: "commands/setup.md", sha256: "17e0e2c274f3cc4cb36780ea62c078bb1bbeeee81bfd1b0c8e0594f7e7f4fc8c" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
-  { path: "commands/swarm.md", sha256: "c4d1b6fdf67458c5024261fa1e3a80849954e68c6ba969ed074f20bfd1dab485" },
-  { path: "agents/k3-ask.md", sha256: "6d7a7c683cc1e9ce1b0c5f5348611dcd30d4cebc3e95932ab703c246ccca6cb5" },
-  { path: "agents/k3-challenge.md", sha256: "b0a993815894e7f57e1818ac74a60be13856155fbcd6de661b4fd37e6258e2d6" },
-  { path: "agents/k3-pursue.md", sha256: "c3d8d9db712480f2829b250124d2603b4af20fba5c424b7dce0e0290ba71e5a6" },
-  { path: "agents/k3-rescue.md", sha256: "ce07cb88a485c52f69aaba07e76b61d6d5f1c88b716f6291d2ae8c205c0d7ed6" },
-  { path: "agents/k3-review.md", sha256: "b6ea4c889014af3a7d590e84bbe0d542dc4a95b515823e9ac5d3e9e69b9b0c27" },
-  { path: "agents/k3-swarm-write.md", sha256: "444de4e555d50e6a28f98dec6337c759d4e3cd803ee396133f6e013b25ac5557" },
-  { path: "agents/k3-swarm.md", sha256: "f082ece535da4163e7ed5557c905beff65f1781875430e40da5b76041f942a1b" },
+  { path: "commands/swarm.md", sha256: "1b2bf73f5d4cc4faed1c72898577d4d1cb6537d86441d5a6e13e1e33eca3ee46" },
+  { path: "agents/k3-ask.md", sha256: "e6d8a76c50796ace9e4b112852320baa509f689ad9f64b6686277c788bd77c50" },
+  { path: "agents/k3-challenge.md", sha256: "48c6cd295ef7bceeb9b38658e88d9b0d333f880dd1571bf09a78e4af44b30c25" },
+  { path: "agents/k3-pursue.md", sha256: "f908fb7c4b2918e4505258f4764bc2c9ec9a75ed43be7572a5ed5401d4b9277f" },
+  { path: "agents/k3-rescue.md", sha256: "72276792d6c706a5d654fac70fc7c03ef2263798f038298760fe7b53adcaf736" },
+  { path: "agents/k3-review.md", sha256: "7ff72a700a86d3e3e362a51c5c46df98313507448672fd969e603051d2cca2ca" },
+  { path: "agents/k3-swarm-write.md", sha256: "01ece81eca55c856b09ca56b6c591f5b62e6eee4d06f338ea8f9106c397634c0" },
+  { path: "agents/k3-swarm.md", sha256: "05ec5929b00da57cee525d9a208040b681dfd152da9622f0153981f0760ed644" },
 ];
 
 export const CODEX_PLUGIN_MANIFEST = {

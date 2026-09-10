@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { evaluateRescueHookRequest, hasUnsafeShellSyntax } from "../../runtime/rescue-approval.js";
@@ -137,6 +138,61 @@ describe("evaluateRescueHookRequest", () => {
       } finally {
         await cleanupTestPath(repoRoot);
         await cleanupTestPath(outsideRoot);
+      }
+    });
+  });
+
+  describe("Bash cwd confinement", () => {
+    const cases: { name: string; input: { command: string; cwd?: unknown }; reason?: string }[] = [
+      { name: "absent cwd", input: { command: "bun test" } },
+      { name: "undefined cwd", input: { command: "bun test", cwd: undefined } },
+      { name: "absolute subdirectory", input: { command: "bun test", cwd: "<root>/sub" } },
+      { name: "relative subdirectory", input: { command: "bun test", cwd: "sub" } },
+      { name: "workspace root", input: { command: "bun test", cwd: "." } },
+      { name: "test outside workspace", input: { command: "bun test", cwd: "/tmp" }, reason: "Bash cwd" },
+      { name: "git outside workspace", input: { command: "git status", cwd: "/tmp" }, reason: "Bash cwd" },
+      { name: "relative escape", input: { command: "bun test", cwd: "../escape" }, reason: "outside the workspace" },
+      { name: ".git directory", input: { command: "bun test", cwd: "<root>/.git" }, reason: "inside .git" },
+      { name: "nested .git directory", input: { command: "bun test", cwd: "sub/.git" }, reason: "inside .git" },
+      { name: "final symlink outside", input: { command: "bun test", cwd: "<root>/link-out" }, reason: "symlink" },
+      { name: "final symlink inside", input: { command: "bun test", cwd: "link-in" }, reason: "symlink" },
+      { name: "dangling symlink", input: { command: "bun test", cwd: "dangling" }, reason: "symlink" },
+      { name: "ancestor symlink outside", input: { command: "bun test", cwd: "link-out/nested" }, reason: "outside the workspace" },
+      { name: "ancestor symlink into .git", input: { command: "bun test", cwd: "link-git/nested" }, reason: "inside .git" },
+      { name: "missing directory", input: { command: "bun test", cwd: "<root>/missing" }, reason: "missing" },
+      { name: "file", input: { command: "bun test", cwd: "<root>/file.txt" }, reason: "not a directory" },
+      { name: "numeric cwd", input: { command: "bun test", cwd: 42 }, reason: "Bash cwd" },
+      { name: "null cwd", input: { command: "bun test", cwd: null }, reason: "Bash cwd" },
+      { name: "empty cwd", input: { command: "bun test", cwd: "" }, reason: "non-empty string" },
+      { name: "filesystem error", input: { command: "bun test", cwd: "sub\0" }, reason: "cannot inspect Bash cwd" },
+      { name: "command rejection after valid cwd", input: { command: "rm -rf x", cwd: "sub" }, reason: "rm" },
+      { name: "cwd rejection before command policy", input: { command: "rm -rf x", cwd: "../escape" }, reason: "Bash cwd" },
+    ];
+
+    test.each(cases)("$name", async ({ input, reason }) => {
+      const fixture = await mkdtemp(path.join(os.tmpdir(), "rescue-bash-cwd-"));
+      const root = path.join(fixture, "workspace");
+      const outside = path.join(fixture, "escape");
+      try {
+        await mkdir(path.join(root, "sub", ".git"), { recursive: true });
+        await mkdir(path.join(root, ".git", "nested"), { recursive: true });
+        await mkdir(path.join(outside, "nested"), { recursive: true });
+        await symlink(outside, path.join(root, "link-out"));
+        await symlink(path.join(root, "sub"), path.join(root, "link-in"));
+        await symlink(path.join(root, ".git"), path.join(root, "link-git"));
+        await symlink(path.join(root, "missing"), path.join(root, "dangling"));
+        await writeFile(path.join(root, "file.txt"), "fixture");
+
+        const toolInput = { ...input };
+        if (typeof toolInput.cwd === "string") {
+          toolInput.cwd = toolInput.cwd.replace("<root>", root);
+        }
+        const decision = await evaluateRescueHookRequest(root, "Bash", toolInput);
+        expect(decision).toEqual(reason
+          ? { decision: "deny", reason: expect.stringContaining(reason) }
+          : { decision: "allow" });
+      } finally {
+        await cleanupTestPath(fixture);
       }
     });
   });

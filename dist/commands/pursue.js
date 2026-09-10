@@ -2,14 +2,13 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { createCliCancellationHandlers } from "../cli-cancellation.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
-import { resolveKimiCliCommand } from "../kimi-command.js";
+import { executionPlanFromPersisted, observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, } from "../kimi-engine.js";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
 import { digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
 import { JobStore } from "../job-store.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { KIMI_PURSUE_DEFAULT_BUDGET_MS } from "../kimi-timeouts.js";
-import { probeKimiVersion } from "../kimi-version-probe.js";
 import { writeInvocationLogHeader } from "../logging.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import { parsePursueArgs } from "../parsing.js";
@@ -17,7 +16,7 @@ import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.j
 import { hookRefusalDetails, hookRefusalRetryProtocol, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
-// /k3:pursue — autonomous goal mode (kimi-code 0.8.0+ headless `/goal`).
+// /kimi:pursue — autonomous goal mode (kimi-code 0.8.0+ headless `/goal`).
 //
 // PROTOTYPE SCOPE (v1.1 experimental). Deliberately narrow:
 //   - FOREGROUND ONLY. No --background/--detach yet. Goal mode is experimental
@@ -30,7 +29,7 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //     so we capture+surface the goalId but don't offer resume yet.
 //   - Reuses the RESCUE job lineage (command_type "rescue", KIMI_PLUGIN_CC_CMD=
 //     "rescue") so the PreToolUse hook applies the workspace write allowlist to
-//     EVERY continuation turn, and /k3:status / /k3:result / /k3:cancel
+//     EVERY continuation turn, and /kimi:status / /kimi:result / /kimi:cancel
 //     work unchanged. Promoting pursue to a first-class command_type is a
 //     follow-up (would ripple through ManagedCommandType + the registry).
 //
@@ -39,8 +38,6 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 // 0.12.0 by the goal-mode real-binary smoke, reports 61-65). So a goal-mode run
 // is exactly as write-gated as a single-turn rescue. The only NEW risk is
 // unboundedness, bounded here by the AbortController wall-clock ceiling.
-/** kimi-code minor that introduced headless goal mode (#270, 0.8.0). */
-const GOAL_MODE_MIN_MINOR = 8;
 const PURSUE_SUMMARY_MAX = 120;
 const PURSUE_AGENT_PROFILE = "<goal-mode>";
 /**
@@ -49,6 +46,29 @@ const PURSUE_AGENT_PROFILE = "<goal-mode>";
  * anything else is a genuine process failure. Source:
  * apps/kimi-code/src/cli/goal-prompt.ts::GOAL_EXIT_CODES.
  */
+/**
+ * Goal-terminal exits (3 = blocked, 6 = paused) are NOT failures, so
+ * `assertCliResultSuccess` never runs for them — which means a native-v2 plan
+ * whose child exited 3/6 emitting nothing would otherwise resolve with an
+ * empty artifact and unproven provenance (cli-client enforces marker-first on
+ * every emitted line and on a clean exit, but not on a silent non-zero exit).
+ * Require the marker on every non-aborted goal-terminal result of a v2 plan.
+ * (Kimi second-round finding 2.)
+ */
+export function assertGoalRunProvenance(plan, result) {
+    if (plan.intendedEngine !== "native-v2" || result.aborted || result.systemVersion !== undefined) {
+        return;
+    }
+    throw new RuntimeError("CLI_ENGINE_PROVENANCE_MISMATCH", `Refusing pursue result: the execution plan required native-v2, but the child exited ${String(result.exitCode)} without the system.version marker, so the engine that ran cannot be established.`, "pursue.provenance", {
+        details: {
+            operation_kind: "pursue",
+            intended_engine: "native-v2",
+            observed_engine: result.observedEngine ?? null,
+            exit_code: result.exitCode,
+            retryable_after_setup: false,
+        },
+    });
+}
 export function classifyGoalExit(exitCode) {
     switch (exitCode) {
         case 0:
@@ -90,7 +110,7 @@ function renderGoalHeader(summary, exitStatus) {
         lines.push(`**Usage:** ${metrics.join(", ")}`);
     }
     if (summary?.goalId) {
-        lines.push(`**Goal id:** \`${summary.goalId}\` (resume is not yet exposed for /k3:pursue — see docs/safety.md)`);
+        lines.push(`**Goal id:** \`${summary.goalId}\` (resume is not yet exposed for /kimi:pursue — see docs/safety.md)`);
     }
     return lines.join("\n");
 }
@@ -98,7 +118,7 @@ export async function runPursue(argv, context) {
     const parsed = parsePursueArgs(argv);
     const objective = parsed.objective?.trim();
     if (!objective) {
-        throw new RuntimeError("INVALID_ARGS", "/k3:pursue requires an objective. Usage: /k3:pursue [--budget 30m] [--turns N] [-m model] <objective>", "pursue.parse");
+        throw new RuntimeError("INVALID_ARGS", "/kimi:pursue requires an objective. Usage: /kimi:pursue [--budget 30m] [--turns N] [-m model] <objective>", "pursue.parse");
     }
     const paths = resolvePluginPaths(context.env);
     await ensurePluginPaths(paths);
@@ -106,7 +126,11 @@ export async function runPursue(argv, context) {
     const store = new JobStore(paths);
     try {
         await sweepStaleJobs(store, paths);
-        await assertGoalModeSupported(context);
+        const executionPlan = await prepareKimiExecutionPlan({
+            operationKind: "pursue",
+            cwd: context.cwd,
+            env: context.env,
+        });
         const prompt = buildGoalPrompt(objective, parsed.turns);
         const jobId = randomUUID();
         const logPath = path.join(paths.logsDir, `pursue-${jobId}.jsonl`);
@@ -123,6 +147,7 @@ export async function runPursue(argv, context) {
             kimi_pid: null,
             status: "running",
             kimi_session_id: null,
+            ...persistedExecutionPlanFields(executionPlan),
             agent_profile: PURSUE_AGENT_PROFILE,
             prompt_digest: digestPrompt(prompt),
             summary: `[pursue] ${shorten(objective, PURSUE_SUMMARY_MAX)}`,
@@ -170,9 +195,9 @@ async function executePursueJob(jobId, prompt, objective, budgetMs, context) {
         if (!installStatus.installed) {
             maybeWarnHookMissing(installStatus, "rescue", context.stderr);
             const classified = new RuntimeError("PURSUE_HOOK_NOT_INSTALLED", [
-                "/k3:pursue refuses to run without the kimi-plugin-cc PreToolUse hook.",
+                "/kimi:pursue refuses to run without the kimi-plugin-cc PreToolUse hook.",
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-                "Repair by running Claude Code /k3:setup or Codex $k3-setup, then retry.",
+                "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
                 "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
                 hookRefusalRetryProtocol(context.env),
             ].join(" "), "pursue.hook-check", { details: hookRefusalDetails(installStatus) });
@@ -185,8 +210,8 @@ async function executePursueJob(jobId, prompt, objective, budgetMs, context) {
         }
     }
     const handlers = createCliCancellationHandlers();
-    const kimi = resolveKimiCliCommand(context.env);
     try {
+        const executionPlan = executionPlanFromPersisted(job);
         store.updateRunningJob(job.job_id, { phase: "turn-running" });
         const result = await runCliPromptWithBudget({
             cwd: job.cwd,
@@ -199,14 +224,17 @@ async function executePursueJob(jobId, prompt, objective, budgetMs, context) {
             // 0.8–0.11 compat. The /goal prompt prefix (buildGoalPrompt) is the
             // actual trigger on every supported version.
             env: { ...context.env, KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND: "1" },
-            command: kimi.command,
-            prefixArgs: kimi.prefixArgs,
+            command: executionPlan.command,
+            prefixArgs: [...executionPlan.prefixArgs],
+            executionPlan,
             prompt,
             commandLabel: "rescue",
+            trustedWorkspaceRoot: job.cwd,
             model: job.model ?? undefined,
             logPath: job.stream_log_path,
             signal: handlers.signal,
         }, budgetMs, "pursue.prompt");
+        store.updateRunningJob(job.job_id, observedExecutionFields(result));
         if (handlers.cancelling) {
             throw new RuntimeError("PURSUE_CANCELLED", "Pursue cancelled by user request.", "pursue.runtime");
         }
@@ -217,6 +245,7 @@ async function executePursueJob(jobId, prompt, objective, budgetMs, context) {
         if (goalStatus === "unknown") {
             assertCliResultSuccess(result, "pursue.runtime");
         }
+        assertGoalRunProvenance(executionPlan, result);
         if (result.sessionId !== undefined &&
             result.sessionId.length > 0 &&
             result.sessionId !== job.kimi_session_id) {
@@ -270,25 +299,6 @@ async function executePursueJob(jobId, prompt, objective, budgetMs, context) {
     finally {
         handlers.dispose();
         store.close();
-    }
-}
-/**
- * Soft version gate. Goal mode shipped in kimi-code 0.8.0; on an older binary
- * the experimental flag is ignored and `/goal ...` is treated as a literal
- * prompt (degraded, not dangerous). Refuse on a confirmed-too-old version;
- * a failed probe (flaky spawn) does not block — the run surfaces real errors.
- * Honors KIMI_PLUGIN_CC_SKIP_VERSION_PROBE=1 (the smoke harness sets it).
- */
-async function assertGoalModeSupported(context) {
-    if (context.env.KIMI_PLUGIN_CC_SKIP_VERSION_PROBE === "1")
-        return;
-    const kimi = resolveKimiCliCommand(context.env);
-    const probe = await probeKimiVersion({ kimiBin: kimi.command, env: context.env });
-    if (probe.kind !== "ok")
-        return;
-    const supported = probe.major > 0 || (probe.major === 0 && probe.minor >= GOAL_MODE_MIN_MINOR);
-    if (!supported) {
-        throw new RuntimeError("PURSUE_GOAL_MODE_UNSUPPORTED", `/k3:pursue needs kimi-code >= 0.${GOAL_MODE_MIN_MINOR}.0 (headless goal mode); detected ${probe.version}. Upgrade kimi-code and retry.`, "pursue.version-gate");
     }
 }
 function shorten(text, max) {

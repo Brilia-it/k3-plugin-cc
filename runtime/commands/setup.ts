@@ -82,6 +82,7 @@ import {
   formatVersionOutOfRangeWarning,
   probeKimiVersion,
 } from "../kimi-version-probe.js";
+import { isNativeV2CertifiedVersion } from "../kimi-engine.js";
 import { resolveKimiHome } from "../kimi-home.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import type { CommandContext } from "../types.js";
@@ -1328,16 +1329,15 @@ function classifyProbeExit(code: number | null): string {
  * installed kimi is outside the range kimi-plugin-cc was tested
  * against (H6, Codex post-hotfix audit Area 8).
  *
- * Soft-fail policy: if the probe itself fails (kimi not on PATH, spawn
+ * Setup soft-fail policy: if the probe itself fails (kimi not on PATH, spawn
  * error, unparseable output), we record nothing here — the hook probe
  * will surface a more direct error in that case. We only loud-warn when
- * the version is **demonstrably** out of range, so users with kimi
- * installed-and-working but unsupported get an explicit signal before
- * a silent breakage bites them.
+ * the version is **demonstrably** out of range. Setup may still complete,
+ * but the model execution-plan gate will refuse that binary before spawn.
  *
  * Override: `KIMI_PLUGIN_CC_SKIP_VERSION_PROBE=1` skips the probe
- * entirely — useful for tests, CI environments without kimi installed,
- * and for users who consciously want to silence this warning.
+ * entirely for tests and CI environments without kimi installed. It is not a
+ * production compatibility override; model jobs persist it as test-bypass.
  */
 async function collectKimiVersionWarnings(
   env: NodeJS.ProcessEnv,
@@ -1354,7 +1354,11 @@ async function collectKimiVersionWarnings(
     // clearer message. Avoid double-noise.
     return;
   }
-  if (probe.inTestedRange) return;
+  // Certified for EITHER engine is "in range": the legacy tested minors, or an
+  // exact native-v2 certified version (which is deliberately outside
+  // KIMI_TESTED_MINORS — that table never gains 0.42). Without this, setup on a
+  // v2-certified binary would wrongly warn "not certified, commands will refuse".
+  if (probe.inTestedRange || isNativeV2CertifiedVersion(probe.version)) return;
   warnings.push(formatVersionOutOfRangeWarning(probe, KIMI_PLUGIN_CC_VERSION));
 }
 

@@ -87,10 +87,17 @@ describe("isInTestedRange", () => {
     expect(isInTestedRange(0, 33)).toBe(true);
     expect(isInTestedRange(0, 34)).toBe(true);
     expect(isInTestedRange(0, 35)).toBe(true);
+    expect(isInTestedRange(0, 36)).toBe(true);
+    expect(isInTestedRange(0, 37)).toBe(true);
+    expect(isInTestedRange(0, 38)).toBe(true);
+    expect(isInTestedRange(0, 39)).toBe(true);
+    expect(isInTestedRange(0, 40)).toBe(true);
+    expect(isInTestedRange(0, 41)).toBe(true);
   });
 
   test("returns false for an unknown minor", () => {
-    expect(isInTestedRange(0, 36)).toBe(false);
+    const max = maxTestedMinor();
+    expect(isInTestedRange(max.major, max.minor + 1)).toBe(false);
     expect(isInTestedRange(0, 99)).toBe(false);
   });
 
@@ -130,7 +137,8 @@ describe("formatVersionOutOfRangeWarning", () => {
     expect(text).toContain("1.0.0-test");
     expect(text).toContain("0.1.x");
     expect(text).toContain("0.2.x");
-    expect(text).toContain("plugin will still run");
+    expect(text).toContain("model-spawning commands will refuse");
+    expect(text).toContain("not a production compatibility override");
   });
 
   test("H9: flags a version NEWER than the tested max with an above-bound note", () => {

@@ -3,14 +3,13 @@ import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createCliCancellationHandlers } from "../cli-cancellation.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
-import { resolveKimiCliCommand } from "../kimi-command.js";
+import { executionPlanFromPersisted, observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, } from "../kimi-engine.js";
 import { RuntimeError } from "../errors.js";
 import { captureWorktreePatch, createEphemeralWorktree, hasBornHead, isWorkingTreeDirty, pruneWorktrees, removeWorktree, resolveRepoIdentity, } from "../git.js";
 import { digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
 import { JobStore } from "../job-store.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { KIMI_SWARM_DEFAULT_BUDGET_MS } from "../kimi-timeouts.js";
-import { probeKimiVersion } from "../kimi-version-probe.js";
 import { writeInvocationLogHeader } from "../logging.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import { MAX_DURATION_MS, parseSwarmArgs } from "../parsing.js";
@@ -18,7 +17,7 @@ import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.j
 import { hookRefusalDetails, hookRefusalRetryProtocol, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
-// /k3:swarm — READ-ONLY parallel fan-out (kimi-code 0.12.0 AgentSwarm tool).
+// /kimi:swarm — READ-ONLY parallel fan-out (kimi-code 0.12.0 AgentSwarm tool).
 //
 // PROTOTYPE SCOPE (v1.2). The lowest-risk swarm shape: parallel review/analysis
 // over N targets, with NO write surface. Deliberately narrow:
@@ -34,9 +33,9 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //     (kimi-code createPermissionDecisionPolicies puts the hook at index 0 for
 //     ALL agents — verified against 0.12.0), so a subagent's Write/Edit/Bash is
 //     denied exactly like a single-turn review's.
-//   - Reuses the REVIEW job lineage (command_type "review") so /k3:status /
-//     /k3:result / /k3:cancel work unchanged. The hook label ("swarm") is
-//     independent of the job lineage — mirrors how /k3:pursue reuses the
+//   - Reuses the REVIEW job lineage (command_type "review") so /kimi:status /
+//     /kimi:result / /kimi:cancel work unchanged. The hook label ("swarm") is
+//     independent of the job lineage — mirrors how /kimi:pursue reuses the
 //     rescue lineage with its own label. Promoting swarm to a first-class
 //     command_type is a follow-up.
 //
@@ -45,16 +44,6 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //   without the index-0 hook there is ZERO enforcement on ALL of them — an
 //   N-fold blast radius. KIMI_PLUGIN_CC_SKIP_HOOK_CHECK remains an explicit,
 //   tests/diagnostics-only bypass of that refusal.
-/** kimi-code minor that introduced the AgentSwarm tool (#424, 0.12.0). */
-const SWARM_MIN_MINOR = 12;
-/**
- * kimi-code minor required for WRITE mode (--write). 0.18.0 is the first version
- * that honors KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY (PR #888); below it a write
- * fan-out has NO hard peak-parallelism bound (the batch ramps to 5 immediately),
- * which is unacceptable for concurrent writers into one shared worktree. So write
- * mode refuses on < 0.18 even though the AgentSwarm tool itself exists from 0.12.
- */
-const WRITE_SWARM_MIN_MINOR = 18;
 const SWARM_SUMMARY_MAX = 120;
 const SWARM_AGENT_PROFILE = "<swarm>";
 const SWARM_WRITE_AGENT_PROFILE = "<swarm-write>";
@@ -76,7 +65,7 @@ const SWARM_WRITE_AGENT_PROFILE = "<swarm-write>";
 export const WORKTREE_ORPHAN_TTL_MS = MAX_DURATION_MS + 2 * 60 * 60 * 1000;
 /**
  * Default HARD concurrency ceiling applied when the user passes no
- * `--max-concurrency`. Since v1.3 `/k3:swarm` is ALSO reachable via the
+ * `--max-concurrency`. Since v1.3 `/kimi:swarm` is ALSO reachable via the
  * model-invocable `kimi-swarm` agent (Claude can auto-dispatch a fan-out), so an
  * unbounded peak-parallelism default is no longer acceptable: we always export
  * `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY` (effective on kimi-code 0.18.0+; older
@@ -189,7 +178,7 @@ export async function runSwarm(argv, context) {
     const parsed = parseSwarmArgs(argv);
     const objective = parsed.objective?.trim();
     if (!objective) {
-        throw new RuntimeError("INVALID_ARGS", "/k3:swarm requires an objective. Usage: /k3:swarm [--write] [--budget 30m] [--cap N] [--max-concurrency N] [-m model] <objective>", "swarm.parse");
+        throw new RuntimeError("INVALID_ARGS", "/kimi:swarm requires an objective. Usage: /kimi:swarm [--write] [--budget 30m] [--cap N] [--max-concurrency N] [-m model] <objective>", "swarm.parse");
     }
     return parsed.write
         ? runWriteSwarm(parsed, objective, context)
@@ -203,7 +192,11 @@ async function runReadSwarm(parsed, objective, context) {
     const store = new JobStore(paths);
     try {
         await sweepStaleJobs(store, paths);
-        await assertSwarmSupported(context, SWARM_MIN_MINOR);
+        const executionPlan = await prepareKimiExecutionPlan({
+            operationKind: "swarm",
+            cwd: context.cwd,
+            env: context.env,
+        });
         const prompt = buildSwarmPrompt(objective, parsed.cap);
         const jobId = randomUUID();
         const logPath = path.join(paths.logsDir, `swarm-${jobId}.jsonl`);
@@ -221,6 +214,7 @@ async function runReadSwarm(parsed, objective, context) {
             kimi_pid: null,
             status: "running",
             kimi_session_id: null,
+            ...persistedExecutionPlanFields(executionPlan),
             agent_profile: SWARM_AGENT_PROFILE,
             prompt_digest: digestPrompt(prompt),
             summary: `[swarm] ${shorten(objective, SWARM_SUMMARY_MAX)}`,
@@ -266,56 +260,20 @@ async function runWriteSwarm(parsed, objective, context) {
     const store = new JobStore(paths);
     try {
         await sweepStaleJobs(store, paths);
-        // Write mode needs the hard concurrency env (kimi-code 0.18.0+), a real git
-        // repo, and a born HEAD before any job state is created.
-        await assertSwarmSupported(context, WRITE_SWARM_MIN_MINOR);
+        // Write mode needs a real git repo and a born HEAD before any job state is
+        // created. Its execution plan is certified below from the actual throwaway
+        // worktree cwd, not from the user's tree.
         assertWriteSwarmPreconditions(repoIdentity);
         if (!(await hasBornHead(context.cwd))) {
-            throw new RuntimeError("WRITE_SWARM_NO_HEAD", "/k3:swarm --write needs a git repository with at least one commit (HEAD). This repo has an unborn HEAD; make an initial commit first.", "swarm.precondition");
+            throw new RuntimeError("WRITE_SWARM_NO_HEAD", "/kimi:swarm --write needs a git repository with at least one commit (HEAD). This repo has an unborn HEAD; make an initial commit first.", "swarm.precondition");
         }
         await sweepStaleWorktrees(paths, repoIdentity);
         if (await isWorkingTreeDirty(context.cwd)) {
-            context.stderr.write("[kimi-plugin-cc] /k3:swarm --write bases its worktree on HEAD — your uncommitted changes are NOT visible to the swarm. Commit or stash them first if the swarm needs them.\n");
+            context.stderr.write("[kimi-plugin-cc] /kimi:swarm --write bases its worktree on HEAD — your uncommitted changes are NOT visible to the swarm. Commit or stash them first if the swarm needs them.\n");
         }
         const prompt = buildSwarmWritePrompt(objective, parsed.cap);
         const jobId = randomUUID();
         const logPath = path.join(paths.logsDir, `swarm-write-${jobId}.jsonl`);
-        const job = store.createJob({
-            job_id: jobId,
-            repo_id: repoIdentity.repoId,
-            // Reuse the rescue (write-capable) lineage, like pursue; the hook label
-            // below ("swarm-write") drives the allowlist. cwd stays the USER's real
-            // cwd for lineage — the kimi spawn cwd is the worktree (threaded via the
-            // writeMode arg to executeSwarmJob).
-            command_type: "rescue",
-            cwd: context.cwd,
-            model: parsed.model ?? null,
-            thinking: parsed.thinking ?? null,
-            background: false,
-            pid: process.pid,
-            kimi_pid: null,
-            status: "running",
-            kimi_session_id: null,
-            agent_profile: SWARM_WRITE_AGENT_PROFILE,
-            prompt_digest: digestPrompt(prompt),
-            summary: `[swarm-write] ${shorten(objective, SWARM_SUMMARY_MAX)}`,
-            phase: "starting",
-            final_output_path: null,
-            stream_log_path: logPath,
-            error: null,
-        });
-        try {
-            await writeInvocationLogHeader(logPath, {
-                commandType: "swarm-write",
-                kimiSessionId: "(pending)",
-                cwd: context.cwd,
-            });
-        }
-        catch (error) {
-            const classified = new RuntimeError("SWARM_LOG_HEADER_FAILED", `Failed to write swarm-write invocation log header: ${error.message ?? String(error)}`, "swarm.log-header", error instanceof Error ? { cause: error } : undefined);
-            await markJobFailed(store, paths, job, classified, "Swarm (write) failed.", { phase: "failed" });
-            throw classified;
-        }
         // Namespace worktrees per repo so the cross-repo sweep below only ever
         // touches THIS repo's subtree (the worktreesDir is a single global dir shared
         // across every repo the user runs --write in).
@@ -325,13 +283,58 @@ async function runWriteSwarm(parsed, objective, context) {
             await createEphemeralWorktree(repoIdentity.repoRoot, "HEAD", worktreePath);
         }
         catch (error) {
-            const classified = error instanceof RuntimeError
+            throw (error instanceof RuntimeError
                 ? error
-                : new RuntimeError("GIT_WORKTREE_ADD_FAILED", String(error), "swarm.worktree");
-            await markJobFailed(store, paths, job, classified, "Swarm (write) failed.", { phase: "failed" });
-            throw classified;
+                : new RuntimeError("GIT_WORKTREE_ADD_FAILED", String(error), "swarm.worktree"));
         }
         try {
+            // Prefix args can contain relative wrapper/script paths. Probe from the
+            // exact spawn cwd so the certified command tuple and its effective target
+            // cannot diverge merely because --write runs in a separate worktree.
+            const executionPlan = await prepareKimiExecutionPlan({
+                operationKind: "swarm-write",
+                cwd: worktreePath,
+                env: context.env,
+            });
+            const job = store.createJob({
+                job_id: jobId,
+                repo_id: repoIdentity.repoId,
+                // Reuse the rescue (write-capable) lineage, like pursue; the hook label
+                // below ("swarm-write") drives the allowlist. cwd stays the USER's real
+                // cwd for lineage — the kimi spawn cwd is the worktree (threaded via the
+                // writeMode arg to executeSwarmJob).
+                command_type: "rescue",
+                cwd: context.cwd,
+                model: parsed.model ?? null,
+                thinking: parsed.thinking ?? null,
+                background: false,
+                pid: process.pid,
+                kimi_pid: null,
+                status: "running",
+                kimi_session_id: null,
+                ...persistedExecutionPlanFields(executionPlan),
+                agent_profile: SWARM_WRITE_AGENT_PROFILE,
+                prompt_digest: digestPrompt(prompt),
+                summary: `[swarm-write] ${shorten(objective, SWARM_SUMMARY_MAX)}`,
+                phase: "starting",
+                final_output_path: null,
+                stream_log_path: logPath,
+                error: null,
+            });
+            try {
+                await writeInvocationLogHeader(logPath, {
+                    commandType: "swarm-write",
+                    kimiSessionId: "(pending)",
+                    cwd: context.cwd,
+                });
+            }
+            catch (error) {
+                const classified = new RuntimeError("SWARM_LOG_HEADER_FAILED", `Failed to write swarm-write invocation log header: ${error.message ?? String(error)}`, "swarm.log-header", error instanceof Error ? { cause: error } : undefined);
+                await markJobFailed(store, paths, job, classified, "Swarm (write) failed.", {
+                    phase: "failed",
+                });
+                throw classified;
+            }
             const completed = await executeSwarmJob(job.job_id, prompt, objective, parsed.budgetMs ?? KIMI_SWARM_DEFAULT_BUDGET_MS, resolveSwarmWriteMaxConcurrency(parsed.maxConcurrency), context, { spawnCwd: worktreePath, workspaceRoot: worktreePath });
             if (!completed.final_output_path) {
                 throw new RuntimeError("SWARM_RESULT_MISSING", "Swarm (write) finished without a rendered result.", "swarm.result");
@@ -351,7 +354,7 @@ async function runWriteSwarm(parsed, objective, context) {
 /** Refuse --write outside a git repo (git worktree add has nothing to fork). */
 function assertWriteSwarmPreconditions(repoIdentity) {
     if (!repoIdentity.isGitRepo) {
-        throw new RuntimeError("WRITE_SWARM_NOT_A_REPO", "/k3:swarm --write requires a git repository (it works in a throwaway worktree off HEAD). The current directory is not inside a git repo.", "swarm.precondition");
+        throw new RuntimeError("WRITE_SWARM_NOT_A_REPO", "/kimi:swarm --write requires a git repository (it works in a throwaway worktree off HEAD). The current directory is not inside a git repo.", "swarm.precondition");
     }
 }
 /**
@@ -442,11 +445,11 @@ writeMode) {
         if (!installStatus.installed) {
             maybeWarnHookMissing(installStatus, "swarm", context.stderr);
             const classified = new RuntimeError("SWARM_HOOK_NOT_INSTALLED", [
-                "/k3:swarm refuses to run without the kimi-plugin-cc PreToolUse hook.",
+                "/kimi:swarm refuses to run without the kimi-plugin-cc PreToolUse hook.",
                 "Swarm fans out multiple subagents; the hook is the ONLY thing keeping every",
                 "one of them read-only, so a missing hook means no enforcement across the fan-out.",
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-                "Repair by running Claude Code /k3:setup or Codex $k3-setup, then retry.",
+                "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
                 hookRefusalRetryProtocol(context.env),
             ].join(" "), "swarm.hook-check", { details: hookRefusalDetails(installStatus) });
             try {
@@ -458,8 +461,8 @@ writeMode) {
         }
     }
     const handlers = createCliCancellationHandlers();
-    const kimi = resolveKimiCliCommand(context.env);
     try {
+        const executionPlan = executionPlanFromPersisted(job);
         store.updateRunningJob(job.job_id, { phase: "turn-running" });
         const result = await runCliPromptWithBudget({
             // Read mode spawns in the user's cwd; WRITE mode spawns in the throwaway
@@ -467,8 +470,9 @@ writeMode) {
             // cwd for lineage). This is the load-bearing isolation seam.
             cwd: writeMode?.spawnCwd ?? job.cwd,
             env: context.env,
-            command: kimi.command,
-            prefixArgs: kimi.prefixArgs,
+            command: executionPlan.command,
+            prefixArgs: [...executionPlan.prefixArgs],
+            executionPlan,
             prompt,
             // "swarm" → read-only-plus-AgentSwarm allowlist; "swarm-write" → the same
             // PLUS rescue-grade write confinement to the trusted worktree root. The
@@ -483,11 +487,12 @@ writeMode) {
             swarmMaxConcurrency: maxConcurrency,
             // Trusted allowlist root for the swarm-write hook (forge-proof; ignored
             // by other labels). Only set in write mode.
-            swarmWriteWorkspaceRoot: writeMode?.workspaceRoot,
+            trustedWorkspaceRoot: writeMode?.workspaceRoot,
             model: job.model ?? undefined,
             logPath: job.stream_log_path,
             signal: handlers.signal,
         }, budgetMs, "swarm.prompt");
+        store.updateRunningJob(job.job_id, observedExecutionFields(result));
         if (handlers.cancelling) {
             throw new RuntimeError("SWARM_CANCELLED", "Swarm cancelled by user request.", "swarm.runtime");
         }
@@ -559,42 +564,6 @@ writeMode) {
     finally {
         handlers.dispose();
         store.close();
-    }
-}
-/**
- * Version gate. The AgentSwarm tool shipped in kimi-code 0.12.0; on an older
- * binary the tool does not exist and the coordinator's AgentSwarm call fails
- * inside kimi (degraded, not dangerous — the read-only hook still holds).
- *
- * A failed probe (flaky spawn) resolves by MODE:
- *  - Read mode (minMinor < WRITE_SWARM_MIN_MINOR): fail OPEN. A too-old binary is
- *    only degraded, so an unconfirmable version does not block.
- *  - Write mode (minMinor >= WRITE_SWARM_MIN_MINOR): fail CLOSED. Safe concurrent
- *    writes depend on the hard KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY cap, which
- *    ONLY exists on >= 0.18.0 (PR #888). Below it, older binaries ignore the env
- *    var, the default serialization (--max-concurrency 1) is enforced NOWHERE,
- *    and racing `coder` subagents can corrupt the shared-worktree patch. Without
- *    a CONFIRMED >= 0.18.0 we cannot guarantee the cap, so we must refuse.
- *
- * Honors KIMI_PLUGIN_CC_SKIP_VERSION_PROBE=1 (the smoke harness sets it).
- */
-async function assertSwarmSupported(context, minMinor) {
-    if (context.env.KIMI_PLUGIN_CC_SKIP_VERSION_PROBE === "1")
-        return;
-    const kimi = resolveKimiCliCommand(context.env);
-    const probe = await probeKimiVersion({ kimiBin: kimi.command, env: context.env });
-    if (probe.kind !== "ok") {
-        if (minMinor >= WRITE_SWARM_MIN_MINOR) {
-            throw new RuntimeError("SWARM_UNSUPPORTED", `/k3:swarm --write needs a CONFIRMED kimi-code >= 0.${WRITE_SWARM_MIN_MINOR}.0 (the hard AgentSwarm concurrency cap required for safe concurrent writes), but the version probe failed: ${probe.reason}. Ensure kimi-code is on PATH and retry.`, "swarm.version-gate");
-        }
-        return;
-    }
-    const supported = probe.major > 0 || (probe.major === 0 && probe.minor >= minMinor);
-    if (!supported) {
-        const reason = minMinor >= WRITE_SWARM_MIN_MINOR
-            ? `/k3:swarm --write needs kimi-code >= 0.${WRITE_SWARM_MIN_MINOR}.0 (the hard AgentSwarm concurrency cap, required for safe concurrent writes)`
-            : `/k3:swarm needs kimi-code >= 0.${SWARM_MIN_MINOR}.0 (the AgentSwarm tool)`;
-        throw new RuntimeError("SWARM_UNSUPPORTED", `${reason}; detected ${probe.version}. Upgrade kimi-code and retry.`, "swarm.version-gate");
     }
 }
 function shorten(text, max) {

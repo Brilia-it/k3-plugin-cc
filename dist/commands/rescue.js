@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { createCliCancellationHandlers } from "../cli-cancellation.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
-import { resolveKimiCliCommand } from "../kimi-command.js";
+import { assertPersistedResumeLineage, executionPlanFromPersisted, observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, reconcileHistoricalJobProvenance, } from "../kimi-engine.js";
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
@@ -48,8 +48,16 @@ export async function runRescue(argv, context) {
     const store = new JobStore(paths);
     try {
         await sweepStaleJobs(store, paths);
-        const sessionResolution = resolveRescueSession(store, repoIdentity.repoId, parsed.prompt, parsed.fresh, parsed.resume, parsed.resumeTarget);
+        const sessionResolution = await resolveRescueSession(store, repoIdentity.repoId, parsed.prompt, parsed.fresh, parsed.resume, parsed.resumeTarget);
         const prompt = buildRescuePrompt(parsed.prompt, sessionResolution.reusedSession);
+        const executionPlan = await prepareKimiExecutionPlan({
+            operationKind: "rescue",
+            cwd: context.cwd,
+            env: context.env,
+            resumedFromJobId: sessionResolution.resumedFromJobId,
+            resumeSessionId: sessionResolution.kimiSessionId ?? undefined,
+            resumeSource: sessionResolution.sourceJob,
+        });
         const jobId = randomUUID();
         const logPath = path.join(paths.logsDir, `rescue-${jobId}.jsonl`);
         const job = store.createJob({
@@ -64,6 +72,7 @@ export async function runRescue(argv, context) {
             kimi_pid: null,
             status: "running",
             kimi_session_id: sessionResolution.kimiSessionId,
+            ...persistedExecutionPlanFields(executionPlan),
             agent_profile: RESCUE_AGENT_PROFILE_PLACEHOLDER,
             prompt_digest: digestPrompt(prompt),
             summary: shorten(prompt, RESCUE_SUMMARY_MAX),
@@ -148,8 +157,15 @@ export async function executeRescueJob(jobId, prompt, context, options) {
         }
     }
     const handlers = createCliCancellationHandlers();
-    const kimi = resolveKimiCliCommand(context.env);
     try {
+        const executionPlan = executionPlanFromPersisted(job);
+        // Re-validate resume lineage from the store before spawning: a detached
+        // worker (or a forged queued row) reloads the persisted plan and would
+        // otherwise hand kimi_session_id to the spawn without the dispatch-time
+        // lineage check. Fresh sessions (no resumedFromJobId) are exempt.
+        if (job.kimi_session_id !== null) {
+            await assertPersistedResumeLineage(store, executionPlan, job.kimi_session_id, "rescue");
+        }
         if (options?.workerPid) {
             store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
         }
@@ -157,10 +173,12 @@ export async function executeRescueJob(jobId, prompt, context, options) {
         const result = await runCliPromptWithBudget({
             cwd: job.cwd,
             env: context.env,
-            command: kimi.command,
-            prefixArgs: kimi.prefixArgs,
+            command: executionPlan.command,
+            prefixArgs: [...executionPlan.prefixArgs],
+            executionPlan,
             prompt,
             commandLabel: "rescue",
+            trustedWorkspaceRoot: job.cwd,
             model: job.model ?? undefined,
             resumeSessionId: job.kimi_session_id ?? undefined,
             logPath: job.stream_log_path,
@@ -168,6 +186,7 @@ export async function executeRescueJob(jobId, prompt, context, options) {
             // SIGKILL escalation defaults to 1500ms inside cli-client —
             // matches v0.4's cancellation.ts behavior for the wire client.
         }, KIMI_RESCUE_PROMPT_TIMEOUT_MS, "rescue.prompt");
+        store.updateRunningJob(job.job_id, observedExecutionFields(result));
         if (handlers.cancelling) {
             throw new RuntimeError(cancel.errorCodes.cancelled, cancel.cancelMessages.afterPrompt, "rescue.runtime");
         }
@@ -245,9 +264,9 @@ function buildRescuePrompt(prompt, reusedSession) {
     }
     throw new RuntimeError("INVALID_ARGS", "rescue requires a task description.", "rescue.parse");
 }
-function resolveRescueSession(store, repoId, prompt, fresh, resume, resumeTarget) {
+async function resolveRescueSession(store, repoId, prompt, fresh, resume, resumeTarget) {
     if (fresh) {
-        return { kimiSessionId: null, reusedSession: false };
+        return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null, sourceJob: null };
     }
     if (resumeTarget) {
         const byJob = store.getJob(resumeTarget);
@@ -256,30 +275,48 @@ function resolveRescueSession(store, repoId, prompt, fresh, resume, resumeTarget
         if (!exact) {
             throw new RuntimeError("RESCUE_RESUME_NOT_FOUND", `No rescue job or session matched ${resumeTarget}.`, "rescue.resume");
         }
-        ensureSessionIsNotRunning(exact);
-        if (!exact.kimi_session_id) {
+        const source = await reconcileHistoricalJobProvenance(store, exact);
+        ensureSessionIsNotRunning(source);
+        if (!source.kimi_session_id) {
             throw new RuntimeError("RESCUE_RESUME_NOT_FOUND", `No rescue job or session matched ${resumeTarget}.`, "rescue.resume");
         }
-        return { kimiSessionId: exact.kimi_session_id, reusedSession: true };
+        return {
+            kimiSessionId: source.kimi_session_id,
+            reusedSession: true,
+            resumedFromJobId: source.job_id,
+            sourceJob: source,
+        };
     }
     if (resume) {
         const latest = store.findLatestJob({ repoId, commandType: "rescue" });
         if (!latest) {
             throw new RuntimeError("RESCUE_RESUME_NOT_FOUND", "No prior rescue session exists for this repository.", "rescue.resume");
         }
-        ensureSessionIsNotRunning(latest);
-        if (!latest.kimi_session_id) {
+        const source = await reconcileHistoricalJobProvenance(store, latest);
+        ensureSessionIsNotRunning(source);
+        if (!source.kimi_session_id) {
             throw new RuntimeError("RESCUE_RESUME_NOT_FOUND", "No prior rescue session exists for this repository.", "rescue.resume");
         }
-        return { kimiSessionId: latest.kimi_session_id, reusedSession: true };
+        return {
+            kimiSessionId: source.kimi_session_id,
+            reusedSession: true,
+            resumedFromJobId: source.job_id,
+            sourceJob: source,
+        };
     }
     if (prompt && AUTO_RESUME_PATTERN.test(prompt)) {
         const latest = store.findLatestJob({ repoId, commandType: "rescue" });
         if (latest?.kimi_session_id && latest.status !== "running") {
-            return { kimiSessionId: latest.kimi_session_id, reusedSession: true };
+            const source = await reconcileHistoricalJobProvenance(store, latest);
+            return {
+                kimiSessionId: source.kimi_session_id,
+                reusedSession: true,
+                resumedFromJobId: source.job_id,
+                sourceJob: source,
+            };
         }
     }
-    return { kimiSessionId: null, reusedSession: false };
+    return { kimiSessionId: null, reusedSession: false, resumedFromJobId: null, sourceJob: null };
 }
 function ensureSessionIsNotRunning(job) {
     if (job.status === "running") {

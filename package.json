@@ -1,6 +1,6 @@
 {
   "name": "k3-plugin-cc",
-  "version": "1.9.8-brilia.0.2.1",
+  "version": "1.10.1-brilia.0.3.0",
   "private": true,
   "description": "Claude Code plugin that delegates review, challenge, ask, and rescue work to the local kimi-code CLI.",
   "type": "module",

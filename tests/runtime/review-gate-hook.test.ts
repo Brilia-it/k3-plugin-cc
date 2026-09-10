@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 import { resolveRepoIdentity } from "../../runtime/git.js";
 import { JobStore } from "../../runtime/job-store.js";
@@ -416,3 +416,85 @@ async function seedKimiSession(kimiHome: string, sessionId: string): Promise<str
   );
   return statePath;
 }
+
+// Codex second-round F3: the Stop-hook entry script runs from the plugin root
+// (scripts/review-gate-hook.sh `cd`s there), while the child is spawned with
+// cwd = payload.cwd. A RELATIVE KIMI_CODE_HOME must resolve against the SAME
+// base for hook verification and for the spawn, or verification can pass on
+// one home while the child reads another. Here the entry script runs from the
+// repo root (standing in for the plugin root) and the payload cwd is a temp
+// dir that holds the only real home + managed hook.
+describe("review gate resolves a relative KIMI_CODE_HOME against the payload cwd", () => {
+  test("hook verification and the spawned child use the same home", async () => {
+    const pluginDataRoot = await createTestPluginDataRoot("review-gate-rel-home");
+    const relHome = "rel-kimi-home";
+    const kimiHome = path.join(pluginDataRoot, relHome);
+    const invocationPath = path.join(pluginDataRoot, "review-gate-invocation.jsonl");
+    const sessionId = "session_dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const nodeExecPath = spawnSync("node", ["-p", "process.execPath"], { encoding: "utf8" }).stdout.trim();
+    const hostEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      CLAUDE_PLUGIN_ROOT: process.cwd(),
+      CLAUDE_PLUGIN_DATA: pluginDataRoot,
+      KIMI_PLUGIN_CC_NODE_BIN: nodeExecPath,
+    };
+    delete hostEnv.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK;
+
+    try {
+      await seedKimiSession(kimiHome, sessionId);
+      const paths = resolvePluginPaths(hostEnv);
+      await mkdir(paths.pluginRoot, { recursive: true });
+      await writeFile(paths.configPath, `${JSON.stringify({ reviewGateEnabled: true }, null, 2)}\n`, "utf8");
+      const transcriptPath = path.join(pluginDataRoot, "transcript.jsonl");
+      await writeFile(
+        transcriptPath,
+        [
+          JSON.stringify({ type: "user", message: { content: [{ type: "text", text: "Fix the failing path." }] } }),
+          JSON.stringify({
+            type: "assistant",
+            message: { content: [{ type: "text", text: "I fixed the issue and everything is complete." }] },
+          }),
+        ].join("\n") + "\n",
+        "utf8",
+      );
+
+      // Install the managed hook into the ABSOLUTE home through the real
+      // entry script so the canonical command byte-matches at verify time.
+      const setup = spawnSync(path.join(process.cwd(), "scripts", "companion.sh"), ["setup"], {
+        env: { ...hostEnv, KIMI_CODE_HOME: kimiHome },
+        encoding: "utf8",
+      });
+      expect(setup.status, `${setup.stdout}\n${setup.stderr}`).toBe(0);
+      expect(existsSync(path.join(kimiHome, "config.toml"))).toBe(true);
+
+      // No SKIP_HOOK_CHECK: verification must find the hook under
+      // <payload.cwd>/rel-kimi-home, not <entry cwd>/rel-kimi-home.
+      const output = await invokeHook(
+        {
+          ...hostEnv,
+          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
+          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
+          KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+          KIMI_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
+          KIMI_CODE_HOME: relHome,
+        },
+        {
+          cwd: pluginDataRoot,
+          hook_event_name: "Stop",
+          stop_hook_active: false,
+          transcript_path: transcriptPath,
+        },
+      );
+
+      expect(String(output.systemMessage ?? "")).not.toContain("hook is missing");
+      expect(output.decision).toBe("block");
+      const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as {
+        env: { KIMI_CODE_HOME: string | null };
+      };
+      expect(invocation.env.KIMI_CODE_HOME).toBe(kimiHome);
+    } finally {
+      await cleanupTestPath(pluginDataRoot);
+    }
+  }, 60_000);
+});

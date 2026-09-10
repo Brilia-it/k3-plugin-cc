@@ -4,7 +4,11 @@ import os from "node:os";
 import path from "node:path";
 
 import { runCliPromptWithBudget } from "../cli-client.js";
-import { resolveKimiCliCommand } from "../kimi-command.js";
+import {
+  observedExecutionFields,
+  persistedExecutionPlanFields,
+  prepareKimiExecutionPlan,
+} from "../kimi-engine.js";
 import { readPluginConfig } from "../config.js";
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
@@ -24,6 +28,7 @@ import {
 } from "../render.js";
 import type { CommandContext } from "../types.js";
 import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
+import { resolveKimiHome } from "../kimi-home.js";
 import { assertCliResultSuccess, reassembleProseFromRecords } from "./cli-helpers.js";
 
 const DEFAULT_REVIEW_GATE_MODEL = "kimi-for-coding";
@@ -83,6 +88,15 @@ export async function runReviewGateStopHook(
   }
 
   const cwd = payload.cwd || context.cwd;
+  // Resolve KIMI_CODE_HOME ONCE, against the SAME cwd the child will be
+  // spawned with, and use that env for hook verification, the execution plan
+  // and the spawn. The Stop-hook entry script runs from the plugin root, so a
+  // relative KIMI_CODE_HOME would otherwise be verified under the plugin root
+  // while the child (cwd = payload.cwd) read a different home.
+  context = {
+    ...context,
+    env: { ...context.env, KIMI_CODE_HOME: resolveKimiHome(context.env, cwd) },
+  };
   const assistantMessage =
     extractText(payload.last_assistant_message) ??
     (await extractLastAssistantMessage(payload.transcript_path));
@@ -164,6 +178,11 @@ async function executeReviewGate(
     });
     const model =
       context.env.KIMI_PLUGIN_CC_REVIEW_GATE_MODEL ?? DEFAULT_REVIEW_GATE_MODEL;
+    const executionPlan = await prepareKimiExecutionPlan({
+      operationKind: "review_gate",
+      cwd: payload.cwd,
+      env: context.env,
+    });
 
     // Header-before-job-row mirrors v0.4's reordering (the comment
     // chain there explains why). If the disk-bound writeInvocationLogHeader
@@ -190,6 +209,7 @@ async function executeReviewGate(
       kimi_pid: null,
       status: "running",
       kimi_session_id: null,
+      ...persistedExecutionPlanFields(executionPlan),
       agent_profile: REVIEW_GATE_AGENT_PROFILE_PLACEHOLDER,
       prompt_digest: digestPrompt(prompt),
       summary: "Running review gate.",
@@ -197,8 +217,6 @@ async function executeReviewGate(
       stream_log_path: logPath,
       error: null,
     });
-
-    const kimi = resolveKimiCliCommand(context.env);
 
     try {
       const activeStore = store;
@@ -211,8 +229,9 @@ async function executeReviewGate(
         {
           cwd: payload.cwd,
           env: context.env,
-          command: kimi.command,
-          prefixArgs: kimi.prefixArgs,
+          command: executionPlan.command,
+          prefixArgs: [...executionPlan.prefixArgs],
+          executionPlan,
           prompt,
           commandLabel: "review_gate",
           model,
@@ -228,6 +247,7 @@ async function executeReviewGate(
         KIMI_REVIEW_GATE_TIMEOUT_MS,
         "review_gate.runtime",
       );
+      activeStore.updateRunningJob(job.job_id, observedExecutionFields(result));
       assertCliResultSuccess(result, "review_gate.runtime");
       if (result.sessionId !== undefined && result.sessionId.length > 0) {
         // length>0 guard matches the other commands (Kimi alpha.4

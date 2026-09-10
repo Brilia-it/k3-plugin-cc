@@ -232,7 +232,10 @@ const RESCUE_READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
  * without juggling a factory + a closure.
  *
  * Inputs come from kimi-code's hook stdin:
- *   - `workspaceRoot`: the `cwd` field of the hook payload
+ *   - `workspaceRoot`: the plugin-owned trusted root — the per-spawn
+ *     `KIMI_PLUGIN_CC_WORKSPACE_ROOT` the hook entry passes through, NEVER the
+ *     hook payload's top-level `cwd` (at kimi-code 0.42.0 that field is the
+ *     process cwd, and the model cannot forge an env var on its own process)
  *   - `toolName`: e.g. `Bash`, `Write`, `Edit`, `MultiEdit`, etc.
  *   - `toolInput`: the raw arguments kimi will pass to the tool
  */
@@ -262,6 +265,26 @@ export async function evaluateRescueHookRequest(
         decision: "deny",
         reason: "rescue cannot evaluate Bash input with no command field",
       };
+    }
+    const cwd = isObject(toolInput) ? toolInput.cwd : undefined;
+    if (cwd !== undefined) {
+      if (typeof cwd !== "string" || cwd.length === 0) {
+        return { decision: "deny", reason: "rescue requires Bash cwd to be a non-empty string" };
+      }
+      try {
+        const outcome = await checkApprovedDirectory(root, cwd);
+        if (outcome === "symlink") {
+          return { decision: "deny", reason: `rescue rejects Bash cwd symlinks: ${cwd}` };
+        }
+        if (outcome === "missing") {
+          return { decision: "deny", reason: `rescue rejects Bash cwd that is missing or not a directory: ${cwd}` };
+        }
+        if (outcome === "reject") {
+          return { decision: "deny", reason: `rescue rejects Bash cwd outside the workspace or inside .git: ${cwd}` };
+        }
+      } catch (err) {
+        return { decision: "deny", reason: `rescue cannot inspect Bash cwd ${cwd}: ${(err as Error).message}` };
+      }
     }
     const result = validateShellCommand(command);
     return result.response === "approve"
@@ -383,6 +406,22 @@ export async function checkApprovedPath(
     isWithin(workspaceRoot, candidatePath) &&
     !relativeToRoot.split(path.sep).includes(".git")
   )
+    ? "allow"
+    : "reject";
+}
+
+async function checkApprovedDirectory(
+  workspaceRoot: string,
+  rawCwd: string,
+): Promise<"allow" | "symlink" | "reject" | "missing"> {
+  const candidate = path.resolve(workspaceRoot, rawCwd);
+  const stats = await statIfExists(candidate);
+  if (stats?.isSymbolicLink()) return "symlink";
+  if (!stats?.isDirectory()) return "missing";
+
+  const resolved = await realpath(candidate);
+  return isWithin(workspaceRoot, resolved) &&
+    !path.relative(workspaceRoot, resolved).split(path.sep).includes(".git")
     ? "allow"
     : "reject";
 }

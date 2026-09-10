@@ -3,6 +3,12 @@ import { createRequire } from "node:module";
 import { RuntimeError, formatError } from "./errors.js";
 import type { JobError, JobStatus, ManagedCommandType } from "./types.js";
 import type { PluginPaths } from "./paths.js";
+import type {
+  KimiEngine,
+  KimiOperationKind,
+  KimiPlanCertification,
+  KimiSafetyProfile,
+} from "./kimi-engine.js";
 
 export interface JobRecord {
   job_id: string;
@@ -18,6 +24,19 @@ export interface JobRecord {
   kimi_pid: number | null;
   status: JobStatus;
   kimi_session_id: string | null;
+  /** Real operation; null means a historical row without proven provenance. */
+  operation_kind: KimiOperationKind | null;
+  intended_engine: KimiEngine | null;
+  observed_engine: KimiEngine | null;
+  kimi_version: string | null;
+  system_version: string | null;
+  kimi_command: string | null;
+  /** JSON string array, kept byte-stable for detached-worker replay. */
+  kimi_prefix_args: string | null;
+  plan_certification: KimiPlanCertification | null;
+  resumed_from_job_id: string | null;
+  /** Plugin-owned safety profile a native-v2 plan was certified under; null for v1 and historical rows. */
+  safety_profile: KimiSafetyProfile | null;
   agent_profile: string;
   prompt_digest: string;
   summary: string;
@@ -39,6 +58,16 @@ export interface CreateJobInput {
   kimi_pid: number | null;
   status: JobStatus;
   kimi_session_id: string | null;
+  operation_kind?: KimiOperationKind | null;
+  intended_engine?: KimiEngine | null;
+  observed_engine?: KimiEngine | null;
+  kimi_version?: string | null;
+  system_version?: string | null;
+  kimi_command?: string | null;
+  kimi_prefix_args?: string | null;
+  plan_certification?: KimiPlanCertification | null;
+  resumed_from_job_id?: string | null;
+  safety_profile?: KimiSafetyProfile | null;
   agent_profile: string;
   prompt_digest: string;
   summary: string;
@@ -53,6 +82,13 @@ export interface FindLatestJobOptions {
   commandType?: ManagedCommandType;
   terminalOnly?: boolean;
   runningOnly?: boolean;
+}
+
+export interface HistoricalProvenancePatch {
+  operation_kind?: KimiOperationKind | null;
+  observed_engine?: KimiEngine | null;
+  kimi_version?: string | null;
+  system_version?: string | null;
 }
 
 export class JobStore {
@@ -98,6 +134,16 @@ export class JobStore {
         kimi_pid INTEGER,
         status TEXT NOT NULL,
         kimi_session_id TEXT,
+        operation_kind TEXT,
+        intended_engine TEXT,
+        observed_engine TEXT,
+        kimi_version TEXT,
+        system_version TEXT,
+        kimi_command TEXT,
+        kimi_prefix_args TEXT,
+        plan_certification TEXT,
+        resumed_from_job_id TEXT,
+        safety_profile TEXT,
         agent_profile TEXT NOT NULL,
         prompt_digest TEXT NOT NULL,
         summary TEXT NOT NULL,
@@ -110,6 +156,27 @@ export class JobStore {
 
     if (!tableHasColumn(this.db, "phase")) {
       this.db.exec(`ALTER TABLE jobs ADD COLUMN phase TEXT;`);
+    }
+
+    // Additive provenance migration. Existing rows deliberately remain NULL:
+    // v1.9.5 plus kimi-code 0.33/0.34 could have routed to native v2 before the
+    // legacy pin landed, so a blanket historical v1 backfill would invent fact.
+    const provenanceColumns = [
+      "operation_kind",
+      "intended_engine",
+      "observed_engine",
+      "kimi_version",
+      "system_version",
+      "kimi_command",
+      "kimi_prefix_args",
+      "plan_certification",
+      "resumed_from_job_id",
+      "safety_profile",
+    ] as const;
+    for (const column of provenanceColumns) {
+      if (!tableHasColumn(this.db, column)) {
+        this.db.exec(`ALTER TABLE jobs ADD COLUMN ${column} TEXT;`);
+      }
     }
 
     this.db.exec(`
@@ -186,13 +253,17 @@ export class JobStore {
         `
           INSERT INTO jobs (
             job_id, repo_id, command_type, created_at, updated_at, cwd, model, thinking,
-            background, pid, kimi_pid, status, kimi_session_id, agent_profile, prompt_digest,
-            summary, phase, final_output_path, stream_log_path, error
+            background, pid, kimi_pid, status, kimi_session_id,
+            operation_kind, intended_engine, observed_engine, kimi_version, system_version,
+            kimi_command, kimi_prefix_args, plan_certification, resumed_from_job_id, safety_profile,
+            agent_profile, prompt_digest, summary, phase, final_output_path, stream_log_path, error
           )
           VALUES (
             @job_id, @repo_id, @command_type, @created_at, @updated_at, @cwd, @model, @thinking,
-            @background, @pid, @kimi_pid, @status, @kimi_session_id, @agent_profile, @prompt_digest,
-            @summary, @phase, @final_output_path, @stream_log_path, @error
+            @background, @pid, @kimi_pid, @status, @kimi_session_id,
+            @operation_kind, @intended_engine, @observed_engine, @kimi_version, @system_version,
+            @kimi_command, @kimi_prefix_args, @plan_certification, @resumed_from_job_id, @safety_profile,
+            @agent_profile, @prompt_digest, @summary, @phase, @final_output_path, @stream_log_path, @error
           )
         `,
         {
@@ -305,6 +376,36 @@ export class JobStore {
     return this.updateWhere(jobId, patch, "status = 'running'");
   }
 
+  /**
+   * Evidence-only backfill for pre-provenance rows. COALESCE prevents forensic
+   * inspection from overwriting a field already recorded at execution time.
+   * updated_at is intentionally unchanged so a status lookup cannot reorder
+   * historical jobs merely because their logs were inspected.
+   */
+  backfillHistoricalProvenance(
+    jobId: string,
+    patch: HistoricalProvenancePatch,
+  ): JobRecord | null {
+    this.db.run(
+      `
+        UPDATE jobs
+        SET operation_kind = COALESCE(operation_kind, @operation_kind),
+            observed_engine = COALESCE(observed_engine, @observed_engine),
+            kimi_version = COALESCE(kimi_version, @kimi_version),
+            system_version = COALESCE(system_version, @system_version)
+        WHERE job_id = @job_id
+      `,
+      {
+        job_id: jobId,
+        operation_kind: patch.operation_kind ?? null,
+        observed_engine: patch.observed_engine ?? null,
+        kimi_version: patch.kimi_version ?? null,
+        system_version: patch.system_version ?? null,
+      },
+    );
+    return this.getJob(jobId);
+  }
+
   markCompleted(
     jobId: string,
     patch: Pick<JobRecord, "summary" | "final_output_path" | "error"> & Partial<JobRecord>,
@@ -331,6 +432,9 @@ export class JobStore {
     "final_output_path", "stream_log_path", "kimi_session_id",
     "error", "command_type", "prompt_digest", "repo_id",
     "cwd", "model", "thinking", "background", "agent_profile",
+    "operation_kind", "intended_engine", "observed_engine", "kimi_version",
+    "system_version", "kimi_command", "kimi_prefix_args", "plan_certification",
+    "resumed_from_job_id", "safety_profile",
   ]);
 
   private updateWhere(jobId: string, patch: Partial<JobRecord>, whereClause?: string): JobRecord | null {
@@ -383,6 +487,16 @@ interface DbRow {
   kimi_pid: number | null;
   status: JobStatus;
   kimi_session_id: string | null;
+  operation_kind: KimiOperationKind | null;
+  intended_engine: KimiEngine | null;
+  observed_engine: KimiEngine | null;
+  kimi_version: string | null;
+  system_version: string | null;
+  kimi_command: string | null;
+  kimi_prefix_args: string | null;
+  plan_certification: KimiPlanCertification | null;
+  resumed_from_job_id: string | null;
+  safety_profile: KimiSafetyProfile | null;
   agent_profile: string;
   prompt_digest: string;
   summary: string;
@@ -405,6 +519,16 @@ function serializeRecord(record: CreateJobInput): Record<string, unknown> {
   return {
     ...record,
     phase: record.phase ?? null,
+    operation_kind: record.operation_kind ?? null,
+    intended_engine: record.intended_engine ?? null,
+    observed_engine: record.observed_engine ?? null,
+    kimi_version: record.kimi_version ?? null,
+    system_version: record.system_version ?? null,
+    kimi_command: record.kimi_command ?? null,
+    kimi_prefix_args: record.kimi_prefix_args ?? null,
+    plan_certification: record.plan_certification ?? null,
+    resumed_from_job_id: record.resumed_from_job_id ?? null,
+    safety_profile: record.safety_profile ?? null,
     thinking: record.thinking === null ? null : Number(record.thinking),
     background: Number(record.background),
     error: record.error ? JSON.stringify(record.error) : null,

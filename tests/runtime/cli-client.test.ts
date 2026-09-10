@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { spawn, type ChildProcess } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { runCliPrompt, runCliPromptWithBudget, requireSessionId } from "../../runtime/cli-client.js";
+import type { KimiExecutionPlan } from "../../runtime/kimi-engine.js";
 import {
   collectDescendantIdentities,
   collectDescendants,
@@ -28,6 +30,10 @@ const mockKimiStreamPath = path.join(
 const termIgnoringWriterPath = path.join(
   process.cwd(),
   "tests/helpers/term-ignoring-writer.mjs",
+);
+const v2MarkerThenWritePath = path.join(
+  process.cwd(),
+  "tests/helpers/v2-marker-then-write.ts",
 );
 
 function mockOptions(overrides: {
@@ -75,11 +81,14 @@ function mockOptions(overrides: {
       KIMI_MOCK_STDERR_SUFFIX: overrides.stderrSuffix,
     }),
   };
+  const prefixArgs = ["run", mockKimiStreamPath];
+  const executionPlan = testExecutionPlan("bun", prefixArgs);
   return {
     cwd: overrides.cwd,
     env,
     command: "bun",
-    prefixArgs: ["run", mockKimiStreamPath],
+    prefixArgs,
+    executionPlan,
     prompt: overrides.prompt ?? "test prompt",
     commandLabel: overrides.commandLabel,
     swarmMaxConcurrency: overrides.swarmMaxConcurrency,
@@ -90,6 +99,23 @@ function mockOptions(overrides: {
     cancellationTeardownHook: overrides.cancellationTeardownHook,
     escalationMs: overrides.escalationMs,
     onRecord: overrides.onRecord,
+  };
+}
+
+function testExecutionPlan(
+  command: string,
+  prefixArgs: readonly string[] = [],
+): KimiExecutionPlan {
+  return {
+    schemaVersion: 1,
+    operationKind: "review",
+    intendedEngine: "legacy-v1",
+    command,
+    prefixArgs: [...prefixArgs],
+    kimiVersion: "0.39.0",
+    certification: "certified",
+    resumedFromJobId: null,
+    safetyProfile: null,
   };
 }
 
@@ -574,6 +600,7 @@ describe("runCliPrompt", () => {
         },
         command: "bun",
         prefixArgs: ["run", mockKimiStreamPath],
+        executionPlan: testExecutionPlan("bun", ["run", mockKimiStreamPath]),
         prompt: "test prompt",
       });
 
@@ -906,6 +933,45 @@ describe("runCliPrompt", () => {
     }
   });
 
+  test("kills a forced-v1 child on the pre-tool native-v2 marker", async () => {
+    const root = await createTestPluginDataRoot("cli-engine-marker-mismatch");
+    const sentinel = path.join(root, "post-marker-write.txt");
+    let recordCount = 0;
+    try {
+      await expect(
+        runCliPrompt({
+          cwd: root,
+          env: {
+            ...process.env,
+            KIMI_MOCK_POST_MARKER_WRITE: sentinel,
+          },
+          command: "bun",
+          prefixArgs: ["run", v2MarkerThenWritePath],
+          executionPlan: testExecutionPlan("bun", ["run", v2MarkerThenWritePath]),
+          prompt: "must never reach a tool",
+          commandLabel: "review",
+          onRecord: () => {
+            recordCount += 1;
+          },
+          escalationMs: 50,
+        }),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: {
+          intended_engine: "legacy-v1",
+          observed_engine: "native-v2",
+          system_version: "0.39.0",
+        },
+      });
+
+      await sleepMs(400);
+      expect(recordCount).toBe(0);
+      expect(existsSync(sentinel)).toBe(false);
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
   test("onRecord fires per record before the run completes", async () => {
     const root = await createTestPluginDataRoot("cli-client-onrecord");
     try {
@@ -1069,11 +1135,340 @@ describe("runCliPrompt", () => {
           cwd: root,
           env: { ...process.env },
           command: "/nonexistent/path/to/kimi-binary-does-not-exist",
+          executionPlan: testExecutionPlan("/nonexistent/path/to/kimi-binary-does-not-exist"),
           prompt: "x",
         }),
       ).rejects.toMatchObject({
         code: expect.stringMatching(/^CLI_(SPAWN_FAILED|PROCESS_ERROR)$/),
       });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+});
+
+describe("native-v2 provenance", () => {
+  const V2_MARKER = { role: "meta", type: "system.version", version: "0.42.0" };
+
+  function v2Plan(prefixArgs: readonly string[], kimiVersion: string | null = "0.42.0"): KimiExecutionPlan {
+    return {
+      ...testExecutionPlan("bun", prefixArgs),
+      intendedEngine: "native-v2",
+      kimiVersion,
+      safetyProfile: "native-v2-no-plan/1",
+    };
+  }
+
+  function v2Options(
+    root: string,
+    overrides: Parameters<typeof mockOptions>[0] & { kimiHome?: string },
+  ) {
+    const base = mockOptions(overrides);
+    const env: NodeJS.ProcessEnv = {
+      ...base.env,
+      // Empty home → no config.toml → default_plan_mode absent → preflight passes.
+      KIMI_CODE_HOME: overrides.kimiHome ?? path.join(root, "kimi-home"),
+      KIMI_CODE_EXPERIMENTAL_FLAG: "",
+      KIMI_CODE_EXPERIMENTAL_TOWER: "",
+      KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK: "",
+    };
+    delete env.KIMI_CODE_LEGACY_FLAG;
+    delete env.KIMI_CODE_NO_AUTO_UPDATE;
+    return { ...base, env, executionPlan: v2Plan(base.prefixArgs) };
+  }
+
+  test("accepts a leading system.version marker that matches the certified version", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-marker-ok");
+    try {
+      const result = await runCliPrompt(
+        v2Options(root, {
+          cwd: root,
+          records: [V2_MARKER, { role: "assistant", content: "hello from v2" }],
+          announceVia: "stdout-meta",
+        }),
+      );
+      expect(result.observedEngine).toBe("native-v2");
+      expect(result.systemVersion).toBe("0.42.0");
+      expect(result.records).toHaveLength(1);
+      expect(result.sessionId).toBe("26242650-d95f-4805-80d9-c947d309b2c6");
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("refuses a marker whose version disagrees with the certified plan", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-marker-disagree");
+    try {
+      await expect(
+        runCliPrompt(
+          v2Options(root, {
+            cwd: root,
+            records: [{ ...V2_MARKER, version: "0.41.0" }, { role: "assistant", content: "x" }],
+            escalationMs: 50,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: {
+          intended_engine: "native-v2",
+          observed_engine: "native-v2",
+          planned_kimi_version: "0.42.0",
+          system_version: "0.41.0",
+        },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("refuses consumer output that arrives before the marker and delivers no records", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-marker-absent");
+    let recordCount = 0;
+    try {
+      await expect(
+        runCliPrompt(
+          v2Options(root, {
+            cwd: root,
+            records: [{ role: "assistant", content: "unmarked" }, V2_MARKER],
+            escalationMs: 50,
+            onRecord: () => {
+              recordCount += 1;
+            },
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { intended_engine: "native-v2", observed_engine: null, system_version: null },
+      });
+      expect(recordCount).toBe(0);
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  // Codex review P2.5: a session.resume_hint arriving before the system.version
+  // marker must not pin a session id — the marker must be the first stream line.
+  test("refuses a session.resume_hint that arrives before the marker", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-hint-before-marker");
+    try {
+      const result = await runCliPrompt(
+        v2Options(root, {
+          cwd: root,
+          emitAnnounce: false,
+          records: [
+            {
+              role: "meta",
+              type: "session.resume_hint",
+              session_id: "session_11111111-1111-4111-8111-111111111111",
+              command: "kimi -r session_11111111-1111-4111-8111-111111111111",
+              content: "To resume this session: kimi -r session_11111111-1111-4111-8111-111111111111",
+            },
+            V2_MARKER,
+            { role: "assistant", content: "x" },
+          ],
+          escalationMs: 50,
+        }),
+      ).then(
+        () => {
+          throw new Error("expected a provenance mismatch");
+        },
+        (err) => err,
+      );
+      expect(result).toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { intended_engine: "native-v2", observed_engine: null },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  // Codex second-round F5: the marker-first rule must apply to EVERY line,
+  // including roles the parser does not model and lines it cannot parse.
+  test("refuses an unknown-role record that arrives before the marker", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-unknown-before-marker");
+    try {
+      await expect(
+        runCliPrompt(
+          v2Options(root, {
+            cwd: root,
+            emitAnnounce: false,
+            records: [{ role: "future-role", content: "?" }, V2_MARKER, { role: "assistant", content: "x" }],
+            escalationMs: 50,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { intended_engine: "native-v2", observed_engine: null },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("refuses a malformed line that arrives before the marker", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-malformed-before-marker");
+    try {
+      await expect(
+        runCliPrompt(
+          v2Options(root, {
+            cwd: root,
+            emitAnnounce: false,
+            records: ["not a record", V2_MARKER, { role: "assistant", content: "x" }],
+            escalationMs: 50,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { intended_engine: "native-v2", observed_engine: null },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  // Codex second-round F6: the stderr resume-hint channel is a legacy-v1
+  // (kimi 0.1.x) fallback; on a native-v2 plan it must never pin a session id.
+  test("ignores a stderr resume hint on a native-v2 plan (stdout meta is the only source)", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-stderr-hint-ignored");
+    try {
+      const result = await runCliPrompt(
+        v2Options(root, {
+          cwd: root,
+          records: [V2_MARKER, { role: "assistant", content: "x" }],
+          announceVia: "stderr",
+          sessionId: "44444444-4444-4444-4444-444444444444",
+        }),
+      );
+      expect(result.observedEngine).toBe("native-v2");
+      expect(result.sessionId).toBeUndefined();
+      expect(result.stderrTail).toContain("44444444-4444-4444-4444-444444444444");
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  // Codex second-round F7: the marker's version is a structured field; a
+  // multi-line value must not be normalized into the certified version by
+  // taking its first line.
+  test("refuses a multi-line marker version that would first-line-normalize to the certified one", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-multiline-version");
+    try {
+      await expect(
+        runCliPrompt(
+          v2Options(root, {
+            cwd: root,
+            emitAnnounce: false,
+            records: [{ ...V2_MARKER, version: "0.42.0\n0.43.0" }, { role: "assistant", content: "x" }],
+            escalationMs: 50,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { intended_engine: "native-v2", observed_engine: "native-v2", system_version: "0.42.0\n0.43.0" },
+      });
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("refuses a clean exit with no marker, but reports an early failure exit as unknown engine", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-marker-exit");
+    try {
+      await expect(
+        runCliPrompt(v2Options(root, { cwd: root, records: [], emitAnnounce: false })),
+      ).rejects.toMatchObject({
+        code: "CLI_ENGINE_PROVENANCE_MISMATCH",
+        details: { observed_engine: null },
+      });
+
+      const failed = await runCliPrompt(
+        v2Options(root, { cwd: root, records: [], emitAnnounce: false, exitCode: 3 }),
+      );
+      expect(failed.exitCode).toBe(3);
+      expect(failed.observedEngine).toBeNull();
+      expect(failed.systemVersion).toBeUndefined();
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("a test-bypass v2 plan accepts any marker version", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-bypass");
+    try {
+      const opts = v2Options(root, {
+        cwd: root,
+        records: [{ ...V2_MARKER, version: "0.99.0" }, { role: "assistant", content: "x" }],
+      });
+      const result = await runCliPrompt({
+        ...opts,
+        env: { ...opts.env, KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1" },
+        executionPlan: { ...opts.executionPlan, kimiVersion: null, certification: "test-bypass" },
+      });
+      expect(result.observedEngine).toBe("native-v2");
+      expect(result.systemVersion).toBe("0.99.0");
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("records the v2 safety profile and no legacy pin on the spawn log line", async () => {
+    // The mock's env-echo record precedes the marker, which a v2 plan refuses,
+    // so the legacy pin is asserted through the spawn log entry instead.
+    const root2 = await createTestPluginDataRoot("cli-v2-env-log");
+    const logPath = path.join(root2, "log.jsonl");
+    try {
+      const opts = v2Options(root2, { cwd: root2, records: [V2_MARKER], logPath });
+      await runCliPrompt(opts);
+      const spawnLine = (await readFile(logPath, "utf8"))
+        .split("\n")
+        .filter((line) => line.length > 0)
+        .map((line) => JSON.parse(line) as Record<string, unknown>)
+        .find((entry) => entry.event === "spawn");
+      expect(spawnLine).toMatchObject({
+        intended_engine: "native-v2",
+        safety_profile: "native-v2-no-plan/1",
+        legacy_v1_forced: false,
+      });
+    } finally {
+      await cleanupTestPath(root2);
+    }
+  });
+
+  test("exports KIMI_CODE_NO_AUTO_UPDATE=1 to every spawn (legacy plan)", async () => {
+    const root = await createTestPluginDataRoot("cli-v1-no-auto-update");
+    try {
+      const opts = mockOptions({ cwd: root, records: [] });
+      const env: NodeJS.ProcessEnv = { ...opts.env, KIMI_MOCK_ECHO_ENV: "KIMI_CODE_NO_AUTO_UPDATE" };
+      delete env.KIMI_CODE_NO_AUTO_UPDATE;
+      const result = await runCliPrompt({ ...opts, env });
+      expect((result.records[0] as AssistantRecord).content).toBe("KIMI_CODE_NO_AUTO_UPDATE=1");
+    } finally {
+      await cleanupTestPath(root);
+    }
+  });
+
+  test("re-runs the no-plan preflight at the spawn boundary and refuses before any process", async () => {
+    const root = await createTestPluginDataRoot("cli-v2-spawn-preflight");
+    const kimiHome = path.join(root, "kimi-home");
+    const sentinel = path.join(root, "spawned.txt");
+    await mkdir(kimiHome, { recursive: true });
+    await writeFile(path.join(kimiHome, "config.toml"), "default_plan_mode = true\n");
+    try {
+      await expect(
+        runCliPrompt({
+          ...v2Options(root, { cwd: root, records: [V2_MARKER], kimiHome }),
+          env: {
+            ...v2Options(root, { cwd: root, records: [V2_MARKER], kimiHome }).env,
+            KIMI_MOCK_POST_MARKER_WRITE: sentinel,
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: "CLI_V2_PLAN_MODE_CONFIGURED",
+        stage: "cli-client.spawn",
+        details: { refusal_kind: "v2-plan-mode-configured" },
+      });
+      expect(existsSync(sentinel)).toBe(false);
     } finally {
       await cleanupTestPath(root);
     }
@@ -1105,6 +1500,7 @@ describe("SIGKILL escalation", () => {
         },
         command: "bun",
         prefixArgs: ["run", stubKimiPath],
+        executionPlan: testExecutionPlan("bun", ["run", stubKimiPath]),
         prompt: "x",
         signal: controller.signal,
         escalationMs: 50,
@@ -1145,6 +1541,7 @@ describe("SIGKILL escalation", () => {
         },
         command: process.execPath,
         prefixArgs: [termIgnoringWriterPath],
+        executionPlan: testExecutionPlan(process.execPath, [termIgnoringWriterPath]),
         prompt: "x",
         signal: controller.signal,
         descendantIdentityCollector: async () => {
@@ -1208,6 +1605,7 @@ describe("SIGKILL escalation", () => {
         },
         command: "bun",
         prefixArgs: ["run", stubKimiPath],
+        executionPlan: testExecutionPlan("bun", ["run", stubKimiPath]),
         prompt: "x",
         signal: controller.signal,
         onRecord: () => controller.abort(),
@@ -1287,6 +1685,7 @@ describe("descendant reaping", () => {
         },
         command: "bun",
         prefixArgs: ["run", processGroupGrandchildPath],
+        executionPlan: testExecutionPlan("bun", ["run", processGroupGrandchildPath]),
         prompt: "x",
         signal: controller.signal,
         descendantIdentityCollector: async () => {
@@ -1455,6 +1854,7 @@ describe("descendant reaping", () => {
         },
         command: "bun",
         prefixArgs: ["run", processGroupGrandchildPath],
+        executionPlan: testExecutionPlan("bun", ["run", processGroupGrandchildPath]),
         prompt: "x",
         signal: controller.signal,
         descendantIdentityCollector: async () => {
@@ -1514,6 +1914,7 @@ describe("descendant reaping", () => {
         },
         command: "bun",
         prefixArgs: ["run", processGroupGrandchildPath],
+        executionPlan: testExecutionPlan("bun", ["run", processGroupGrandchildPath]),
         prompt: "x",
         signal: controller.signal,
         descendantIdentityCollector: async () => {
