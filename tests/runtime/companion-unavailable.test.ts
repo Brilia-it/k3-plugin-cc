@@ -64,7 +64,7 @@ async function assertUnavailableCommand(
 
     expect(failure.exitCode).not.toBeNull();
     expect(output).toContain("KIMI_EXECUTION_PLAN_UNRESOLVED");
-    expect(output).toContain("Run Claude Code `/kimi:setup` or Codex `$kimi-setup`");
+    expect(output).toContain("Run Claude Code `/k3:setup` or Codex `$k3-setup`");
     expect(output).not.toContain("persisted as failed");
     expect(latest).toBeNull();
   } finally {

@@ -16,7 +16,7 @@ import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.j
 import { hookRefusalDetails, hookRefusalRetryProtocol, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
-// /kimi:pursue — autonomous goal mode (kimi-code 0.8.0+ headless `/goal`).
+// /k3:pursue — autonomous goal mode (kimi-code 0.8.0+ headless `/goal`).
 //
 // PROTOTYPE SCOPE (v1.1 experimental). Deliberately narrow:
 //   - FOREGROUND ONLY. No --background/--detach yet. Goal mode is experimental
@@ -29,7 +29,7 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //     so we capture+surface the goalId but don't offer resume yet.
 //   - Reuses the RESCUE job lineage (command_type "rescue", KIMI_PLUGIN_CC_CMD=
 //     "rescue") so the PreToolUse hook applies the workspace write allowlist to
-//     EVERY continuation turn, and /kimi:status / /kimi:result / /kimi:cancel
+//     EVERY continuation turn, and /k3:status / /k3:result / /k3:cancel
 //     work unchanged. Promoting pursue to a first-class command_type is a
 //     follow-up (would ripple through ManagedCommandType + the registry).
 //
@@ -110,7 +110,7 @@ function renderGoalHeader(summary, exitStatus) {
         lines.push(`**Usage:** ${metrics.join(", ")}`);
     }
     if (summary?.goalId) {
-        lines.push(`**Goal id:** \`${summary.goalId}\` (resume is not yet exposed for /kimi:pursue — see docs/safety.md)`);
+        lines.push(`**Goal id:** \`${summary.goalId}\` (resume is not yet exposed for /k3:pursue — see docs/safety.md)`);
     }
     return lines.join("\n");
 }
@@ -118,7 +118,7 @@ export async function runPursue(argv, context) {
     const parsed = parsePursueArgs(argv);
     const objective = parsed.objective?.trim();
     if (!objective) {
-        throw new RuntimeError("INVALID_ARGS", "/kimi:pursue requires an objective. Usage: /kimi:pursue [--budget 30m] [--turns N] [-m model] <objective>", "pursue.parse");
+        throw new RuntimeError("INVALID_ARGS", "/k3:pursue requires an objective. Usage: /k3:pursue [--budget 30m] [--turns N] [-m model] <objective>", "pursue.parse");
     }
     const paths = resolvePluginPaths(context.env);
     await ensurePluginPaths(paths);
@@ -195,9 +195,9 @@ async function executePursueJob(jobId, prompt, objective, budgetMs, context) {
         if (!installStatus.installed) {
             maybeWarnHookMissing(installStatus, "rescue", context.stderr);
             const classified = new RuntimeError("PURSUE_HOOK_NOT_INSTALLED", [
-                "/kimi:pursue refuses to run without the kimi-plugin-cc PreToolUse hook.",
+                "/k3:pursue refuses to run without the kimi-plugin-cc PreToolUse hook.",
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-                "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
+                "Repair by running Claude Code /k3:setup or Codex $k3-setup, then retry.",
                 "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
                 hookRefusalRetryProtocol(context.env),
             ].join(" "), "pursue.hook-check", { details: hookRefusalDetails(installStatus) });

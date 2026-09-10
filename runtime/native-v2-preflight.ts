@@ -23,7 +23,7 @@
 //   - Fail-closed: unparseable/unreadable/oversized inputs refuse.
 //   - Strictly more conservative than upstream (a non-boolean value that
 //     upstream would ignore still refuses here).
-//   - Refusals here are NOT /kimi:setup-recoverable and must never be
+//   - Refusals here are NOT /k3:setup-recoverable and must never be
 //     described as hook drift.
 
 import { constants as fsConstants } from "node:fs";
@@ -428,7 +428,7 @@ export interface NativeV2PreflightOptions {
  *   KIMI_SESSION_PLAN_TAINTED     details.refusal_kind = "session-plan-tainted", details.record_type
  *   KIMI_SESSION_JOURNAL_UNAVAILABLE details.refusal_kind = "session-journal-unavailable"
  * Every message carries a truthful remedy (edit the named setting / start a
- * fresh session) and MUST NOT mention /kimi:setup or hook drift.
+ * fresh session) and MUST NOT mention /k3:setup or hook drift.
  * Every details object also carries `retryable_after_setup: false`.
  */
 export async function assertNativeV2Preflight(

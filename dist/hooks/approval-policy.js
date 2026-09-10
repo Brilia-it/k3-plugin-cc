@@ -100,7 +100,7 @@ export async function decideHookOutcome(input, ctx) {
         case "challenge":
         case "review_gate":
             // /k3:ask is documented and dispatched as a read-only narrative
-            // surface (see agents/kimi-ask.md: "do not implement anything Kimi
+            // surface (see agents/k3-ask.md: "do not implement anything Kimi
             // describes"). PR 2 initially trusted kimi-code's `permission:auto`
             // for ask on the assumption the user was watching every tool call,
             // but `/k3:ask` runs as a non-interactive subprocess via

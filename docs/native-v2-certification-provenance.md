@@ -78,7 +78,7 @@ prior hook-allowed write, which the construction denies.
 
 In-verifier auto-repin, hook skipping, relaxed verification, and silent
 rewriting of operator config remain forbidden migration mechanisms. A refusal
-raised by the preflight is never hook drift and `/kimi:setup` is never its
+raised by the preflight is never hook drift and `/k3:setup` is never its
 remedy.
 
 ## 3. Certification gate for one operation

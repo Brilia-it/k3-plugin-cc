@@ -377,7 +377,7 @@ describe("assertNativeV2Preflight", () => {
         expect(runtimeError.code).toBe("CLI_V2_PLAN_MODE_CONFIGURED");
         expect(runtimeError.details.refusal_kind).toBe("v2-plan-mode-configured");
         expect(runtimeError.details.retryable_after_setup).toBe(false);
-        expect(runtimeError.message).not.toContain("/kimi:setup");
+        expect(runtimeError.message).not.toContain("/k3:setup");
       }
     });
   });
@@ -394,7 +394,7 @@ describe("assertNativeV2Preflight", () => {
         expect(runtimeError.code).toBe("CLI_V2_CONFIG_UNREADABLE");
         expect(runtimeError.details.refusal_kind).toBe("v2-config-unreadable");
         expect(runtimeError.details.retryable_after_setup).toBe(false);
-        expect(runtimeError.message).not.toContain("/kimi:setup");
+        expect(runtimeError.message).not.toContain("/k3:setup");
       }
     });
   });
@@ -412,7 +412,7 @@ describe("assertNativeV2Preflight", () => {
         expect(runtimeError.details.refusal_kind).toBe("v2-experimental-unsafe");
         expect(runtimeError.details.selectors).toEqual(["config:[experimental].tower"]);
         expect(runtimeError.details.retryable_after_setup).toBe(false);
-        expect(runtimeError.message).not.toContain("/kimi:setup");
+        expect(runtimeError.message).not.toContain("/k3:setup");
       }
     });
   });
@@ -432,7 +432,7 @@ describe("assertNativeV2Preflight", () => {
         expect(runtimeError.details.refusal_kind).toBe("session-plan-tainted");
         expect(runtimeError.details.record_type).toBe("plan_mode.enter");
         expect(runtimeError.details.retryable_after_setup).toBe(false);
-        expect(runtimeError.message).not.toContain("/kimi:setup");
+        expect(runtimeError.message).not.toContain("/k3:setup");
         expect(runtimeError.message).not.toContain("hook drift");
       }
     });
@@ -449,7 +449,7 @@ describe("assertNativeV2Preflight", () => {
         expect(runtimeError.code).toBe("KIMI_SESSION_JOURNAL_UNAVAILABLE");
         expect(runtimeError.details.refusal_kind).toBe("session-journal-unavailable");
         expect(runtimeError.details.retryable_after_setup).toBe(false);
-        expect(runtimeError.message).not.toContain("/kimi:setup");
+        expect(runtimeError.message).not.toContain("/k3:setup");
         expect(runtimeError.message).not.toContain("hook drift");
       }
     });

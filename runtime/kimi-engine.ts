@@ -247,7 +247,7 @@ export async function prepareKimiExecutionPlan(
   if (probe.kind !== "ok") {
     throw new RuntimeError(
       "KIMI_EXECUTION_PLAN_UNRESOLVED",
-      `Refusing to spawn kimi because the exact command/version plan could not be established: ${probe.reason}. Run Claude Code \`/kimi:setup\` or Codex \`$kimi-setup\` to verify the active binary, or correct KIMI_PLUGIN_CC_KIMI_BIN / KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS and retry.`,
+      `Refusing to spawn kimi because the exact command/version plan could not be established: ${probe.reason}. Run Claude Code \`/k3:setup\` or Codex \`$k3-setup\` to verify the active binary, or correct KIMI_PLUGIN_CC_KIMI_BIN / KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS and retry.`,
       "kimi-engine.plan",
       {
         details: {
@@ -843,7 +843,7 @@ async function resolveExactExecutable(
 
   throw new RuntimeError(
     "KIMI_EXECUTION_PLAN_UNRESOLVED",
-    `Refusing to spawn kimi because executable ${JSON.stringify(command)} could not be resolved to an exact runnable path. Run Claude Code \`/kimi:setup\` or Codex \`$kimi-setup\` to verify the active binary, or correct KIMI_PLUGIN_CC_KIMI_BIN and retry.`,
+    `Refusing to spawn kimi because executable ${JSON.stringify(command)} could not be resolved to an exact runnable path. Run Claude Code \`/k3:setup\` or Codex \`$k3-setup\` to verify the active binary, or correct KIMI_PLUGIN_CC_KIMI_BIN and retry.`,
     "kimi-engine.plan",
     { details: { command, cwd } },
   );

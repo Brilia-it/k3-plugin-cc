@@ -63,7 +63,7 @@ describe("Codex sidecar surfaces", () => {
     ) as Record<string, unknown>;
 
     expect(manifest).toEqual(CODEX_PLUGIN_MANIFEST);
-    expect(manifest.name).toBe("kimi");
+    expect(manifest.name).toBe("k3");
     expect(manifest.skills).toBe("./skills/");
     expect(manifest).not.toHaveProperty("mcpServers");
     expect(manifest).not.toHaveProperty("hooks");

@@ -122,7 +122,7 @@ describe("parseSwarmArgs", () => {
 
 describe("resolveSwarmMaxConcurrency", () => {
   test("applies the hard concurrency default when --max-concurrency is unset", () => {
-    // v1.3: swarm is model-invocable via the kimi-swarm agent, so an
+    // v1.3: swarm is model-invocable via the k3-swarm agent, so an
     // auto-dispatched fan-out must never run with an unbounded peak. The runtime
     // enforces a finite ceiling by construction rather than trusting agent prose.
     expect(resolveSwarmMaxConcurrency(undefined)).toBe(SWARM_DEFAULT_MAX_CONCURRENCY);

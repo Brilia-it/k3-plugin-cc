@@ -39,7 +39,7 @@ import {
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 
-// /kimi:swarm — READ-ONLY parallel fan-out (kimi-code 0.12.0 AgentSwarm tool).
+// /k3:swarm — READ-ONLY parallel fan-out (kimi-code 0.12.0 AgentSwarm tool).
 //
 // PROTOTYPE SCOPE (v1.2). The lowest-risk swarm shape: parallel review/analysis
 // over N targets, with NO write surface. Deliberately narrow:
@@ -55,9 +55,9 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //     (kimi-code createPermissionDecisionPolicies puts the hook at index 0 for
 //     ALL agents — verified against 0.12.0), so a subagent's Write/Edit/Bash is
 //     denied exactly like a single-turn review's.
-//   - Reuses the REVIEW job lineage (command_type "review") so /kimi:status /
-//     /kimi:result / /kimi:cancel work unchanged. The hook label ("swarm") is
-//     independent of the job lineage — mirrors how /kimi:pursue reuses the
+//   - Reuses the REVIEW job lineage (command_type "review") so /k3:status /
+//     /k3:result / /k3:cancel work unchanged. The hook label ("swarm") is
+//     independent of the job lineage — mirrors how /k3:pursue reuses the
 //     rescue lineage with its own label. Promoting swarm to a first-class
 //     command_type is a follow-up.
 //
@@ -89,8 +89,8 @@ export const WORKTREE_ORPHAN_TTL_MS = MAX_DURATION_MS + 2 * 60 * 60 * 1000;
 
 /**
  * Default HARD concurrency ceiling applied when the user passes no
- * `--max-concurrency`. Since v1.3 `/kimi:swarm` is ALSO reachable via the
- * model-invocable `kimi-swarm` agent (Claude can auto-dispatch a fan-out), so an
+ * `--max-concurrency`. Since v1.3 `/k3:swarm` is ALSO reachable via the
+ * model-invocable `k3-swarm` agent (Claude can auto-dispatch a fan-out), so an
  * unbounded peak-parallelism default is no longer acceptable: we always export
  * `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY` (effective on kimi-code 0.18.0+; older
  * binaries ignore it) so simultaneous model spend is capped BY CONSTRUCTION for
@@ -212,7 +212,7 @@ export async function runSwarm(argv: string[], context: CommandContext): Promise
   if (!objective) {
     throw new RuntimeError(
       "INVALID_ARGS",
-      "/kimi:swarm requires an objective. Usage: /kimi:swarm [--write] [--budget 30m] [--cap N] [--max-concurrency N] [-m model] <objective>",
+      "/k3:swarm requires an objective. Usage: /k3:swarm [--write] [--budget 30m] [--cap N] [--max-concurrency N] [-m model] <objective>",
       "swarm.parse",
     );
   }
@@ -330,14 +330,14 @@ async function runWriteSwarm(
     if (!(await hasBornHead(context.cwd))) {
       throw new RuntimeError(
         "WRITE_SWARM_NO_HEAD",
-        "/kimi:swarm --write needs a git repository with at least one commit (HEAD). This repo has an unborn HEAD; make an initial commit first.",
+        "/k3:swarm --write needs a git repository with at least one commit (HEAD). This repo has an unborn HEAD; make an initial commit first.",
         "swarm.precondition",
       );
     }
     await sweepStaleWorktrees(paths, repoIdentity);
     if (await isWorkingTreeDirty(context.cwd)) {
       context.stderr.write(
-        "[kimi-plugin-cc] /kimi:swarm --write bases its worktree on HEAD — your uncommitted changes are NOT visible to the swarm. Commit or stash them first if the swarm needs them.\n",
+        "[kimi-plugin-cc] /k3:swarm --write bases its worktree on HEAD — your uncommitted changes are NOT visible to the swarm. Commit or stash them first if the swarm needs them.\n",
       );
     }
 
@@ -447,7 +447,7 @@ function assertWriteSwarmPreconditions(repoIdentity: RepoIdentity): void {
   if (!repoIdentity.isGitRepo) {
     throw new RuntimeError(
       "WRITE_SWARM_NOT_A_REPO",
-      "/kimi:swarm --write requires a git repository (it works in a throwaway worktree off HEAD). The current directory is not inside a git repo.",
+      "/k3:swarm --write requires a git repository (it works in a throwaway worktree off HEAD). The current directory is not inside a git repo.",
       "swarm.precondition",
     );
   }
@@ -557,11 +557,11 @@ async function executeSwarmJob(
       const classified = new RuntimeError(
         "SWARM_HOOK_NOT_INSTALLED",
         [
-          "/kimi:swarm refuses to run without the kimi-plugin-cc PreToolUse hook.",
+          "/k3:swarm refuses to run without the kimi-plugin-cc PreToolUse hook.",
           "Swarm fans out multiple subagents; the hook is the ONLY thing keeping every",
           "one of them read-only, so a missing hook means no enforcement across the fan-out.",
           `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-          "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
+          "Repair by running Claude Code /k3:setup or Codex $k3-setup, then retry.",
           hookRefusalRetryProtocol(context.env),
         ].join(" "),
         "swarm.hook-check",
