@@ -1,7 +1,7 @@
 # Native v2 certification and engine-provenance contract
 
 **Approved:** 2026-08-28 · **Amended:** 2026-09-09 (§2 alternate basis, §4 matrix, §5 fields)
-**Current production state:** native v2 certified at exact kimi-code `0.42.0` for every operation under the §2 construction; `legacy-v1` remains selectable only for a pinned binary ≤ 0.41.x.
+**Current production state:** native v2 certified at exact kimi-code `0.42.0`, `0.43.0` and `0.43.1` for every operation under the §2 construction; `legacy-v1` remains selectable only for a pinned binary ≤ 0.41.x.
 
 For the dated upstream evidence and follow-up, see [Native v2 status](native-v2-status.md).
 
@@ -116,7 +116,7 @@ expanding routing is a separate human decision and release slice.
 
 | Engine | Operation | Production state |
 |---|---|---|
-| `native-v2` | review, challenge, ask, rescue, review_gate, pursue, swarm, swarm-write | certified at exact `0.42.0` (`NATIVE_V2_CERTIFIED` in `runtime/kimi-engine.ts`), safety profile `native-v2-no-plan/1` |
+| `native-v2` | review, challenge, ask, rescue, review_gate, pursue, swarm, swarm-write | certified at exact `0.42.0`, `0.43.0`, `0.43.1` (`NATIVE_V2_CERTIFIED` in `runtime/kimi-engine.ts`), safety profile `native-v2-no-plan/1` |
 | `legacy-v1` | review, challenge, ask, rescue, review_gate | certified within `KIMI_TESTED_MINORS` (≤ 0.41) for an explicitly pinned binary |
 | `legacy-v1` | pursue / swarm / swarm-write | certified from kimi-code 0.8 / 0.12 / 0.18 within `KIMI_TESTED_MINORS` |
 
@@ -209,8 +209,10 @@ legacy-v1 plan on a pinned ≤ 0.41 binary.
 The migration state machine:
 
 1. Forced-v1 plans, v2 matrix empty (v1.9.x).
-2. **Now (v1.10.0):** every operation certified at exact 0.42.0 under Basis B;
+2. **v1.10.0:** every operation certified at exact 0.42.0 under Basis B;
    routing chooses v2 for 0.42.0 and v1 for a pinned ≤ 0.41 binary.
+   **v1.10.3:** 0.43.0 and 0.43.1 appended after their own tag scan, plan-ON /
+   plan-OFF live controls and per-operation smoke (2026-09-15).
 3. Each later kimi-code version is appended per operation after its own tag
    scan, live control, and smoke.
 

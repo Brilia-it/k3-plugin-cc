@@ -1,4 +1,16 @@
-# Native v2 status — 2026-09-09
+# Native v2 status — 2026-09-15
+
+> **0.43.0 / 0.43.1 (certified 2026-09-15, plugin v1.10.3):** every fact below re-verified
+> on both exact tags. All seven load-bearing files are byte-identical between 0.43.0 and
+> 0.43.1; `beforeToolExecuteEvent.ts`, `planService.ts`, `planOps.ts`, `config/toml.ts` and
+> `wire-scan.ts` are byte-identical to 0.42.0. The two that changed are the restore refactor
+> (`state/eventDispatcherService.ts`, `state/state.ts`): patch-history undo became in-memory
+> state snapshots, and `restore()` now folds `wire.readRestorable()` (the undo/branch-filtered
+> view of the SAME `agents/<id>/wire.jsonl`, `wire/tree/fork.ts::restorableChain`, a pure
+> in-memory filter) before `wire.readJournal()`. No second on-disk restore source, so the
+> plugin's raw journal taint scan stays a strict superset of what a resume can replay. The
+> plan-ON live control reproduces the bypass on both binaries (hook saw `Glob` only, plan
+> file written); the plan-OFF control shows `Write` and `EnterPlanMode` both hook-denied.
 
 kimi-code **0.42.0** (commit `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`) removed the
 legacy agent-core-v1 package and `KIMI_CODE_LEGACY_FLAG` (#3542, not mentioned in

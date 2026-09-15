@@ -2,6 +2,80 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 1.10.3 — 2026-09-15
+
+**Certifies kimi-code 0.43.0 and 0.43.1 for native agent-core-v2 (all eight
+operations).** kimi-code published 0.43.0 on 2026-09-14 and 0.43.1 on
+2026-09-15; the operator's binary auto-upgraded to 0.43.1 the same morning, so
+every model-spawning command on an auto-updating host had started refusing with
+`KIMI_CAPABILITY_NOT_CERTIFIED`. `NATIVE_V2_CERTIFIED_VERSIONS` is now
+`0.42.0, 0.43.0, 0.43.1`. No approval-policy, allowlist, hook, preflight or
+engine-selection change.
+
+Certification evidence (per docs/upstream-compat-audit.md, all three gates, per
+exact version):
+
+- **Tag scan** (`tests/audit/v2-tag-scan.test.ts`): 15/15 on the exact 0.43.0
+  and 0.43.1 source trees (and still 15/15 on 0.42.0). New hash rows for both
+  versions; the seven load-bearing files are byte-identical between 0.43.0 and
+  0.43.1, and five of them are byte-identical to 0.42.0. The two that changed
+  are upstream's restore refactor (`state/eventDispatcherService.ts`,
+  `state/state.ts`): patch-history undo replaced by in-memory state snapshots,
+  and `restore()` now folds `wire.readRestorable()` before `wire.readJournal()`.
+  `readRestorable()` is `readStableEntries()` over the same `wire.jsonl`
+  append-log filtered by the pure `restorableChain()` (`wire/tree/fork.ts`) —
+  no second on-disk restore source — so the resume taint scan's premise holds.
+  The "restore folds only the wire journal" check now also asserts that every
+  `this.wire.read*()` call in the dispatcher is `readJournal`/`readRestorable`,
+  that every append-log read in the wire service names `AGENT_WIRE_RECORD_KEY`
+  (`'wire.jsonl'`), and that `restorableChain` takes only the entries it is
+  handed.
+- **Live controls on both exact binaries**: plan-ON (`default_plan_mode = true`,
+  deny-all hook) still shows the upstream bypass — one `system.version`, plan
+  file written, the hook saw `Glob` only — so the plugin's refusal remains
+  load-bearing (#3431 unchanged). Plan-OFF (new `repro-clean.ts`): an ordinary
+  `Write` and an `EnterPlanMode` attempt both reached the hook and were denied;
+  no file, no plan file.
+- **Real-binary smoke** (`bun run smoke:real`): 13 pass / 0 fail / 0 skip on the operator's installed **0.43.1** (312 s) and on a temp-installed exact **0.43.0** via `KIMI_PLUGIN_CC_KIMI_BIN` (285 s) — every native-v2 lane: all read-only labels hook-denied, the goal-mode run wrote zero files across the budget (0.43.1: `turnsUsed:8`, paused on the plugin abort; 0.43.0: `turnsUsed:10`), default-plan preflight and resume/taint lanes, swarm subagent write denied, and write-swarm confined to its worktree with a captured patch (0.43.1: `patchBytes=278 userTreeClean=true worktreeCleaned=true`; 0.43.0: `patchBytes=278 userTreeClean=true worktreeCleaned=true`).
+
+Also read for this release: the 0.42.0→0.43.1 diffs of `run-v2-print.ts`
+(prompt submission moved from `IAgentPromptService.enqueue()` to
+`IAgentLoopService.submit()`; no argv or provenance change), the before-execute
+subscriber set (unchanged eight; sole `.allow()` still `planService.ts:110`),
+the experimental flag set (`KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE` removed,
+nothing added; `tower`/`subagent_fork` refusals unchanged), and the
+`[secondary_model]` subagent validation added in 0.43.1 (config diagnostics
+only), and the 0.43.0→0.43.1 `_base/di/**` diff (`cascadeEngine`,
+`dependencyGraph`, `instantiationService`, `scopeUnits`): disposal-path cleanup
+only (`dropScope`/`removeScope`/`deleteScope`, ledger release on retract,
+`.sort()`→`.toSorted()`) — no change to service resolution, child-scope
+creation or singleton-vs-scoped wiring, so the "every `AgentSwarm` subagent has
+its own eager external-hooks service" claim stands (Codex release review).
+Upstream removed its 24-hour goal limit; the plugin's mandatory finite
+`--budget` is unaffected.
+
+Test fix: `tests/runtime/shell-quote-linear.test.ts` (1.10.2) asserted an empty
+stderr from a `node --import tsx` subprocess; Node 26.8 prints a `DEP0205`
+deprecation warning for tsx's `module.register()`, failing all three lanes on
+an unmodified checkout. The test now strips only that warning pair from stderr
+before asserting it is empty, so any other stderr output still trips it.
+
+Release reviews (Codex via its plugin; Kimi via the 1.10.3 runtime against the
+installed hook pin): both approve. Kimi's two low findings are closed in this
+release — the tag scan now (a) pins `wire/wireService.ts`, `wire/record.ts` and
+`wire/tree/fork.ts` so the `readRestorable` regex assertions cannot degrade
+silently, with an explicit body-delimiter check, and (b) asserts that no
+`wire/migration/*` source references the plan domain, because migrations run on
+each journal line BEFORE restore folds by type while the plugin's taint scan
+reads the raw line (no such migration exists at 0.42.0–0.43.1; this closes the
+vector for future tags).
+
+Operational notes: run live controls and smokes sequentially — two isolated
+homes refreshing a copy of the managed OAuth grant concurrently invalidated the
+operator's token (remedy `kimi login`). Update the plugin through its
+marketplace and run `/kimi:setup` (Claude Code) or `$kimi-setup` (Codex) to
+activate; publishing does not update existing host caches or hook pins.
+
 ## 1.10.2 — 2026-09-14
 
 **Security patch: bounded parser work during hook validation.** Vendored TOML

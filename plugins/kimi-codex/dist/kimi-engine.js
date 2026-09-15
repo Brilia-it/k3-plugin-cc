@@ -26,10 +26,14 @@ const LEGACY_V1_MINIMUMS = {
  * NATIVE_V2_SAFETY_PROFILE. Exact, not minor-ranged: upstream ships
  * behavioural changes in patch releases, and the no-plan construction must be
  * re-proven (mechanized tag scan + real-binary smoke) per tag before a version
- * is appended. PROVISIONAL: 0.42.0 stays here only while the v1.10.0 release
- * campaign (docs/native-v2-certification-provenance.md §3) is green.
+ * is appended. Each entry has its own row in tests/audit/v2-tag-scan.test.ts
+ * and a dated entry in ROADMAP-TO-GA.md § Post-GA audit log.
  */
-export const NATIVE_V2_CERTIFIED_VERSIONS = Object.freeze(["0.42.0"]);
+export const NATIVE_V2_CERTIFIED_VERSIONS = Object.freeze([
+    "0.42.0",
+    "0.43.0",
+    "0.43.1",
+]);
 /** Per-operation native-v2 certification. One green operation never certifies another. */
 export const NATIVE_V2_CERTIFIED = new Map([
     ["review", NATIVE_V2_CERTIFIED_VERSIONS],

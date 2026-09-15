@@ -4,18 +4,22 @@ How to verify a new kimi-code release against kimi-plugin-cc without breaking th
 
 This document captures the routine that ran on 2026-05-27 for `@moonshot-ai/kimi-code@0.4.0` (reports 31-35 in `.claude/kimi-code-research/reports/`, commit `b67263c`, tag `compat-verified-kimi-code-0.4.0`). Repeat it whenever a new kimi-code minor or major lands. The most recent minor worked example is the 2026-09-06 0.41.0 certification (reports 121-125: hook, stream/bootstrap, CLI, adversarial, synthesis; same-day monitor smoke reused for a boundary-only release); the 2026-08-29 exact-0.39.1 patch check is the most recent patch-checkup example.
 
-## Current certified boundary (2026-09-09)
+## Current certified boundary (2026-09-15)
 
-The plugin certifies **native agent-core-v2 at exact `@moonshot-ai/kimi-code@0.42.0`**
-(release commit `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`) for all eight
-operations, and legacy-v1 through 0.41.x for an explicitly pinned binary.
+The plugin certifies **native agent-core-v2 at exact `@moonshot-ai/kimi-code@0.42.0`,
+`0.43.0` and `0.43.1`** (release commits `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`,
+`ffa94fae854dedf594919acbea280d98cbe8e14e`, `75ac010bcb2050338444455de8328492d152c919`)
+for all eight operations, and legacy-v1 through 0.41.x for an explicitly pinned binary.
+The most recent worked example is the 2026-09-15 0.43.0 + 0.43.1 certification
+(v1.10.3; ROADMAP-TO-GA.md § Post-GA audit log).
 0.42.0 removed `packages/agent-core` and `KIMI_CODE_LEGACY_FLAG` (#3542; not in
 its changelog): `kimi -p` is v2 unconditionally, so the v1 pin is inert there.
 
 The certification basis is the **no-plan construction** (see
 [`native-v2-certification-provenance.md` §2](native-v2-certification-provenance.md#2-native-v2-entry-gate)),
 not an upstream ordering guarantee — plan still registers before external
-hooks at 0.42.0 (confirmed in `dist/main.mjs`). Certification is per EXACT
+hooks at 0.42.0 through 0.43.1 (confirmed in `dist/main.mjs` at 0.42.0 and by the
+plan-ON live control on every certified binary). Certification is per EXACT
 version and per operation; a patch release is NOT certified until the three
 gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
 
@@ -29,14 +33,26 @@ gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
    `enter()` caller, a changed config section, a new executor entry point,
    changed tool field names) is a human re-audit, not a pin update. The scan
    cannot see semantic regressions: also read every NEW subscriber's
-   statements, check for tools with side effects in `resolveExecution`, and
-   grep `os/backends/` for a non-local runtime selector.
-2. **Live control on the exact binary** (`repro-0391/repro.ts` style, isolated
-   seeded home, deny-all hook): with `default_plan_mode = true` the plan-file
-   `Write` must STILL bypass the hook (if it stops bypassing, upstream may have
-   shipped the ordering fix — re-read #3431 and re-decide the basis); with plan
-   mode off, an ordinary `Write` and an `EnterPlanMode` attempt must both reach
-   the hook and be denied. Count payloads for the specific tool, not all calls.
+   statements, check for tools with side effects in `resolveExecution`, grep
+   `os/backends/` for a non-local runtime selector, and diff `_base/di/**`
+   (scope units, cascade engine, instantiation service) for changes to child
+   scope creation or singleton-vs-scoped resolution — the swarm-subagent
+   "own eager external-hooks service" claim rests on that subsystem.
+2. **Live control on the exact binary** (`repro-0391/repro.ts` = plan ON and
+   `repro-0391/repro-clean.ts` = plan OFF, both under
+   `.claude/kimi-code-research/upstream-v2-hook-coverage/`; isolated seeded home,
+   deny-all hook; run `PATH=<exact-binary-dir>:$PATH bun <script>`): with
+   `default_plan_mode = true` the plan-file `Write` must STILL bypass the hook
+   (if it stops bypassing, upstream may have shipped the ordering fix — re-read
+   #3431 and re-decide the basis); with plan mode off, an ordinary `Write` and
+   an `EnterPlanMode` attempt must both reach the hook and be denied. Count
+   payloads for the specific tool, not all calls. `repro-clean.ts` sends the two
+   probes as SEPARATE prompts — a single two-step prompt lets the model stop at
+   the first denial and never issue the second call (observed 2026-09-15).
+   **Run every live control and smoke SEQUENTIALLY.** Each isolated home carries
+   a copy of the managed OAuth credentials; two copies refreshing concurrently
+   invalidated the operator's grant on 2026-09-15 (`The provided authorization
+   grant is invalid`, fixed by `kimi login`).
 3. **Real-binary smoke** (Phase 1b) with the v2 lanes green for every operation.
 
 Do not extend `KIMI_TESTED_MINORS` (legacy table) past 0.41. Do not write a

@@ -28,7 +28,13 @@ describe("GHSA-395f-4hp3-45gv: linear shell token finalization", () => {
         killSignal: "SIGKILL",
       });
       expect(result.error).toBeUndefined();
-      expect(result.stderr).toBe("");
+      // Node >= 26.8 warns that tsx's module.register() is deprecated (DEP0205);
+      // strip exactly that pair so any other stderr output still fails the test.
+      const stderr = result.stderr
+        .split("\n")
+        .filter((line) => !/\[DEP0205\]|--trace-deprecation/.test(line))
+        .join("\n");
+      expect(stderr).toBe("");
       expect(result.status).toBe(0);
     }, 5_000);
   }
