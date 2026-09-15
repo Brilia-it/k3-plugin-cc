@@ -60,6 +60,12 @@ deprecation warning for tsx's `module.register()`, failing all three lanes on
 an unmodified checkout. The test now strips only that warning pair from stderr
 before asserting it is empty, so any other stderr output still trips it.
 
+Docs: `AGENTS.md` trimmed from 43.6 KB to 23.6 KB (Kimi flagged it above the
+32 KB instruction-file guidance; every host loads it each turn). It is now the
+contract sheet — one present-tense statement per invariant plus a pointer —
+and the full mechanics/rationale moved verbatim to the new `docs/invariants.md`.
+`CLAUDE.md` stays an `@AGENTS.md` import (single source, nothing to mirror).
+
 Release reviews (Codex via its plugin; Kimi via the 1.10.3 runtime against the
 installed hook pin): both approve. Kimi's two low findings are closed in this
 release — the tag scan now (a) pins `wire/wireService.ts`, `wire/record.ts` and
