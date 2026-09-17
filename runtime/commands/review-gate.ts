@@ -31,7 +31,6 @@ import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
 import { resolveKimiHome } from "../kimi-home.js";
 import { assertCliResultSuccess, reassembleProseFromRecords } from "./cli-helpers.js";
 
-const DEFAULT_REVIEW_GATE_MODEL = "kimi-for-coding";
 const REVIEW_GATE_AGENT_PROFILE_PLACEHOLDER = "<cli-client>";
 
 export interface StopHookInput {
@@ -176,8 +175,8 @@ async function executeReviewGate(
       cwd: payload.cwd,
       repoRoot: repoIdentity.repoRoot,
     });
-    const model =
-      context.env.KIMI_PLUGIN_CC_REVIEW_GATE_MODEL ?? DEFAULT_REVIEW_GATE_MODEL;
+    const configuredModel = context.env.KIMI_PLUGIN_CC_REVIEW_GATE_MODEL;
+    const model = configuredModel?.trim() ? configuredModel : undefined;
     const executionPlan = await prepareKimiExecutionPlan({
       operationKind: "review_gate",
       cwd: payload.cwd,
@@ -202,7 +201,7 @@ async function executeReviewGate(
       repo_id: repoIdentity.repoId,
       command_type: "review_gate",
       cwd: payload.cwd,
-      model,
+      model: model ?? null,
       thinking: false,
       background: false,
       pid: null,

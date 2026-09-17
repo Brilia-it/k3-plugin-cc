@@ -184,3 +184,17 @@ No action for the job store (one additive nullable column, migrated automaticall
 
 None of these refusals is repaired by `/kimi:setup`; all of them carry `retryable_after_setup: false` explicitly from 1.10.1 (an absent field must still be treated as `false`). They are catalogued with remedies in [docs/safety.md § Refusal codes](./safety.md#refusal-codes-of-the-native-v2-contract-v1100).
 
+
+
+## Upgrading to 2.0 (versions track kimi-code)
+
+From 2.0.0 onward, plugin certification releases use the same exact version as
+upstream kimi-code. This numbering change preserves the native-v2 no-plan
+safety profile introduced in 1.10, the plugin/marketplace IDs, and the existing
+job store. The runtime's exact-version table still determines compatibility;
+future upstream patches require their own certification.
+
+After updating the plugin, run Claude Code `/kimi:setup` or Codex `$kimi-setup`
+from that host's active install to re-pin its version-stamped hook path, then
+run setup with `--check`. Keep `default_plan_mode` absent or false. Upgrades
+from pre-1.10 releases must also follow the native-v2 migration section above.

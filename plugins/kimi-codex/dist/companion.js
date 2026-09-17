@@ -1,4 +1,5 @@
 import { runAsk } from "./commands/ask.js";
+import { runModelInventory } from "./commands/models.js";
 import { runCancel } from "./commands/cancel.js";
 import { notImplementedCompanionCommand } from "./commands/not-implemented.js";
 import { runReplay } from "./commands/replay.js";
@@ -26,6 +27,12 @@ async function main(argv) {
     };
     switch (command) {
         case "setup": {
+            if (rest.includes("--models")) {
+                const args = [...rest];
+                args.splice(args.indexOf("--models"), 1);
+                context.stdout.write(`${await runModelInventory(args, context)}\n`);
+                return;
+            }
             const result = await runSetup(rest, context);
             context.stdout.write(`${renderSetupResult(result)}\n`);
             // A failed probe means the hook did not actually deny when exercised —

@@ -105,6 +105,7 @@ export const NATIVE_V2_CERTIFIED_VERSIONS: readonly string[] = Object.freeze([
   "0.42.0",
   "0.43.0",
   "0.43.1",
+  "2.0.0",
 ]);
 
 /** Per-operation native-v2 certification. One green operation never certifies another. */

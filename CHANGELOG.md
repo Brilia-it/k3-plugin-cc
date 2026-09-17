@@ -2,6 +2,53 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.0 — 2026-09-17
+
+**Certifies exact kimi-code 2.0.0 for native agent-core-v2 across all eight
+operations.** Starting here, plugin certification releases use the same
+version number as the upstream release they certify. Previous exact native-v2
+versions remain supported; the legacy table stays capped at 0.41.x.
+
+Setup now accepts PermissionRequest, PermissionResult and Interrupt on the
+reviewed exact 2.0.0 schema. Future patches/minors, prereleases and other
+nonzero versions remain refused for those events. Hook policy, workspace
+allowlist and no-plan preflight behavior are unchanged.
+
+Model selection now includes a credential-safe offline inventory through
+`setup --models [--json]`, native subscription/API-provider setup guidance, and
+model-choice instructions for both Claude and Codex. Fresh tasks use the default;
+named requests resolve configured aliases without a silent fallback. The review
+gate now follows the default unless its model override is set. See
+[models and provider setup](./docs/models.md).
+
+Evidence:
+
+- Exact source `1b89e4b0`: tag scan 15/15, including new hook-schema pins.
+  The wire flush now drains the same agent journal directly; swarm eviction
+  and rebuild retain normal lifecycle creation and eager child hooks.
+- Plan-ON reproduced the known bypass (769-byte plan, hook saw Glob only);
+  plan-OFF denied both Write and EnterPlanMode without creating files.
+- Full candidate smoke: 12 passed, one failed its fan-out precondition (no
+  AgentSwarm call, no escape files). After clarifying that the paths are
+  authorized disposable negative-test fixtures, a targeted retry passed with
+  the original assertions and a surfaced hook-denial reason. All 13 cases
+  are covered by the full run plus that retry; this was not a clean single run.
+- Goal mode: five turns over the two-minute budget, zero writes. Write-swarm:
+  278-byte patch, user tree clean, worktree removed. Resume/taint lanes passed.
+- Final `bun run check` after model-selection additions: 847 pass / 26 skip / 0 fail; build, typecheck,
+  generated surfaces and drift gate passed. Fake-credential fixtures cover
+  secret-free inventory/errors, no writes, environment defaults, explicit
+  aliases and resume, and default/override review-gate argv. Both compiled
+  host entrypoints passed an offline fixture without provider calls.
+- An authorized live Moonshot K3 API test completed through an explicit
+  configured alias; the saved subscription default remained unchanged.
+
+The smoke harness can select an exact audited v2 candidate before production
+certification, with an exact-binary mismatch refusal and a test-process-only
+write-swarm capability row. Temporary config/OAuth copies were explicitly
+authorized for this run and removed afterward. After upgrading either host,
+run its setup command to refresh the version-stamped hook path.
+
 ## 1.10.3 — 2026-09-15
 
 **Certifies kimi-code 0.43.0 and 0.43.1 for native agent-core-v2 (all eight

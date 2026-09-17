@@ -52,7 +52,7 @@ describe("review gate stop hook", () => {
     }
   });
 
-  test("enabled gate with explicit hook-check opt-out blocks stop on BLOCK plus high confidence", async () => {
+  test.each([undefined, "", "custom/provider-model", " alias with spaces "])("enabled gate honors model selection %j and blocks on high-confidence BLOCK", async (selectedModel) => {
     const pluginDataRoot = await createTestPluginDataRoot("review-gate-block");
     const kimiHome = await createTestPluginDataRoot("review-gate-kimi-home");
     const invocationPath = path.join(pluginDataRoot, "review-gate-invocation.jsonl");
@@ -88,6 +88,7 @@ describe("review gate stop hook", () => {
           KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
           KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
           KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+          KIMI_PLUGIN_CC_REVIEW_GATE_MODEL: selectedModel,
           KIMI_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
           KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
           KIMI_CODE_HOME: kimiHome,
@@ -114,8 +115,11 @@ describe("review gate stop hook", () => {
       expect(invocation.env.KIMI_PLUGIN_CC_CMD).toBe("review_gate");
       expect(invocation.argv).toContain("--output-format");
       expect(invocation.argv).toContain("stream-json");
-      expect(invocation.argv).toContain("-m");
-      expect(invocation.argv).toContain("kimi-for-coding");
+      if (selectedModel) {
+        expect(invocation.argv[invocation.argv.indexOf("-m") + 1]).toBe(selectedModel);
+      } else {
+        expect(invocation.argv).not.toContain("-m");
+      }
       // v1.0 alpha.4: review-gate sets `thinking: false` in the options
       // bag for future kimi-code support, but the runtime MUST NOT emit
       // `--no-thinking` in argv — kimi-code 0.1.1 has no such flag and
@@ -134,6 +138,7 @@ describe("review gate stop hook", () => {
           commandType: "review_gate",
         });
         expect(latest?.status).toBe("completed");
+        expect(latest?.model).toBe(selectedModel || null);
         expect(latest?.summary).toContain("requested work was complete");
         expect(latest?.final_output_path).toBeTruthy();
       } finally {

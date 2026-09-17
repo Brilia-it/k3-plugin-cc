@@ -1,4 +1,15 @@
-# Native v2 status — 2026-09-15
+# Native v2 status — 2026-09-17
+
+> **2.0.0 (certified 2026-09-17, plugin 2.0.0):** the exact release
+> `1b89e4b0` preserves the no-plan construction and hook schema. The changed
+> wire flush targets the same agent journal; swarm eviction/rebuild uses the
+> normal lifecycle and eager hooks. Tag scan: 15/15. Plan-ON reproduced the
+> bypass; plan-OFF denied Write and EnterPlanMode. Full smoke: 12 passed and
+> one failed because the coordinator never fanned out. After clarifying the
+> negative-test fixture prompt, that case passed a targeted retry, including
+> the unchanged fan-out/no-escape assertions and the surfaced denial reason.
+> The production matrix now includes exact 2.0.0 for all eight operations.
+> Plugin certification releases now use the upstream version number.
 
 > **0.43.0 / 0.43.1 (certified 2026-09-15, plugin v1.10.3):** every fact below re-verified
 > on both exact tags. All seven load-bearing files are byte-identical between 0.43.0 and

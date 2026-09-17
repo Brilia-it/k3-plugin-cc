@@ -629,7 +629,7 @@ interface HookSetInspection {
  */
 export function validateKimiHookSet(
   contents: string,
-  version?: { major: number; minor: number },
+  version?: { major: number; minor: number; patch?: number; version?: string },
 ): KimiHookSetValidation {
   const inspection = inspectKimiHookSet(contents);
   if (!inspection.validation.valid) return inspection.validation;
@@ -759,7 +759,7 @@ function validateHookEntry(
 
 function validateVersionSensitiveEvents(
   events: VersionSensitiveEvent[],
-  version?: { major: number; minor: number },
+  version?: { major: number; minor: number; patch?: number; version?: string },
 ): KimiHookSetValidation {
   if (events.length === 0) return { valid: true };
   const first = events[0]!;
@@ -769,6 +769,12 @@ function validateVersionSensitiveEvents(
       first.entry,
       first.line,
     );
+  }
+  // Exact 2.0.0 schema reviewed against release 1b89e4b0: all three
+  // additive events and HookDefSchema are unchanged from 0.43.1. Do not
+  // infer schema compatibility for an unreviewed 2.x patch or minor.
+  if (version.version === "2.0.0" && version.major === 2 && version.minor === 0 && version.patch === 0) {
+    return { valid: true };
   }
   if (version.major !== 0) {
     return invalidHookSet(

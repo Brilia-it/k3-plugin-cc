@@ -2,7 +2,7 @@
 
 Claude Code slash command markdown. Each file is thin — it routes through `scripts/companion.sh` to the Node runtime under `runtime/`.
 
-- `setup.md` — verify local Kimi and manage review-gate state
+- `setup.md` — list configured models, guide provider setup, verify local Kimi and manage review-gate state
 - `ask.md` — free-form read-only Q&A
 - `review.md` — structured read-only review
 - `challenge.md` — challenge read-only review

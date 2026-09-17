@@ -143,6 +143,36 @@ const PINNED_HASHES: Record<string, Record<string, string>> = {
     [`${CORE}/wire/tree/fork.ts`]:
       "843b09947cb7b3bc91cb8bf8216c10d00baba4fcd268b34b174c57b9ea04c533",
   },
+  // 2.0.0 (1b89e4b0): only wireService changes among these pins. flushLog
+  // drains the same agent wire.jsonl through flushState, instead of flushing
+  // every agent log. Restore sources and plan event folding are unchanged.
+  "2.0.0": {
+    // Major-version hook schema is explicitly reviewed, never inferred.
+    [`${CORE}/features/externalHooks/configSection.ts`]:
+      "a95482d27f1a873a64d4e67fda77e844dc8dc29e424acbe03f6ffb094d832b20",
+    [`${CORE}/features/externalHooks/internal/types.ts`]:
+      "b8ecad863326646df46e5b596324fe9a3d7bd687c78bc6b538399c1201e01d6f",
+    [`${CORE}/agent/toolExecutor/beforeToolExecuteEvent.ts`]:
+      "ef981d83e607f0427f77a0fc89e4c03d301116b01ac5f0c33bb68ea955749455",
+    [`${CORE}/features/plan/planService.ts`]:
+      "1d3526543839a78820e6a2e21f746c311e3034812f479233a4462a2a4fe5fc4d",
+    [`${CORE}/state/eventDispatcherService.ts`]:
+      "edcab84af00e59a3e67f99b31adb5e97fc97566d5f31e934a230e156dc5e3584",
+    [`${CORE}/state/state.ts`]:
+      "f473464f22800937ef85a0eb9f4ddd16a8041277eeb4c35b55f4bca6ac52255b",
+    [`${CORE}/features/plan/planOps.ts`]:
+      "5fc805219ac755c7f155695f783b553088aab90a1ed44aa8f3d59e2926204dde",
+    [`${CORE}/app/config/toml.ts`]:
+      "57f3830d4fcbf48bb79f6e400efb53af3198ea64de194b381ff8545ab808e334",
+    [`${CORE}/app/sessionExport/wire-scan.ts`]:
+      "29489dabbc2a585a5cc70015a7b160f7c0a13403f102de007bbce89d1a6b5ef9",
+    [`${CORE}/wire/wireService.ts`]:
+      "ed730c86e4df0947a31edcccc41892d0989da40766e2b1906586a4916264462b",
+    [`${CORE}/wire/record.ts`]:
+      "8b9eead225a5120d5dccd829cb900cd31fe2262ac0771bff4983043bb6f55056",
+    [`${CORE}/wire/tree/fork.ts`]:
+      "843b09947cb7b3bc91cb8bf8216c10d00baba4fcd268b34b174c57b9ea04c533",
+  },
 };
 
 /**

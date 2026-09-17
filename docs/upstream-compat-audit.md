@@ -4,21 +4,22 @@ How to verify a new kimi-code release against kimi-plugin-cc without breaking th
 
 This document captures the routine that ran on 2026-05-27 for `@moonshot-ai/kimi-code@0.4.0` (reports 31-35 in `.claude/kimi-code-research/reports/`, commit `b67263c`, tag `compat-verified-kimi-code-0.4.0`). Repeat it whenever a new kimi-code minor or major lands. The most recent minor worked example is the 2026-09-06 0.41.0 certification (reports 121-125: hook, stream/bootstrap, CLI, adversarial, synthesis; same-day monitor smoke reused for a boundary-only release); the 2026-08-29 exact-0.39.1 patch check is the most recent patch-checkup example.
 
-## Current certified boundary (2026-09-15)
+## Current certified boundary (2026-09-17)
 
 The plugin certifies **native agent-core-v2 at exact `@moonshot-ai/kimi-code@0.42.0`,
-`0.43.0` and `0.43.1`** (release commits `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`,
-`ffa94fae854dedf594919acbea280d98cbe8e14e`, `75ac010bcb2050338444455de8328492d152c919`)
+`0.43.0`, `0.43.1` and `2.0.0`** (release commits `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`,
+`ffa94fae854dedf594919acbea280d98cbe8e14e`, `75ac010bcb2050338444455de8328492d152c919`,
+`1b89e4b039f052d10f258464413b2047acca12ba`)
 for all eight operations, and legacy-v1 through 0.41.x for an explicitly pinned binary.
-The most recent worked example is the 2026-09-15 0.43.0 + 0.43.1 certification
-(v1.10.3; ROADMAP-TO-GA.md § Post-GA audit log).
+The most recent worked example is the 2026-09-17 exact 2.0.0 certification
+(plugin 2.0.0; ROADMAP-TO-GA.md § Post-GA audit log).
 0.42.0 removed `packages/agent-core` and `KIMI_CODE_LEGACY_FLAG` (#3542; not in
 its changelog): `kimi -p` is v2 unconditionally, so the v1 pin is inert there.
 
 The certification basis is the **no-plan construction** (see
 [`native-v2-certification-provenance.md` §2](native-v2-certification-provenance.md#2-native-v2-entry-gate)),
 not an upstream ordering guarantee — plan still registers before external
-hooks at 0.42.0 through 0.43.1 (confirmed in `dist/main.mjs` at 0.42.0 and by the
+hooks at every certified version through 2.0.0 (confirmed in `dist/main.mjs` at 0.42.0 and by the
 plan-ON live control on every certified binary). Certification is per EXACT
 version and per operation; a patch release is NOT certified until the three
 gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
@@ -54,6 +55,17 @@ gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
    invalidated the operator's grant on 2026-09-15 (`The provided authorization
    grant is invalid`, fixed by `kimi login`).
 3. **Real-binary smoke** (Phase 1b) with the v2 lanes green for every operation.
+   Before adding a production certification row, set
+   `KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE=<exact-version>` together with
+   `KIMI_PLUGIN_CC_KIMI_BIN=<exact-binary>`. The harness refuses a version
+   mismatch, selects v2 lanes, and adds only an in-memory test-process
+   write-swarm capability row so that command's real gates can run. It does
+   not bypass the hook schema, hook installation or no-plan preflight.
+   Review and represent a new major's hook schema first. Only after all gates
+   pass may the shipped certification table gain the version.
+
+From plugin 2.0.0 onward, certification releases use that same exact upstream
+version. The matching number does not replace any certification gate.
 
 Do not extend `KIMI_TESTED_MINORS` (legacy table) past 0.41. Do not write a
 "plan-file write denied under plan mode" smoke — under the construction that

@@ -12,6 +12,8 @@ This is a [Claude Code](https://claude.ai/code) plugin that drives the [kimi-cod
 
 > **Upgrading to v1.10 from an earlier 1.x?** kimi-code 0.42.0 removed the legacy engine; v1.10 runs native agent-core-v2 with **exact-version** certification (0.42.0, 0.43.0, 0.43.1 as of v1.10.3), cannot resume pre-1.10 sessions, and refuses `default_plan_mode = true`. Read [docs/migration.md § Upgrading to 1.10](./docs/migration.md#upgrading-to-110-native-agent-core-v2-kimi-code-0420) before updating, then run `/kimi:setup` again.
 
+> **Version numbering from 2.0.0:** plugin certification releases match the exact kimi-code version they certify. Each upstream release still passes the source audit and live safety gates; matching numbers do not automatically authorize newer binaries. See [the compatibility playbook](./docs/upstream-compat-audit.md).
+
 ## Try it in 60 seconds
 
 ```
@@ -45,6 +47,15 @@ Claude reads the review and can act on it directly. For programmatic access to t
 ```
 
 Kimi opens the file, writes the fix, runs the relevant tests, and reports back. The session persists — if you restart Claude Code, `/kimi:rescue --resume` picks up where it left off.
+
+## Models and providers
+
+The configured default is used unless you request another model. Run
+`/kimi:setup --models` (Claude Code) or ask `$kimi-setup` to list models (Codex),
+then select an alias with `-m` or name the model in your request. Listing is
+offline; it does not test credentials. Subscription login, API-key providers,
+and persistent default changes use Kimi's native setup. See
+[models and provider setup](./docs/models.md).
 
 ## When to use what
 

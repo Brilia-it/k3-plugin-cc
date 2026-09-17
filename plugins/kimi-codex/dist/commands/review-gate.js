@@ -18,7 +18,6 @@ import { renderManagedJobOutput, writeArtifact, } from "../render.js";
 import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
 import { resolveKimiHome } from "../kimi-home.js";
 import { assertCliResultSuccess, reassembleProseFromRecords } from "./cli-helpers.js";
-const DEFAULT_REVIEW_GATE_MODEL = "kimi-for-coding";
 const REVIEW_GATE_AGENT_PROFILE_PLACEHOLDER = "<cli-client>";
 // v1.0 cutover note (PR 2):
 //
@@ -113,7 +112,8 @@ async function executeReviewGate(payload, assistantMessage, context) {
             cwd: payload.cwd,
             repoRoot: repoIdentity.repoRoot,
         });
-        const model = context.env.KIMI_PLUGIN_CC_REVIEW_GATE_MODEL ?? DEFAULT_REVIEW_GATE_MODEL;
+        const configuredModel = context.env.KIMI_PLUGIN_CC_REVIEW_GATE_MODEL;
+        const model = configuredModel?.trim() ? configuredModel : undefined;
         const executionPlan = await prepareKimiExecutionPlan({
             operationKind: "review_gate",
             cwd: payload.cwd,
@@ -137,7 +137,7 @@ async function executeReviewGate(payload, assistantMessage, context) {
             repo_id: repoIdentity.repoId,
             command_type: "review_gate",
             cwd: payload.cwd,
-            model,
+            model: model ?? null,
             thinking: false,
             background: false,
             pid: null,
