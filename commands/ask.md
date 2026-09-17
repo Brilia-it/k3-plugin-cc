@@ -17,7 +17,7 @@ Supported flags:
 - `--fresh` — force a new ask session id instead of reusing a prior session
 - `-m`, `--model <name>`
 
-Kimi's extended reasoning is always on for `ask`. Budgets are sized for the thinking-on path (15 min) so a real session has headroom.
+Reasoning behavior follows the selected model and Kimi configuration. The plugin does not force a thinking mode. The 15-minute budget leaves room for extended reasoning.
 
 Return the companion stdout verbatim.
 

@@ -1,47 +1,56 @@
-# runtime
+# Runtime
 
-Local runtime implementation for `kimi-plugin-cc`. v1.0 ships against the kimi-code Node.js rewrite (`kimi -p --output-format stream-json`); the v0.4 Wire transport is preserved on the `v0.4-maintenance` branch.
+The runtime serves both Claude Code and Codex. Each model job starts a local `kimi -p --output-format stream-json` subprocess.
 
-Command surface exposed via `companion.ts`:
+Plugin 2.0.1 certifies native agent-core-v2 at exact CLI versions `0.42.0`, `0.43.0`, `0.43.1`, and `2.0.0`. Legacy-v1 remains available for explicitly pinned versions in `KIMI_TESTED_MINORS`, through 0.41.x. See [engine certification](../docs/native-v2-certification-provenance.md) for the per-operation matrix.
 
-- `setup` — write the managed PreToolUse hook block to `~/.kimi-code/config.toml`, probe the installed hook, and manage the review-gate config. Subcommands: `--check`, `--uninstall`, `--enable-review-gate`, `--disable-review-gate`.
-- `review` / `task challenge` — read-only reviews; Kimi output is pass-through markdown prose (no schema parsing as of v0.2.3)
-- `ask` — read-only free-form Q&A (fresh session per call by default; `--resume` to continue)
-- `task rescue` — write-capable delegated task channel with workspace-bound allowlist; refuses to run if the PreToolUse hook is not installed
-- `status` / `result` / `cancel` — SQLite-backed job lifecycle commands
-- `replay <job-id>` — re-render a stored stream-json log into the same artifact the live runtime emits
+## Commands
 
-Core modules:
+The dispatcher in `companion.ts` exposes:
 
-- `companion.ts` — stable subcommand dispatcher invoked via `scripts/companion.sh`
-- `cli-client.ts` — subprocess wrapper around `kimi -p --output-format stream-json` with AbortController-driven cancellation, SIGTERM → SIGKILL escalation, rolling stderr tail, and an optional NDJSON diagnostics log
-- `stream-json.ts` — pure parser for the OpenAI-shaped NDJSON kimi emits; produces `assistant` / `tool` records and surfaces malformed lines as diagnostics
-- `cli-cancellation.ts` — AbortController-based cancellation handler used by the long-running commands (replaces the v0.4 wire-client cancellation pattern)
-- `kimi-command.ts` — `KIMI_PLUGIN_CC_KIMI_BIN` + `KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` resolver
-- `kimi-errors.ts` — unified classification for Kimi-unavailable failures across all managed commands
-- `kimi-timeouts.ts` — per-command response budgets (ASK / REVIEW / REVIEW_GATE)
-- `hooks/approval-policy.ts` — pure decision function for the PreToolUse hook (per-command allow/deny posture)
-- `hooks/approval-hook.ts` — entry script (`dist/hooks/approval-hook.js`) installed in `~/.kimi-code/config.toml`
-- `hooks/install.ts` — verifier that confirms the managed block is present and the complete TOML/hook set is loadable in `~/.kimi-code/config.toml`
-- `hooks/config-safety.ts` — serialized config lock plus full TOML parse and strict whole-hook-array validation
-- `rescue-approval.ts` — workspace-bound allowlist (file-edit symlink and containment checks, shell command allowlist, find/sed/ruff/package-manager tightening). Called by the hook via `evaluateRescueHookRequest`.
-- `job-store.ts` — SQLite job state in WAL mode with `busy_timeout`, terminal-state enforcement, and a partial unique index preventing concurrent rescue resume on the same session id
-- `jobs.ts` — job lifecycle helpers, stale-worker sweep, `waitForTerminalJob`
-- `render.ts` — `renderManagedJobOutput` used by both live command handlers and replay so both paths reproduce the same artifact
+- `setup` to install or check the current host's hook, uninstall it, or manage the review gate
+- `setup --models [--json]` to list configured models without contacting a provider or exposing credentials
+- `review` and `task challenge` to review changes without write tools
+- `ask` to answer repository questions, with a fresh session by default and explicit resume support
+- `task rescue` to make workspace changes under the rescue allowlist
+- `task pursue` to run an experimental goal with a finite time budget and the rescue policy
+- `task swarm` to run a read-only parallel review
+- `task swarm --write` to prepare a patch in a temporary Git worktree without applying it
+- `status`, `result`, and `cancel` to manage stored jobs
+- `replay <job-id>` to render a stored stream log again
 
-Behavior notes:
+## Main modules
 
-- Read-only commands (review/challenge/review_gate/ask) are enforced by the PreToolUse hook — kimi-code's `-p` mode auto-approves every tool call without it. Review/challenge/ask refuse before spawning Kimi when verification fails; the review gate skips. The hook is installed by `/kimi:setup` or `$kimi-setup`.
-- Every write-capable command also refuses when the hook is not installed. `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook-verification refusals only and is reserved for tests and diagnostics; it does not bypass the independent experimental-v2 safety refusal.
-- Long-running commands wrap their subprocess in `runCliPromptWithBudget`; cancellation does not settle until identity-checked descendants receive SIGTERM/SIGKILL and a bounded post-kill quiescence check completes.
-- The Stop hook is disabled by default and reads `reviewGateEnabled` from plugin config; enable via `/kimi:setup --enable-review-gate`.
-- `review`/`challenge`/`ask`/`rescue` are prose pass-through — Kimi's raw final output is stored verbatim and rendered as-is; only empty output is a hard failure. `review_gate` is the lone command that still parses Kimi output (JSON allow/block decision) and is warn-allow on parse failure.
-- Stream-json output and diagnostic events are logged to `${CLAUDE_PLUGIN_DATA}/kimi-plugin-cc/logs/<command>-<job-id>.jsonl` for replay and debugging.
-- The companion runs on Node from precompiled `dist/companion.js` in production; `tsx` is used only in development. Bun is the package manager and test runner (ADR 003).
+| Module | Responsibility |
+| --- | --- |
+| `companion.ts` | Dispatch companion subcommands |
+| `cli-client.ts` | Build the child environment and arguments, parse output, enforce provenance, and cancel the process tree |
+| `kimi-engine.ts` | Select a certified engine and persist the execution plan |
+| `native-v2-preflight.ts` | Refuse plan-mode settings, unsafe experimental selectors, and unsafe resume journals |
+| `stream-json.ts` | Parse assistant, tool, and metadata records |
+| `cli-cancellation.ts` | Connect cancellation signals to running commands |
+| `background-spawn.ts` | Start detached ask and rescue workers |
+| `kimi-command.ts` | Resolve the CLI binary and validate launcher prefix arguments |
+| `kimi-errors.ts` and `kimi-timeouts.ts` | Classify CLI failures and set response budgets |
+| `hooks/approval-policy.ts` | Allow or deny each managed tool call |
+| `hooks/approval-hook.ts` | Run the hook installed in Kimi's configuration |
+| `hooks/install.ts` and `hooks/config-safety.ts` | Verify hooks and serialize configuration changes |
+| `rescue-approval.ts` | Check write paths, shell commands, and the trusted workspace root |
+| `job-store.ts` and `jobs.ts` | Store job state, enforce terminal states, and reconcile stale workers |
+| `render.ts` | Render live and replayed results consistently |
 
-Subdirectories:
+## Runtime behavior
 
-- `schemas/` — structured output contract for `review_gate` only (review/challenge dropped their schema in v0.2.3; rescue and ask are pass-through prose)
-- `hooks/` — PreToolUse approval hook + review-gate Stop hook
-- `commands/` — one file per companion subcommand
-- `dev-data/` — repo-local stand-in for `${CLAUDE_PLUGIN_DATA}` during development (gitignored)
+Every model command verifies the current host's hook before spawning. The review gate skips visibly if enforcement is unavailable. Native-v2 sessions also pass the independent no-plan checks before spawn and at the spawn boundary.
+
+`KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook verification only. It is a test and diagnostic option, not a repair path. It does not bypass engine certification, provenance, or the native-v2 preflight.
+
+Cancellation waits for process teardown. On POSIX systems, the runtime checks descendant identities before signaling and waits for a bounded period after forced termination. Windows lacks equivalent process-tree support.
+
+Commands return Kimi's prose. The review gate is the exception: it parses a JSON allow/block decision and permits the host to stop on malformed output. Enable this optional Claude Code Stop hook with `/kimi:setup --enable-review-gate`.
+
+Model selection follows the [model and provider contract](../docs/models.md). The plugin does not enforce a per-task thinking setting. Its `thinking` field carries intent only; the parser rejects `--thinking` and `--no-thinking`.
+
+The shell wrapper accepts `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT`. Data selection uses the explicit `KIMI_PLUGIN_CC_DATA` override, verified installed-package identity, or unambiguous legacy data variables for custom launches. Conflicts refuse before store access; see [plugin data ownership](../docs/invariants.md#5-plugin-data-ownership). Logs remain under the selected parent in `kimi-plugin-cc/logs/`. See [entry points and generated surfaces](../scripts/README.md).
+
+Production runs use `dist/companion.js` on Node. Development can use `tsx`; Bun installs dependencies and runs tests. The old Python Wire transport is historical and is not used by this runtime.

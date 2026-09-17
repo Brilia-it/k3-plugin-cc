@@ -17,7 +17,7 @@ Supported flags:
 - `--fresh` — force a new rescue session id instead of reusing a prior session
 - `-m`, `--model <name>`
 
-Kimi's extended reasoning is always on for `rescue`. Budget is 30 min for multi-step apply/test/verify loops; use `--background` for sessions that need to run longer.
+Reasoning behavior follows the selected model and Kimi configuration. The plugin does not force a thinking mode. Budget is 30 min for multi-step apply/test/verify loops; use `--background` to return control while the task runs. Backgrounding does not extend the runtime budget.
 
 Return the companion stdout verbatim.
 

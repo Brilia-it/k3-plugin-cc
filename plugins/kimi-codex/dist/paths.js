@@ -1,12 +1,9 @@
 import { constants } from "node:fs";
 import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { RuntimeError } from "./errors.js";
+import { resolvePluginDataRoot } from "./plugin-data.js";
 export function resolvePluginPaths(env) {
-    const claudePluginData = env.CLAUDE_PLUGIN_DATA ?? env.PLUGIN_DATA;
-    if (!claudePluginData) {
-        throw new RuntimeError("MISSING_PLUGIN_DATA", "CLAUDE_PLUGIN_DATA is not set. Point it at a writable plugin data directory before running setup. Codex hosts may provide PLUGIN_DATA instead.", "paths");
-    }
+    const claudePluginData = resolvePluginDataRoot(env);
     const pluginRoot = path.join(claudePluginData, "kimi-plugin-cc");
     return {
         claudePluginData,

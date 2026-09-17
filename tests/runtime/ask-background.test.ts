@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { access, mkdir, symlink, writeFile } from "node:fs/promises";
 
 import { buildHookShellCommand } from "../../runtime/hooks/install-paths.js";
@@ -97,6 +98,32 @@ async function waitForJobState(
 }
 
 describe("ask background", () => {
+  test("namespaced data choice is shared by background worker and status despite conflicting host variables", async () => {
+    const root = await createTestPluginDataRoot("ask-background-owned-data");
+    const repoRoot = await createGitRepoFixture("ask-background-owned-data-repo");
+    const chosen = path.join(root, "chosen");
+    const foreign = path.join(root, "foreign");
+    const env = {
+      ...makeMockEnv(foreign, "ask-success"),
+      PLUGIN_DATA: path.join(root, "other-host"),
+      KIMI_PLUGIN_CC_DATA: chosen,
+      KIMI_CODE_HOME: path.join(root, "test-kimi-home"),
+    };
+    try {
+      const answer = await runAsk(["--background", "--wait", "Explain the fixture"], makeContext(repoRoot, env));
+      expect(answer).toBe(ASK_SUCCESS_BACKGROUND_OUTPUT);
+      const status = JSON.parse(await runStatus(["--type", "ask"], makeContext(repoRoot, env)));
+      expect(status.status).toBe("completed");
+      expect(await runResult([status.job_id], makeContext(repoRoot, env))).toContain("Ask answer from mock Kimi.");
+      expect(existsSync(path.join(chosen, "kimi-plugin-cc", "state.db"))).toBe(true);
+      expect(existsSync(foreign)).toBe(false);
+      expect(existsSync(env.PLUGIN_DATA)).toBe(false);
+    } finally {
+      await cleanupTestPath(root);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 30_000);
+
   test("worker re-verifies the hook and persists the exact refusal without invoking Kimi", async () => {
     const pluginDataRoot = await createTestPluginDataRoot("ask-background-worker-hook");
     const repoRoot = await createGitRepoFixture("ask-background-worker-hook-repo");

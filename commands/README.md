@@ -1,14 +1,16 @@
-# commands
+# Claude Code commands
 
-Claude Code slash command markdown. Each file is thin — it routes through `scripts/companion.sh` to the Node runtime under `runtime/`.
+These Markdown files route Claude Code commands through `scripts/companion.sh` to the Node runtime. They also describe supported flags and model-selection rules. Codex uses the generated skills in `plugins/kimi-codex/skills/`.
 
-- `setup.md` — list configured models, guide provider setup, verify local Kimi and manage review-gate state
-- `ask.md` — free-form read-only Q&A
-- `review.md` — structured read-only review
-- `challenge.md` — challenge read-only review
-- `rescue.md` — write-capable rescue with session persistence
-- `pursue.md` — experimental autonomous goal mode (write-capable, budget-bounded)
-- `swarm.md` — read-only parallel review fan-out via kimi-code's AgentSwarm tool
-- `status.md` / `result.md` / `cancel.md` / `replay.md` — job lifecycle commands
+| File | Purpose |
+| --- | --- |
+| `setup.md` | Install or check hooks, list models, guide provider setup, and manage the review gate |
+| `ask.md` | Answer repository questions without write tools |
+| `review.md` | Review code changes and return prose |
+| `challenge.md` | Critique a design or approach and return prose |
+| `rescue.md` | Make workspace changes, with background and resume support |
+| `pursue.md` | Run an experimental goal with a finite time budget |
+| `swarm.md` | Run a read-only parallel review, or use `--write` to return an unapplied patch |
+| `status.md`, `result.md`, `cancel.md`, `replay.md` | Follow, stop, or replay stored jobs |
 
-All command bodies are one-liner invocations of `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh <subcommand> <args>` so the runtime can be extended without re-editing markdown.
+After editing a command, update its hash in `CLAUDE_SURFACE_HASHES` in `scripts/surface-registry.ts`. Run `bun run generate:surfaces` and `bun run check` before considering the change complete.

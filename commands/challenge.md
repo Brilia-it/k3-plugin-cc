@@ -14,7 +14,7 @@ Supported flags:
 - `-m`, `--model <name>`
 - trailing text — adversarial focus or framing to steer the challenge
 
-Kimi's extended reasoning is always on for `challenge`. Budget is 30 min so adversarial review has time to dig. Challenge runs foreground-synchronously; it does not support `--background` or `--wait`.
+Reasoning behavior follows the selected model and Kimi configuration. The plugin does not force a thinking mode. Budget is 30 min so adversarial review has time to dig. Challenge runs foreground-synchronously; it does not support `--background` or `--wait`.
 
 Return the companion stdout verbatim.
 

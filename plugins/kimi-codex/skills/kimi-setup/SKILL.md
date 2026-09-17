@@ -13,7 +13,7 @@ Forward this request to the local kimi-code companion runtime by shell. Do not u
 - Sanity check: `<plugin-root>/scripts/companion.sh` must exist — it is the bundled entrypoint that resolves Node and runs the compiled runtime from `<plugin-root>/dist/`.
 - Launch the shell command from the user's current workspace directory so `scripts/companion.sh` captures the intended workspace cwd.
 - Run: `PLUGIN_ROOT="<plugin-root>" "<plugin-root>/scripts/companion.sh" setup <args>`
-- If the plugin host provides `PLUGIN_DATA` instead of `CLAUDE_PLUGIN_DATA`, the shell wrapper exports the Claude-compatible alias for the runtime. If neither is set, the wrapper uses a Codex data directory under `$CODEX_HOME/plugins/data/kimi-marketplace-kimi`, `~/.codex/plugins/data/kimi-marketplace-kimi`, or `/tmp/kimi-plugin-cc-codex-data/kimi-marketplace-kimi` in a fully sanitized environment.
+- Data directories: standard cache installs verify shared `CLAUDE_PLUGIN_DATA`/`PLUGIN_DATA` against this package's own host-specific directory. On `PLUGIN_DATA_CONFLICT`, surface the error; do not automatically choose a new store or copy data. An explicit absolute `KIMI_PLUGIN_CC_DATA` selects a custom data parent (the runtime appends `kimi-plugin-cc/`). Checkouts retain unambiguous legacy variables and the Codex fallback under `CODEX_HOME` or `HOME`; a launch with no home needs an explicit data root.
 
 ## Arguments
 

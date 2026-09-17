@@ -2,6 +2,17 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.1 — 2026-09-17
+
+Plugin-only maintenance release. The recommended certified Kimi Code CLI remains 2.0.0; the exact certification table is unchanged.
+
+- Harden plugin data-root selection against shared host environment pollution (#13). Standard cache installs verify ownership, custom locations can use `KIMI_PLUGIN_CC_DATA`, and conflicts fail before store access. Existing state is not moved. Background workers keep the selected root; the Stop hook reports a visible skip on conflicts.
+- Handle first-run symlinked homes before data directories exist, and require an explicit data root for fully sanitized launches without a home instead of using a shared `/tmp` fallback.
+- Refresh the README with English, Chinese, French, and Japanese onboarding and screenshots from both hosts. Update safety, migration, contributor, test, and CI documentation. Correct reasoning-setting guidance and default the manual smoke workflow to CLI 2.0.0.
+- Validation: `bun run check` passes with 861 tests, 26 opt-in skips, and no failures. No real-provider calls are needed for this data-routing change.
+
+After updating, run the setup command from each updated host to re-pin its hook. If `PLUGIN_DATA_CONFLICT` is reported, follow its expected-directory remedy or deliberately set the absolute `KIMI_PLUGIN_CC_DATA` parent for your existing custom store. No data is migrated automatically.
+
 ## 2.0.0 — 2026-09-17
 
 **Certifies exact kimi-code 2.0.0 for native agent-core-v2 across all eight

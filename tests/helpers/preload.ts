@@ -8,6 +8,8 @@
 // live store. CI never sets these, so scrubbing makes local runs behave like
 // CI. Tests that need a plugin root/data dir set their own explicitly.
 for (const name of [
+  "KIMI_PLUGIN_CC_DATA",
+  "KIMI_PLUGIN_CC_SHELL_LAUNCH",
   "CLAUDE_PLUGIN_DATA",
   "PLUGIN_DATA",
   "CLAUDE_PLUGIN_ROOT",

@@ -1,113 +1,95 @@
-# CI
+# Continuous integration and live smoke tests
 
-Two GitHub Actions workflows. They are deliberately split because they have very
-different cost and trust profiles.
+Normal CI uses mock models and needs no model credentials. Live smoke tests are separate, opt-in runs that consume subscription quota or API credit.
 
-## `ci.yml` — base CI (every push to `main` + every PR)
+## Base CI
 
-Runs `bun audit`, then `bun run check`: build → `tsc --noEmit` → full `bun test` suite → `dist/`
-drift gate. **No secrets, no kimi binary, no model tokens** — the real-binary
-smokes auto-skip without `KIMI_PLUGIN_CC_SMOKE=1`. This is the per-push safety net
-the repo previously only had locally. Nothing to configure; it just runs.
+[ci.yml](../.github/workflows/ci.yml) runs on pushes to `main` and on pull requests. It installs locked dependencies, runs `bun audit`, and then runs `bun run check`.
 
-A red `ci.yml` can mean a dependency advisory or a regression: a build break, a type error, a failing
-test, or a forgotten `dist/` rebuild (the drift gate).
+The full check covers:
 
-## `smoke.yml` — real-binary safety gate (run it LOCALLY)
+- compiled runtime output
+- Claude surface hashes and generated Codex surfaces
+- TypeScript types
+- the test suite
+- changed or untracked files in `dist/` and `plugins/kimi-codex/`
 
-Spawns the **actual** `kimi -p` against a real PreToolUse hook and proves the
-safety contract end to end:
+The real-binary smoke suite skips unless explicitly enabled. A successful base CI run does not certify a new CLI version.
 
-1. read-only commands (review/challenge/ask/review_gate) — a forced write is denied;
-2. **autonomous goal mode** (`/kimi:pursue`) — zero files land across a full
-   multi-turn run, i.e. the hook fires on **every** continuation turn;
-3. **write-capable swarm** (`/kimi:swarm --write`) — coder-subagent edits land in
-   the throwaway worktree only, the user tree is untouched, and an out-of-root
-   write is denied (needs kimi-code ≥ 0.18.0).
+## Live smoke coverage
 
-### Run it locally — that's the intended path
+[smoke.yml](../.github/workflows/smoke.yml) runs only by manual dispatch. Its default CLI version is `2.0.0`. It has no recurring schedule and skips model calls if `KIMI_MODEL_API_KEY` is absent.
 
-The natural cadence for this gate is **before a release** (or after a kimi-code
-upgrade), and the simplest, cheapest way to do that is **locally against your own
-kimi-code subscription** — no secret, no API key, no recurring bill. See
-"[Running the same gate locally](#running-the-same-gate-locally)" below. This is
-the recommended workflow.
+The suite checks:
 
-### The CI workflow is optional, manual, and inert by default
+- forced writes denied under each read-only label
+- unsafe experimental selectors and default plan mode refused before spawn
+- native-v2 provenance, resume, and plan-tainted journal refusal
+- hook enforcement across goal-mode continuation turns
+- actual read-only swarm fan-out and child write denial
+- write-swarm edits captured in a patch, with the real checkout unchanged
+- out-of-worktree write attempts denied
 
-`smoke.yml` exists as a convenience for anyone who wants the gate in Actions, but:
+Legacy-v1 binaries use the applicable legacy lanes. For a new native-v2 candidate, follow the [certification playbook](./upstream-compat-audit.md). A candidate smoke is not production certification.
 
-- **Manual-dispatch only** (Actions tab → "Real-binary smoke" → Run workflow) —
-  nothing runs until you click Run, so nothing bills on its own.
-- **No `schedule:`** — a recurring token bill was deliberately rejected. The
-  check's natural cadence is "before release", which the local path covers; a
-  weekly canary would burn real tokens for marginal benefit.
-- **Inert until configured** — without `KIMI_MODEL_API_KEY` the auth-probe step
-  logs a warning and skips, so the workflow is safe to keep in the repo unused.
+## Authentication and credential handling
 
-### Secrets are never in the repo
+The local harness copies selected seed-home files into temporary Kimi homes. These include `config.toml`, `credentials/`, `oauth/`, `device_id`, `mcp.json`, and `tui.toml` when present. It does not copy the session store.
 
-If you *do* opt into CI, the API key lives in **GitHub's encrypted secret store**
-(repo Settings → Secrets and variables → Actions). The committed YAML references
-only the secret **name** (`${{ secrets.KIMI_MODEL_API_KEY }}`) — the value is
-never written to any file in the repo and never appears in logs (Actions masks
-it). If you'd rather not manage a CI secret at all, just run the gate locally;
-you lose nothing.
+The default seed home is `~/.kimi-code`. Setting API environment variables does not disable seed-file copying. To avoid copying personal credentials, set `KIMI_PLUGIN_CC_SMOKE_HOME` to a dedicated empty test home and supply authorized `KIMI_MODEL_*` credentials through the environment.
 
-### Auth (CI only): API key, not the subscription
+Do not run a smoke against a personal seed home unless temporary credential copies are explicitly authorized for that run. Run live controls and smokes sequentially. Concurrent copies refreshing the same OAuth grant have invalidated the operator's login in past runs. Temporary homes are cleaned up by the harness; inspect cleanup after an interrupted run.
 
-When run in CI, the smoke authenticates via kimi-code's **env-model channel**
-(`KIMI_MODEL_*`), which points kimi at a provider using an **API key** — a
-*separate* billing path from your kimi-code **subscription**. CI uses this (not
-the subscription's OAuth) because OAuth tokens **expire**, which makes them
-brittle in CI (the smoke would go red whenever the token lapsed). The plugin's
-normal runtime never sets `KIMI_MODEL_*`; this is CI-only auth, scoped to the
-workflow's env. Locally, your OAuth subscription works directly (next section).
+Routine diagnosis uses the active installation's `setup --check` or `setup --models`. Do not print raw config or OAuth files. Do not paste credentials into commands, logs, issues, or assistant conversations.
 
-### One-time setup (only if you opt into CI)
+## Running the same gate locally
 
-Repo → **Settings → Secrets and variables → Actions**:
+After choosing an authorized authentication route, run from the plugin repository root:
 
-| Kind | Name | Value |
-|---|---|---|
-| Secret | `KIMI_MODEL_API_KEY` | a pay-per-token API key (Moonshot / OpenAI / Anthropic) |
-| Secret | `KIMI_MODEL_NAME` | the model id to run (e.g. a kimi model) |
-| Variable (optional) | `KIMI_MODEL_PROVIDER_TYPE` | `kimi` (default) · `openai` · `anthropic` |
-| Variable (optional) | `KIMI_MODEL_BASE_URL` | override the provider base URL (defaults: `kimi` → `https://api.moonshot.ai/v1`, `openai` → `https://api.openai.com/v1`) |
-
-The default provider type `kimi` targets Moonshot's API. Pick whatever provider
-your API key is for.
-
-### Running the same gate locally
-
-The smoke is the same one you run by hand. Against your OAuth subscription:
-
-```bash
-KIMI_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts
+```sh
+bun run smoke:real
 ```
 
-Or against a specific release without touching your install (the temp-binary
-technique — see [upstream-compat-audit.md](./upstream-compat-audit.md)):
+The default route seeds your local Kimi home as described above. It consumes subscription quota; it is not a free or credential-free test.
 
-```bash
-D=/tmp/kimi-smoke; mkdir -p "$D"; cd "$D"; echo '{"name":"x","private":true}' > package.json
-bun add @moonshot-ai/kimi-code@0.43.1; cd -  # a certified native-v2 version (0.42.0, 0.43.0, 0.43.1); a pinned <= 0.41 binary runs the legacy-v1 lanes (>= 0.18.0 for write-swarm)
-KIMI_PLUGIN_CC_SMOKE=1 KIMI_PLUGIN_CC_KIMI_BIN="$D/node_modules/.bin/kimi" \
-  bun test tests/runtime/real-binary-smoke.test.ts
+To use API authentication without seeding personal files, first supply the authorized `KIMI_MODEL_NAME` and `KIMI_MODEL_API_KEY` environment variables. Then run:
+
+```sh
+SMOKE_SEED_DIR=$(mktemp -d)
+KIMI_PLUGIN_CC_SMOKE_HOME="$SMOKE_SEED_DIR" bun run smoke:real
 ```
 
-Either OAuth (seeded from `~/.kimi-code`) or env-model (`KIMI_MODEL_*`) auth
-satisfies the smoke's gate; see the auth note in `tests/runtime/real-binary-smoke.test.ts`.
+The seed directory is empty and can be removed afterward. Choose provider type and endpoint through the supported `KIMI_MODEL_*` settings if your account requires them. A configured model or an existing credential file is not proof that authentication works.
+
+To test an exact CLI without updating the installed binary:
+
+```sh
+SMOKE_BIN_DIR=$(mktemp -d)
+(
+  cd "$SMOKE_BIN_DIR"
+  printf '%s\n' '{"name":"kimi-smoke","private":true}' > package.json
+  bun add @moonshot-ai/kimi-code@2.0.0
+)
+KIMI_PLUGIN_CC_KIMI_BIN="$SMOKE_BIN_DIR/node_modules/.bin/kimi" bun run smoke:real
+```
+
+This changes only the binary used by the smoke. It does not change authentication or the seed-home requirement. Inspect the full result: skipped tests and unmet fan-out preconditions are not passes. Do not hide the test's exit status behind a shell pipeline.
+
+## Configure manual Actions runs
+
+Store CI credentials in GitHub Actions secrets. The workflow uses the API environment route, not an interactive subscription login.
+
+| Kind | Name | Purpose |
+| --- | --- | --- |
+| Secret | `KIMI_MODEL_API_KEY` | Authorized provider API key |
+| Secret | `KIMI_MODEL_NAME` | Provider model ID |
+| Variable | `KIMI_MODEL_PROVIDER_TYPE` | Provider type; workflow default is `kimi` |
+| Variable | `KIMI_MODEL_BASE_URL` | Optional endpoint override |
+
+Billing and access depend on the account behind the key. The workflow references secret names; never commit their values. Dispatching a run can make paid model calls.
 
 ## Dependency maintenance
 
-Dependabot checks Bun's root manifest and lockfile plus GitHub Actions weekly,
-grouping each ecosystem into one update PR. CI uses frozen installs and audits
-all locked packages before the full check gate. Updates still require review;
-no automatic merge or release is configured.
+Dependabot checks the Bun manifest, lockfile, and GitHub Actions weekly. Updates require review; automatic merge and release are not configured.
 
-The runtime's vendored TOML and shell parsers are separate from development
-dependencies and are not scanned by `bun audit`. Their provenance and security
-backports are documented in `runtime/vendor/{smol-toml,shell-quote}/README.md`;
-maintainers must review these copies when a parser advisory appears. Bounded
-regressions run against source, compiled output, and the generated Codex mirror.
+The vendored runtime parsers are outside `bun audit` coverage. Review [TOML parser provenance](../runtime/vendor/smol-toml/README.md) and [shell parser provenance](../runtime/vendor/shell-quote/README.md) when an advisory affects them. Parser regressions cover source, compiled output, and the Codex runtime mirror.

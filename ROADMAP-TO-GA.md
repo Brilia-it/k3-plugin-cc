@@ -1,12 +1,12 @@
 # Roadmap
 
-Current direction after [2.0.0](https://github.com/linxule/kimi-plugin-cc/releases/tag/v2.0.0), updated 2026-09-17. The original filename is retained so existing links keep working.
+Current direction after [2.0.1](https://github.com/linxule/kimi-plugin-cc/releases/tag/v2.0.1), updated 2026-09-17. The original filename is retained so existing links keep working.
 
 For installation, start with the [multilingual README](./README.md). For release details, see the [changelog](./CHANGELOG.md). The exact compatibility table lives in [runtime/kimi-engine.ts](./runtime/kimi-engine.ts); the standing safety contracts live in [AGENTS.md](./AGENTS.md) and [docs/invariants.md](./docs/invariants.md).
 
 ## Where the project stands
 
-The plugin is released for **Claude Code and Codex**, using the same subprocess runtime. The native-v2 safety model keeps plan mode unreachable in plugin-managed sessions and checks compatibility before spawning Kimi. Version 2.0.0 certifies exact kimi-code 2.0.0; future certification releases track the upstream version they certify.
+The plugin is released for **Claude Code and Codex**, using the same subprocess runtime. The native-v2 safety model keeps plan mode unreachable in plugin-managed sessions and checks compatibility before spawning Kimi. Plugin 2.0.1 retains exact kimi-code 2.0.0 certification. Certification releases normally track upstream; plugin-only maintenance fixes use a new patch version without expanding CLI support.
 
 | Available now | What that means for users |
 | --- | --- |
@@ -28,6 +28,7 @@ These are maintenance commitments and open investigations, not promised release 
 | Work | Status | Next useful step / completion evidence |
 | --- | --- | --- |
 | Certify upstream releases | Ongoing, required before extending support | Exact source audit, non-vacuous live controls, per-operation smoke and full repository check. See the [compatibility playbook](./docs/upstream-compat-audit.md). |
+| Plugin data-directory ownership ([#13](https://github.com/linxule/kimi-plugin-cc/issues/13)) | Fixed in 2.0.1 | Installed-package and worker regressions cover conflicting variables, existing state, explicit custom locations, symlink aliases, and visible Stop-hook skips. |
 | Hook failure after verification (H1) | Open architectural work | Evaluate detection and upstream prevention of runtime hook failures. A post-execution alarm cannot prevent or undo a tool call; do not present it as containment. |
 | Per-task thinking control (H5) | Open; upstream integration needs reassessment | Re-check current CLI/environment controls and model semantics before exposing a plugin option. Today the plugin rejects `--thinking`/`--no-thinking`; the review gate's thinking-off intent is advisory. |
 | Plan-mode safety | Current no-plan contract remains in force | An upstream ordering change needs source proof and real lifecycle tests before any relaxation. See the [native-v2 status](./docs/native-v2-status.md). |
@@ -548,5 +549,9 @@ Remaining v1.1 items: H1 (hook fail-open runtime drift), H3 partial (unknown top
   Release and Codex-only host upgrade authorized separately. Evidence:
   `.claude/kimi-code-research/certification-2.0.0/`.
 - **2026-09-17 (documentation follow-up to 2.0.0)** — Rebuilt the README around first-time onboarding for both hosts: prerequisites, install and first request, workflow choice, model selection, job follow-up, updates and troubleshooting. English, Simplified Chinese, French and Japanese use GitHub-native expandable sections in the same file. Reorganized this roadmap to lead with current capability, remaining investigations and release discipline; retained the original GA plan and full dated audit record as history. No runtime, safety-policy or version change.
+
+- **2026-09-17 (documentation currentness audit)** — Updated safety, migration, contributor, runtime, script, test, and CI guidance to match 2.0.0. Corrected the exact-version certification procedure, credential handling for live smoke, retry guidance, and reasoning-setting claims in Claude command and agent instructions. Updated the manual smoke default to 2.0.0 and repaired internal links. Earlier migration instructions remain labeled as history. No runtime logic, certification boundary, or version change.
+
+- **2026-09-17 (v2.0.1, plugin maintenance)** — Fixed #13 for standard installed packages by deriving the expected data directory from the loaded package and refusing conflicting shared host variables before store access. Added the absolute `KIMI_PLUGIN_CC_DATA` override for custom data parents; custom checkouts retain unambiguous legacy variables. Existing state stays in place. Background workers pin the selected root, and the Stop hook reports resolution failures as visible skips. Added both-host installed regressions, preserved symlink aliases, and updated the old precedence expectation. Includes the documentation currentness audit above. Full check: 861 pass / 26 skip / 0 fail. No real-provider calls or installed-host changes. This is an authorized maintenance-version exception; certified CLI versions remain unchanged, with 2.0.0 recommended.
 
 </details>

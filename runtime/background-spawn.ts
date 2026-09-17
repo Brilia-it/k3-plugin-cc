@@ -109,6 +109,8 @@ export async function startBackgroundJob(
       [options.promptEnvVar]: b64,
       [options.reusedSessionEnvVar]: options.reusedSession ? "1" : "0",
       ...(options.extraEnv ?? {}),
+      // A worker must reopen the exact store its parent selected, regardless of cwd.
+      KIMI_PLUGIN_CC_DATA: path.resolve(paths.claudePluginData),
     },
   });
 

@@ -1,9 +1,19 @@
-# scripts
+# Scripts
 
-Shell entry points that wrap the Node companion so Claude Code plugin commands launch from `${CLAUDE_PLUGIN_ROOT}` regardless of the user's cwd.
+The shell entry points run the compiled Node runtime while preserving the caller's project directory.
 
-- `companion.sh` — launches `dist/companion.js` for all slash commands. Passes the user's original cwd via `KIMI_PLUGIN_CC_WORKSPACE_CWD` so the runtime still operates on the caller's repo. Resolves `node` via `KIMI_PLUGIN_CC_NODE_BIN` or `command -v node`.
-- `review-gate-hook.sh` — same pattern, dedicated entry point for the Claude Code `Stop` hook.
-- `smoke-rescue-drift.sh` — operator-run drift detection script for verifying rescue behavior after Kimi CLI upgrades.
+| File | Purpose |
+| --- | --- |
+| `companion.sh` | Launch `dist/companion.js` for commands and skills |
+| `review-gate-hook.sh` | Launch the optional Claude Code Stop hook |
+| `surface-registry.ts` | Define Codex text surfaces and lock Claude surface hashes |
+| `generate-surfaces.ts` | Generate Codex manifests, skills, scripts, and the runtime mirror |
+| `smoke-rescue-drift.sh` | Run an opt-in live rescue check after CLI changes |
 
-Both shell scripts default `CLAUDE_PLUGIN_ROOT` to the repo checkout when run outside of an installed plugin context, so local development via `bun run check` still works.
+Both shell entry points accept `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT` and otherwise use their parent directory. Data selection happens in the runtime. Standard cache installs verify shared data variables against the current package's host-specific directory. Use the absolute `KIMI_PLUGIN_CC_DATA` override for a deliberate custom location; conflicting shared values fail before store access. Checkouts retain unambiguous legacy data variables and the Codex fallback under `CODEX_HOME` or `HOME` when neither is set. A fully sanitized launch with no home needs an explicit data root. See [plugin data ownership](../docs/invariants.md#5-plugin-data-ownership).
+
+`companion.sh` preserves the caller's directory in `KIMI_PLUGIN_CC_WORKSPACE_CWD`. It resolves Node from `KIMI_PLUGIN_CC_NODE_BIN` or `PATH` and requires Node.js 22.5 or newer.
+
+After changing runtime code or shell scripts, run `bun run build && bun run generate:surfaces`. Review and stage `dist/` and `plugins/kimi-codex/`, then run `bun run check`. Never edit the generated Codex package by hand.
+
+Live smoke scripts use model calls. Read the script and the [smoke run instructions](../docs/ci.md) before using them. They are not part of routine offline checks.

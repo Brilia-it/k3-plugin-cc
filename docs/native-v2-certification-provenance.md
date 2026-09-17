@@ -8,13 +8,10 @@ For the dated upstream evidence and follow-up, see [Native v2 status](native-v2-
 This contract defines what must be true before kimi-plugin-cc can route any
 production operation to kimi-code's native `agent-core-v2` engine. It also
 defines the provenance that must survive process, background-worker, job-store,
-and session boundaries. The first implementation slice is intentionally a
-legacy-v1 no-op at the model/tool level: it makes routing explicit and auditable
-without making native v2 reachable.
+and session boundaries. The first implementation slice recorded legacy-v1 provenance without enabling v2. The shipped runtime now routes certified versions to native v2 under the no-plan construction below.
 
 Tower mode, subagent fork, Remote Control, and other experimental feature work
-are outside this contract. A possible upstream retirement of v1 is not evidence
-that v2 is safe and does not waive any gate below.
+are outside this contract. The removal of v1 in kimi-code 0.42.0 did not waive any gate below.
 
 ## 1. Terms
 
@@ -109,8 +106,7 @@ candidate binary:
    suite, and drift gate are green.
 
 Only then may that single operation/version pair be added to the native-v2
-matrix. Certification does not itself change the default engine. Enabling or
-expanding routing is a separate human decision and release slice.
+matrix. The shipped certification table controls engine selection. Adding a version expands production routing and therefore requires the completed gates and an authorized release.
 
 ## 4. Current capability matrix
 

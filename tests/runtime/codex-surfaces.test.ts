@@ -154,12 +154,14 @@ describe("version single-sourcing", () => {
 });
 
 describe("plugin data dir precedence (Claude vs Codex env aliases)", () => {
-  test("CLAUDE_PLUGIN_DATA wins when both it and PLUGIN_DATA are set", () => {
-    const resolved = resolvePluginPaths({
+  test("conflicting host data variables require an explicit namespaced choice", () => {
+    const env = {
       CLAUDE_PLUGIN_DATA: "/tmp/claude-data",
       PLUGIN_DATA: "/tmp/codex-data",
-    } as NodeJS.ProcessEnv);
-    expect(resolved.claudePluginData).toBe("/tmp/claude-data");
+    };
+    expect(() => resolvePluginPaths(env)).toThrow("disagree");
+    const resolved = resolvePluginPaths({ ...env, KIMI_PLUGIN_CC_DATA: "/tmp/selected-kimi-data" });
+    expect(resolved.claudePluginData).toBe("/tmp/selected-kimi-data");
   });
 
   test("PLUGIN_DATA is used as the Codex fallback when CLAUDE_PLUGIN_DATA is unset", () => {

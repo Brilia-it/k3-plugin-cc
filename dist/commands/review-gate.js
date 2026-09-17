@@ -6,7 +6,7 @@ import { runCliPromptWithBudget } from "../cli-client.js";
 import { observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, } from "../kimi-engine.js";
 import { readPluginConfig } from "../config.js";
 import { getManagedCommandConfig } from "./registry.js";
-import { RuntimeError } from "../errors.js";
+import { RuntimeError, formatError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
 import { digestPrompt, markJobFailed } from "../jobs.js";
 import { JobStore } from "../job-store.js";
@@ -33,7 +33,16 @@ export async function runReviewGateStopHook(payload, context) {
     if (payload.hook_event_name !== "Stop") {
         throw new RuntimeError("INVALID_HOOK_EVENT", `review gate hook expected Stop input, received ${payload.hook_event_name}.`, "review_gate.hook");
     }
-    const paths = resolvePluginPaths(context.env);
+    let paths;
+    try {
+        paths = resolvePluginPaths(context.env);
+    }
+    catch (error) {
+        if (error instanceof RuntimeError && ["PLUGIN_DATA_CONFLICT", "INVALID_PLUGIN_DATA", "MISSING_PLUGIN_DATA"].includes(error.code)) {
+            return reviewGateSkipped(formatError(error));
+        }
+        throw error;
+    }
     await ensurePluginPaths(paths);
     const config = await readPluginConfig(paths);
     if (!config.reviewGateEnabled) {

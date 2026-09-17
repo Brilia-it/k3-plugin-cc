@@ -1,4 +1,33 @@
-# Migrating from v0.4 to v1.0
+# Compatibility and upgrades
+
+For plugin 2.0.1, use Kimi Code CLI 2.0.0. The plugin also certifies exact native-v2 versions `0.42.0`, `0.43.0`, and `0.43.1` for all eight operations. It does not automatically accept later patches or minor releases.
+
+Explicitly pinned legacy-v1 binaries remain supported within `KIMI_TESTED_MINORS`, through 0.41.x, subject to each operation's minimum version. The [runtime table](../runtime/kimi-engine.ts) is the authority.
+
+Use the [README installation and update steps](../README.md) for Claude Code or Codex. Model and provider choices are covered in the [model setup guide](./models.md). Do not change your host application's authentication to configure Kimi.
+
+## Upgrading to 2.0 (versions track kimi-code)
+
+From 2.0.0 onward, plugin certification releases normally align with
+upstream kimi-code. Plugin-only maintenance fixes use a new patch version: plugin
+2.0.1 still targets certified Kimi Code CLI 2.0.0. Published versions are never reused. This numbering change preserves the native-v2 no-plan
+safety profile introduced in 1.10, the plugin/marketplace IDs, and the existing
+job store. The runtime's exact-version table still determines compatibility;
+future upstream patches require their own certification.
+
+After updating the plugin, run Claude Code `/kimi:setup` or Codex `$kimi-setup`
+from that host's active install to re-pin its version-stamped hook path, then
+run setup with `--check`. Keep `default_plan_mode` absent or false. Upgrades
+from pre-1.10 releases must also follow the historical native-v2 migration section below.
+
+## Historical migration instructions
+
+<details>
+<summary>Earlier migrations from the Python CLI and legacy engine</summary>
+
+These sections record earlier upgrades. Old tags, paths, and installation commands are historical examples, not the current installation procedure. Follow the current guidance above for 2.0.1.
+
+## Migrating from v0.4 to v1.0
 
 v1.0 of kimi-plugin-cc targets the **kimi-code** Node.js binary (Moonshot's successor to Kimi CLI). The v0.4.x line targeted the Python **Kimi CLI** over its Wire JSON-RPC transport. kimi-code dropped the Wire transport from its first release, so v1.0 is a hard cut rather than a backwards-compatible upgrade.
 
@@ -184,17 +213,4 @@ No action for the job store (one additive nullable column, migrated automaticall
 
 None of these refusals is repaired by `/kimi:setup`; all of them carry `retryable_after_setup: false` explicitly from 1.10.1 (an absent field must still be treated as `false`). They are catalogued with remedies in [docs/safety.md § Refusal codes](./safety.md#refusal-codes-of-the-native-v2-contract-v1100).
 
-
-
-## Upgrading to 2.0 (versions track kimi-code)
-
-From 2.0.0 onward, plugin certification releases use the same exact version as
-upstream kimi-code. This numbering change preserves the native-v2 no-plan
-safety profile introduced in 1.10, the plugin/marketplace IDs, and the existing
-job store. The runtime's exact-version table still determines compatibility;
-future upstream patches require their own certification.
-
-After updating the plugin, run Claude Code `/kimi:setup` or Codex `$kimi-setup`
-from that host's active install to re-pin its version-stamped hook path, then
-run setup with `--check`. Keep `default_plan_mode` absent or false. Upgrades
-from pre-1.10 releases must also follow the native-v2 migration section above.
+</details>

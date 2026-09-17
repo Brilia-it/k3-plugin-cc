@@ -31,7 +31,7 @@ plugin refused since v1.9.4 is still present — now confirmed in the shipped
 bundle, not only in source (`registerFeature(PlanFeature)` precedes
 `registerFeature(ExternalHooksFeature)` in `dist/main.mjs`).
 
-kimi-plugin-cc **1.10.0** migrates every operation to native v2 under the
+Since kimi-plugin-cc 1.10.0, every operation supports native v2 under the
 [amended entry gate](native-v2-certification-provenance.md#2-native-v2-entry-gate):
 the engine's only chain-breaking final allow is provably never armed in a
 plugin-managed session, and every executed tool call passes the managed hook.

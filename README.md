@@ -1,14 +1,24 @@
 # Kimi for Claude Code and Codex
 
-Use Kimi to explain code, review changes, or make a focused fix from Claude Code or Codex.
+[![Latest release](https://img.shields.io/github/v/release/linxule/kimi-plugin-cc)](https://github.com/linxule/kimi-plugin-cc/releases/latest) [![CI](https://github.com/linxule/kimi-plugin-cc/actions/workflows/ci.yml/badge.svg)](https://github.com/linxule/kimi-plugin-cc/actions/workflows/ci.yml) [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+
+Use Kimi to explain code, review changes, challenge a design, or work toward a goal — an independent second opinion from a different model family, inside the Claude Code or Codex session you're already in.
 
 [Latest release](https://github.com/linxule/kimi-plugin-cc/releases/latest) · [Roadmap](./ROADMAP-TO-GA.md) · [Report an issue](https://github.com/linxule/kimi-plugin-cc/issues) · [Apache-2.0 license](./LICENSE)
+
+![Claude Code running /kimi:review on this repository, with Kimi's findings verified claim by claim in the same session](./assets/claude-code-kimi-review.jpg)
+
+*Claude Code runs `/kimi:review` on this repository — Kimi reviews the diff, and the host verifies each claim against the tree.*
+
+![Codex running $kimi-ask to explain this project's entry point](./assets/codex-kimi-ask.jpg)
+
+*Codex runs `$kimi-ask` — a read-only explanation of this project's entry point, from the entry shell script to the command modules.*
 
 Choose a language below. Each guide opens on this page.
 
 选择语言，展开阅读 · Choisissez votre langue · 言語を選んで開いてください
 
-<details>
+<details open>
 <summary>English — Get started</summary>
 
 ## Use Kimi in your coding tasks
@@ -26,7 +36,7 @@ You need:
 - macOS or Linux
 - Claude Code or Codex with plugin support
 - Node.js 22.5 or newer
-- Kimi Code CLI 2.0.0, the recommended version for plugin 2.0.0
+- Kimi Code CLI 2.0.0, the recommended version for plugin 2.0.1
 
 Windows is not currently supported. Check your versions in a terminal:
 
@@ -52,7 +62,7 @@ Open Claude Code in your project. Enter these commands in Claude Code:
 /kimi:setup --check
 ```
 
-Setup installs a hook that checks Kimi's tool calls against the plugin's rules. The check should report `Probe: ok`. If it fails, follow the setup guidance below.
+Setup installs a hook that checks Kimi's tool calls against the plugin's rules. The `Probe:` line should show `ok`. If it fails, follow the setup guidance below.
 
 Try a question that does not change files:
 
@@ -75,7 +85,7 @@ Open a new Codex task in your project. Ask it to set up the plugin:
 Use $kimi-setup to install the safety hook, then check readiness.
 ```
 
-The hook checks Kimi's tool calls against the plugin's rules. The check should report `Probe: ok`. If it fails, follow the setup guidance below. Then try:
+The hook checks Kimi's tool calls against the plugin's rules. The `Probe:` line should show `ok`. If it fails, follow the setup guidance below. Then try:
 
 ```text
 Use $kimi-ask to explain how this project's main entry point works.
@@ -166,6 +176,8 @@ If you see `KIMI_CAPABILITY_NOT_CERTIFIED`, update the plugin or use a certified
 
 If you see `CLI_V2_PLAN_MODE_CONFIGURED`, set `default_plan_mode` to `false` or remove it from your Kimi `config.toml` file. Sessions run by this plugin cannot use plan mode.
 
+All refusal codes and their remedies are listed in the [refusal-code catalog](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100).
+
 ## Understand the safety limits
 
 The tool rules for ask, review, challenge, and read-only swarm deny file writes and shell commands. Rescue and pursue can write files in your workspace. Swarm with `--write` works in a temporary Git worktree. It starts from your latest commit, so it does not include uncommitted changes. It returns a patch without applying it to your project.
@@ -179,6 +191,8 @@ See [safety and limitations](./docs/safety.md), [release history](./CHANGELOG.md
 ## Contribute
 
 Start with the [contribution guide](./CONTRIBUTING.md). The [runtime overview](./runtime/README.md) and [project contracts](./AGENTS.md) explain the implementation.
+
+Every release is cross-reviewed by the agents this plugin orchestrates — Kimi, Claude, and Codex review each other's work on this repository, a practice documented across the [changelog](./CHANGELOG.md).
 
 Contributors need Bun to run `bun run check`. The detailed engineering documents are in English.
 
@@ -202,7 +216,7 @@ Contributors need Bun to run `bun run check`. The detailed engineering documents
 - macOS 或 Linux
 - 支持插件的 Claude Code 或 Codex
 - Node.js 22.5 或更高版本
-- Kimi Code CLI 2.0.0，这是插件 2.0.0 的推荐版本
+- Kimi Code CLI 2.0.0，这是插件 2.0.1 的推荐版本
 
 目前不支持 Windows。在终端检查版本：
 
@@ -228,7 +242,7 @@ kimi --version
 /kimi:setup --check
 ```
 
-Setup 会安装一个钩子，按插件规则检查 Kimi 的工具调用。检查结果应显示 `Probe: ok`。如果失败，请参照下方的安装问题处理说明。
+Setup 会安装一个钩子，按插件规则检查 Kimi 的工具调用。检查结果中，`Probe:` 一行应显示 `ok`。如果失败，请参照下方的安装问题处理说明。
 
 试着问一个不需要修改文件的问题：
 
@@ -251,7 +265,7 @@ codex plugin add kimi@kimi-marketplace
 使用 $kimi-setup 安装安全钩子，然后检查配置是否可用。
 ```
 
-钩子会按插件规则检查 Kimi 的工具调用。检查结果应显示 `Probe: ok`。如果失败，请参照下方的安装问题处理说明。然后试着输入：
+钩子会按插件规则检查 Kimi 的工具调用。检查结果中，`Probe:` 一行应显示 `ok`。如果失败，请参照下方的安装问题处理说明。然后试着输入：
 
 ```text
 使用 $kimi-ask 解释这个项目的主入口如何工作。
@@ -342,6 +356,8 @@ codex plugin add kimi@kimi-marketplace
 
 如果出现 `CLI_V2_PLAN_MODE_CONFIGURED`，请将 Kimi 的 `config.toml` 文件中的 `default_plan_mode` 设为 `false`，或删除该项。本插件运行的会话不能使用计划模式。
 
+所有拒绝码及其处理方法见[拒绝码目录](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100)。
+
 ## 了解安全限制
 
 Ask、review、challenge 和只读 swarm 的工具规则禁止写入文件和执行 shell 命令。Rescue 和 pursue 可以修改工作区内的文件。带 `--write` 的 swarm 在临时 Git 工作树中操作。它从最新提交开始，不包含尚未提交的修改。任务结束后返回补丁，不会自动应用到项目。
@@ -355,6 +371,8 @@ Ask、review、challenge 和只读 swarm 的工具规则禁止写入文件和执
 ## 参与开发
 
 请先阅读[贡献指南](./CONTRIBUTING.md)。[运行时说明](./runtime/README.md)和[项目约定](./AGENTS.md)介绍了实现方式。
+
+每个版本都经过本插件所编排智能体的交叉审查——Kimi、Claude 与 Codex 互相审查彼此在本仓库中的工作，这一实践贯穿整个[版本记录](./CHANGELOG.md)。
 
 开发者需要使用 Bun 运行 `bun run check`。详细技术文档目前使用英文。
 
@@ -378,7 +396,7 @@ Il vous faut :
 - macOS ou Linux
 - une version de Claude Code ou de Codex prenant en charge les plugins
 - Node.js 22.5 ou une version ultérieure
-- Kimi Code CLI 2.0.0, la version recommandée pour le plugin 2.0.0
+- Kimi Code CLI 2.0.0, la version recommandée pour le plugin 2.0.1
 
 Windows n'est pas pris en charge actuellement. Vérifiez les versions dans un terminal :
 
@@ -387,7 +405,7 @@ node --version
 kimi --version
 ```
 
-Si le CLI n'est pas installé, suivez le [guide d'installation de Kimi Code](https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started). Vous n'avez pas besoin de Bun ni d'étape de compilation pour utiliser ce plugin.
+Si le CLI n'est pas installé, suivez le [guide d'installation de Kimi Code](https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started) (en anglais). Vous n'avez pas besoin de Bun ni d'étape de compilation pour utiliser ce plugin.
 
 Nous vérifions la compatibilité pour chaque version précise du CLI. Une nouvelle version du CLI peut nécessiter une mise à jour du plugin. Consultez les [versions prises en charge et les consignes de mise à jour](./docs/migration.md).
 
@@ -404,7 +422,7 @@ Ouvrez Claude Code dans votre projet. Saisissez ces commandes dans Claude Code :
 /kimi:setup --check
 ```
 
-Setup installe un hook qui vérifie les appels d'outils de Kimi selon les règles du plugin. La vérification doit afficher `Probe: ok`. En cas d'échec, consultez les consignes de dépannage ci-dessous.
+Setup installe un hook qui vérifie les appels d'outils de Kimi selon les règles du plugin. La ligne `Probe:` doit afficher `ok`. En cas d'échec, consultez les consignes de dépannage ci-dessous.
 
 Essayez une question qui ne modifie aucun fichier :
 
@@ -427,7 +445,7 @@ Ouvrez une nouvelle tâche Codex dans votre projet. Demandez-lui de configurer l
 Utilise $kimi-setup pour installer le hook de sécurité, puis vérifie que tout est prêt.
 ```
 
-Le hook vérifie les appels d'outils de Kimi selon les règles du plugin. La vérification doit afficher `Probe: ok`. En cas d'échec, consultez les consignes de dépannage ci-dessous. Essayez ensuite :
+Le hook vérifie les appels d'outils de Kimi selon les règles du plugin. La ligne `Probe:` doit afficher `ok`. En cas d'échec, consultez les consignes de dépannage ci-dessous. Essayez ensuite :
 
 ```text
 Utilise $kimi-ask pour expliquer le fonctionnement du point d'entrée principal de ce projet.
@@ -518,6 +536,8 @@ Si vous voyez `KIMI_CAPABILITY_NOT_CERTIFIED`, mettez à jour le plugin ou utili
 
 Si vous voyez `CLI_V2_PLAN_MODE_CONFIGURED`, réglez `default_plan_mode` sur `false` ou supprimez cette option du fichier `config.toml` de Kimi. Les sessions lancées par ce plugin ne peuvent pas utiliser le mode plan.
 
+Tous les codes de refus et leurs remèdes sont répertoriés dans le [catalogue des codes de refus](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100).
+
 ## Comprendre les limites de sécurité
 
 Les règles des modes ask, review, challenge et swarm en lecture seule interdisent les écritures et les commandes shell. Rescue et pursue peuvent modifier les fichiers de votre espace de travail. Swarm avec `--write` travaille dans un worktree Git temporaire. Il part du dernier commit et n'inclut donc pas les modifications non commitées. Il renvoie un patch sans l'appliquer à votre projet.
@@ -531,6 +551,8 @@ Consultez les [limites de sécurité](./docs/safety.md), l'[historique des versi
 ## Contribuer
 
 Commencez par le [guide de contribution](./CONTRIBUTING.md). La [présentation du runtime](./runtime/README.md) et les [règles du projet](./AGENTS.md) expliquent l'implémentation.
+
+Chaque version fait l'objet d'une relecture croisée par les agents que ce plugin orchestre — Kimi, Claude et Codex révisent mutuellement leur travail sur ce dépôt, une pratique documentée dans l'ensemble du [journal des versions](./CHANGELOG.md).
 
 Les contributeurs ont besoin de Bun pour exécuter `bun run check`. La documentation technique détaillée est en anglais.
 
@@ -554,7 +576,7 @@ Les contributeurs ont besoin de Bun pour exécuter `bun run check`. La documenta
 - macOS または Linux
 - プラグインに対応した Claude Code または Codex
 - Node.js 22.5 以降
-- Kimi Code CLI 2.0.0（プラグイン 2.0.0 の推奨バージョン）
+- Kimi Code CLI 2.0.0（プラグイン 2.0.1 の推奨バージョン）
 
 現在、Windows には対応していません。ターミナルでバージョンを確認します。
 
@@ -563,7 +585,7 @@ node --version
 kimi --version
 ```
 
-CLI が未インストールの場合は、[Kimi Code のインストールガイド](https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started)を参照してください。プラグインを使うために Bun やビルド作業は必要ありません。
+CLI が未インストールの場合は、[Kimi Code のインストールガイド（英語）](https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started)を参照してください。プラグインを使うために Bun やビルド作業は必要ありません。
 
 互換性は CLI のバージョンごとに検証しています。CLI を更新すると、プラグインの更新も必要になる場合があります。[対応バージョンと更新手順](./docs/migration.md)を参照してください。
 
@@ -580,7 +602,7 @@ CLI が未インストールの場合は、[Kimi Code のインストールガ�
 /kimi:setup --check
 ```
 
-Setup は、Kimi のツール呼び出しをプラグインのルールに照らして確認するフックをインストールします。正常であれば `Probe: ok` と表示されます。失敗した場合は、後述の「設定の問題を解決する」を参照してください。
+Setup は、Kimi のツール呼び出しをプラグインのルールに照らして確認するフックをインストールします。正常であれば `Probe:` 行に `ok` と表示されます。失敗した場合は、後述の「設定の問題を解決する」を参照してください。
 
 ファイルを変更しない質問を試します。
 
@@ -603,7 +625,7 @@ codex plugin add kimi@kimi-marketplace
 $kimi-setup を使って安全フックをインストールし、設定を確認してください。
 ```
 
-フックは Kimi のツール呼び出しをプラグインのルールに照らして確認します。正常であれば `Probe: ok` と表示されます。失敗した場合は、後述の「設定の問題を解決する」を参照してください。続いて、次の依頼を試します。
+フックは Kimi のツール呼び出しをプラグインのルールに照らして確認します。正常であれば `Probe:` 行に `ok` と表示されます。失敗した場合は、後述の「設定の問題を解決する」を参照してください。続いて、次の依頼を試します。
 
 ```text
 $kimi-ask を使って、このプロジェクトのメインのエントリーポイントがどう動くか説明してください。
@@ -694,6 +716,8 @@ codex plugin add kimi@kimi-marketplace
 
 `CLI_V2_PLAN_MODE_CONFIGURED` が表示されたら、Kimi の `config.toml` で `default_plan_mode` を `false` にするか、その項目を削除してください。このプラグインが実行するセッションではプランモードを使えません。
 
+すべての拒否コードと対処方法は、[拒否コードの一覧](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100)にまとめています。
+
 ## 安全上の制限を理解する
 
 Ask、review、challenge、読み取り専用 swarm のツールルールでは、ファイルへの書き込みとシェルコマンドを禁止しています。Rescue と pursue はワークスペース内のファイルを変更できます。`--write` を指定した swarm は、一時的な Git ワークツリーで作業します。最新のコミットから開始するため、未コミットの変更は含まれません。パッチを返すだけで、プロジェクトには自動適用しません。
@@ -707,6 +731,8 @@ Ask、review、challenge、読み取り専用 swarm のツールルールでは�
 ## 開発に参加する
 
 まず[開発への参加ガイド](./CONTRIBUTING.md)を参照してください。[ランタイムの概要](./runtime/README.md)と[プロジェクトの規約](./AGENTS.md)に実装の説明があります。
+
+各リリースは、このプラグインがオーケストレーションするエージェント同士の相互レビューを経ています。Kimi、Claude、Codex がこのリポジトリで互いの作業をレビューしており、その実践は[リリース履歴](./CHANGELOG.md)全体に記録されています。
 
 開発時の `bun run check` には Bun が必要です。詳しい技術文書は英語で提供しています。
 

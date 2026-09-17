@@ -4,8 +4,8 @@
     "name": "linxule"
   },
   "metadata": {
-    "description": "Single-plugin marketplace for kimi-plugin-cc. v1.x and later target kimi-code; v0.4.x users who need the Python Kimi CLI Wire transport should pin to the v0.4.0 tag (or the v0.4-maintenance branch cut from that tag, once published).",
-    "version": "2.0.0"
+    "description": "Kimi for Claude Code: code questions, reviews, fixes, and parallel tasks through the local Kimi Code CLI.",
+    "version": "2.0.1"
   },
   "plugins": [
     {

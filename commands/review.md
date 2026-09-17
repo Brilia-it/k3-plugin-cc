@@ -14,7 +14,7 @@ Supported flags:
 - `-m`, `--model <name>`
 - trailing text — optional focus hint for the review
 
-Kimi's extended reasoning is always on for `review`. Budget is 30 min so a real workspace-wide analysis has headroom. Review runs foreground-synchronously; it does not support `--background` or `--wait`.
+Reasoning behavior follows the selected model and Kimi configuration. The plugin does not force a thinking mode. Budget is 30 min so a real workspace-wide analysis has headroom. Review runs foreground-synchronously; it does not support `--background` or `--wait`.
 
 Return the companion stdout verbatim.
 

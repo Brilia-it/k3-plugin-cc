@@ -1,11 +1,19 @@
-# Security Policy
+# Security policy
 
-## Reporting a vulnerability
+## Report a vulnerability
 
-Please report security vulnerabilities through [GitHub private vulnerability reporting](https://github.com/linxule/kimi-plugin-cc/security/advisories/new) or by emailing the repository owner directly.
+Use [GitHub private vulnerability reporting](https://github.com/linxule/kimi-plugin-cc/security/advisories/new) to report a security issue. Do not disclose vulnerabilities in public issues.
 
-Do not open a public issue for security vulnerabilities.
+Include the plugin version, CLI version, affected operation, and a minimal reproduction. Use sanitized setup output. Do not include API keys, OAuth files, or raw Kimi configuration.
 
-## Security-critical components
+## Review security changes
 
-The rescue approval allowlist in `runtime/rescue-approval.ts` is a security-critical component. It controls which file-edit and shell commands the plugin will auto-approve when Kimi requests them during a rescue session. Changes to allowlist logic should be reviewed carefully.
+The safety boundary spans these components:
+
+- `runtime/hooks/` verifies the installed hook, controls config writes, and checks tool calls
+- `runtime/rescue-approval.ts` checks write paths, shell arguments, and the trusted workspace root
+- `runtime/kimi-engine.ts` selects certified versions and records engine provenance
+- `runtime/native-v2-preflight.ts` blocks plan mode, unsafe experimental features, and unsafe resume state
+- `runtime/cli-client.ts` checks the spawned engine and tears down subprocesses
+
+Read the [safety guide](./docs/safety.md) and [runtime contracts](./docs/invariants.md) before changing these components. The hook controls tool use; it is not an operating-system sandbox.

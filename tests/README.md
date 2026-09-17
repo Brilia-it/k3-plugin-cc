@@ -1,30 +1,28 @@
-# tests
+# Tests
 
-Test suite for `kimi-plugin-cc`. Runs via `bun run check` (build + typecheck + test + drift gate) or `bun test <path>` for a single file.
+Run `bun run check` for the full gate: build, generated-surface checks, typecheck, tests, and distribution drift checks. Use `bun test <path>` for a focused test file. See [contributing](../CONTRIBUTING.md) for the build and staging order.
 
-Coverage highlights:
+The default suite uses local fixtures and mock subprocesses. Live provider calls are opt-in.
 
-- `runtime/stream-json.test.ts` — pure parser tests for kimi-code's `--output-format stream-json` records (assistant content + tool calls, tool results, the 0.8.0 role-less `goal.summary` record on its out-of-band channel, malformed lines)
-- `runtime/cli-client.test.ts` — subprocess wrapper: abort handling, SIGTERM → SIGKILL escalation, log drain, stderr tail, pre-aborted signal
-- `runtime/cli-cancellation.test.ts` — AbortController-based signal handler used by long-running commands
-- `runtime/approval-policy.test.ts` — pure hook decision function (per-command allow/deny posture)
-- `runtime/approval-hook-subprocess.test.ts` — end-to-end subprocess test for `approval-hook.js`: exit-2 + stderr for deny, exit 0 for allow, fail-closed on malformed stdin
-- `runtime/hook-install.test.ts` — verifier that detects the managed block in `~/.kimi-code/config.toml`
-- `runtime/rescue-approval.test.ts` — file-edit policy and shell allowlist table (accept + reject paths)
-- `runtime/rescue-command.test.ts` — rescue lifecycle: foreground, background, resume, cancellation, hook-not-installed refusal
-- `runtime/pursue.test.ts` — `/kimi:pursue` (autonomous goal mode) pure logic: arg parsing, `--budget` duration parsing, `/goal` prompt construction, terminal exit-code classification (0/3/6 → complete/blocked/paused)
-- `runtime/swarm.test.ts` — `/kimi:swarm` (read-only parallel fan-out) pure logic: arg parsing (`--budget`/`--cap`), AgentSwarm coordination-prompt construction, read-only-with-cap clauses. The `swarm` hook-label allow/deny matrix (read-only + `AgentSwarm` allowed, writes + singular `Agent` denied) lives in `runtime/approval-policy.test.ts`
-- `runtime/read-only-commands.test.ts` — end-to-end ask/review/challenge flows against the v1 mock (review output is prose pass-through as of v0.2.3)
-- `runtime/review-gate-hook.test.ts` — Stop hook end-to-end including disabled/enabled/malformed/timeout paths
-- `runtime/replay-command.test.ts` — replay reproducing stored outputs and handling missing/malformed logs (v1.0 stream-json log format)
-- `runtime/setup.test.ts` — managed-block installer lifecycle: install/check/uninstall, orphan detection, probe behavior
-- `runtime/companion-unavailable.test.ts` — graceful degradation when `kimi` is missing from `PATH`
-- `runtime/job-commands.test.ts` — status/result persistence across command types
-- `runtime/real-binary-smoke.test.ts` — **opt-in** (`KIMI_PLUGIN_CC_SMOKE=1`, needs a real kimi binary + authed home; skipped by default). Spawns the real `kimi -p` and proves end-to-end that (a) read-only commands' forced writes are hook-denied, (b) autonomous goal mode is hook-gated on *every* continuation turn (zero files land across a full-budget multi-turn run), and (c) a spawned **swarm subagent's** forced write is hook-denied under the `swarm` label (needs kimi >= 0.12.0 for the AgentSwarm tool)
+## Coverage
 
-Helpers under `helpers/`:
+| Area | Main tests |
+|---|---|
+| Exact-version engine selection, capabilities, and provenance | `runtime/kimi-engine.test.ts`, `runtime/cli-client.test.ts` |
+| Plan-mode config, experimental selectors, and resume journal checks | `runtime/native-v2-preflight.test.ts` |
+| Hook policy, subprocess denials, installation, and detached workers | `runtime/approval-policy.test.ts`, `runtime/approval-hook-subprocess.test.ts`, `runtime/hook-install.test.ts`, `runtime/background-hook-enforcement.test.ts` |
+| Write paths and shell allowlist | `runtime/rescue-approval.test.ts` |
+| Setup and sanitized model inventory | `runtime/setup.test.ts`, `runtime/setup-command.test.ts`, `runtime/models.test.ts` |
+| Generated Codex plugin | `runtime/codex-surfaces.test.ts` |
+| Parsing, cancellation, and stored results | `runtime/stream-json.test.ts`, `runtime/cli-cancellation.test.ts`, `runtime/job-commands.test.ts`, `runtime/replay-command.test.ts` |
+| Command and review-gate behavior | `runtime/read-only-commands.test.ts`, `runtime/rescue-command.test.ts`, `runtime/pursue.test.ts`, `runtime/swarm.test.ts`, `runtime/review-gate-hook.test.ts` |
 
-- `mock-kimi-cli-v1.ts` — emits `kimi -p --output-format stream-json` records for the cli-client path
-- `mock-kimi-stream.ts` — lower-level NDJSON emitter for the stream-json parser tests
-- `sigterm-trap.ts` — child process that traps SIGTERM with an optional self-exit so SIGKILL escalation paths can be exercised deterministically
-- `test-env.ts` — repo-fixture + temp plugin-data helpers
+`audit/v2-tag-scan.test.ts` checks the source assumptions behind native-v2 enforcement. It requires an exact upstream source tree through `KIMI_CODE_SOURCE_TAG_DIR`; it is skipped without that input.
+
+`runtime/real-binary-smoke.test.ts` runs through `bun run smoke:real`. It checks real hook denials, goal continuation, native-v2 preflight and resume, swarm child enforcement, and write-swarm patch capture. Read [CI and live smoke](../docs/ci.md) before running it: the harness can copy credential-bearing seed files even when API authentication is available. It needs authorized test authentication, and runs must be sequential. A skipped lane is not a passing certification result.
+
+## Test isolation
+
+`bunfig.toml` preloads `helpers/preload.ts`, which removes inherited host plugin paths and per-spawn overlays before each test file. Keep this guard: a host can export another plugin's live data directory. Tests that need plugin paths must set their own temporary directories.
+
+Helpers include `mock-kimi-cli-v1.ts` for mock CLI output, `mock-kimi-stream.ts` for parser inputs, `sigterm-trap.ts` for cancellation, and `test-env.ts` for repository fixtures and temporary data roots.
