@@ -1,13 +1,61 @@
-# Roadmap to v1.0.0 GA
+# Roadmap
 
-Snapshot updated at **v1.0.0-alpha.4 candidate** (2026-05-25, post-user-directive). Captures everything surfaced by three audit rounds + production smoke testing + the user's reset of the thinking-on default. Each item has a triage decision: severity, effort, GA-blocker status, and the proposed approach.
+Current direction after [2.0.0](https://github.com/linxule/kimi-plugin-cc/releases/tag/v2.0.0), updated 2026-09-17. The original filename is retained so existing links keep working.
 
-> **This is the historical pre-GA snapshot.** The living post-GA record is the [Post-GA audit log](#post-ga-audit-log) at the end of this file. **For the current shipped version and what it contains, see the "Version" line at the top of [AGENTS.md](./AGENTS.md)** — that is the single source of truth, so this banner no longer restates a version number (it kept drifting a release behind).
+For installation, start with the [multilingual README](./README.md). For release details, see the [changelog](./CHANGELOG.md). The exact compatibility table lives in [runtime/kimi-engine.ts](./runtime/kimi-engine.ts); the standing safety contracts live in [AGENTS.md](./AGENTS.md) and [docs/invariants.md](./docs/invariants.md).
 
-Cross-references:
-- `CHANGELOG.md` for what's already shipped (alpha.1 → alpha.4)
-- `docs/safety.md` for the safety model
-- `AGENTS.md` for invariants
+## Where the project stands
+
+The plugin is released for **Claude Code and Codex**, using the same subprocess runtime. The native-v2 safety model keeps plan mode unreachable in plugin-managed sessions and checks compatibility before spawning Kimi. Version 2.0.0 certifies exact kimi-code 2.0.0; future certification releases track the upstream version they certify.
+
+| Available now | What that means for users |
+| --- | --- |
+| Ask, review and challenge | Read-only repository questions, diff reviews and adversarial feedback |
+| Rescue | Bounded work in the user's working tree, with resumable sessions |
+| Swarm and write-swarm | Parallel read-only reviews, or edits in a temporary worktree returned as a patch |
+| Pursue (experimental) | Multi-turn, write-capable goal pursuit with a mandatory time budget |
+| Jobs and cancellation | Persisted results, status, resume where supported, and process-tree teardown on POSIX |
+| Model selection | Credential-safe offline inventory, explicit per-task aliases and native provider-setup guidance |
+| Host setup | Separate Claude Code and Codex hooks, verified before managed work |
+| Onboarding | English, Simplified Chinese, French and Japanese guides in one expandable README |
+
+The optional Claude Code review gate remains disabled by default. Model listing does not test provider connectivity. A successful Moonshot K3 API test establishes that route, not universal support for every provider/model combination.
+
+## Current priorities
+
+These are maintenance commitments and open investigations, not promised release dates.
+
+| Work | Status | Next useful step / completion evidence |
+| --- | --- | --- |
+| Certify upstream releases | Ongoing, required before extending support | Exact source audit, non-vacuous live controls, per-operation smoke and full repository check. See the [compatibility playbook](./docs/upstream-compat-audit.md). |
+| Hook failure after verification (H1) | Open architectural work | Evaluate detection and upstream prevention of runtime hook failures. A post-execution alarm cannot prevent or undo a tool call; do not present it as containment. |
+| Per-task thinking control (H5) | Open; upstream integration needs reassessment | Re-check current CLI/environment controls and model semantics before exposing a plugin option. Today the plugin rejects `--thinking`/`--no-thinking`; the review gate's thinking-off intent is advisory. |
+| Plan-mode safety | Current no-plan contract remains in force | An upstream ordering change needs source proof and real lifecycle tests before any relaxation. See the [native-v2 status](./docs/native-v2-status.md). |
+| Multilingual onboarding | Delivered in this documentation follow-up; ongoing upkeep | Keep all four guides aligned when setup, commands, model selection or safety boundaries change. Detailed engineering docs remain in English. |
+
+## Deliberate boundaries
+
+- **POSIX first:** macOS/Linux shell entrypoints; Windows support is not currently offered.
+- **No automatic application of swarm patches or Git commits:** the user or host owns those decisions.
+- **No hidden model substitution or credential collection in chat:** provider setup stays in native Kimi; per-task model selection leaves the saved default alone.
+- **No plan-mode workaround:** use the certified runtime path and fix the reported configuration or version mismatch.
+- **Real model tests remain opt-in:** local certification and manual CI smoke use an authenticated account and incur model usage. The ordinary CI build/test gate runs without provider credentials. Enabling per-push paid smoke is a cost decision, not an unfinished implementation (H7).
+
+## How work ships
+
+1. Define the behavior and affected contracts; retain the distinction between source evidence, live evidence and untested assumptions.
+2. Make the change in the runtime or surface sources and regenerate bundled artifacts when required.
+3. Run the checks appropriate to the change and the required `bun run check`. Compatibility changes also require the exact-version live gates.
+4. Record the result here or in the changelog. Publish only after release authorization; install and verify each host separately.
+
+Documentation-only updates do not need a new plugin version. Keep command examples consistent across languages and preserve the stable links into the audit record below.
+
+## Historical pre-GA plan
+
+<details>
+<summary>Open the original GA plan and closure notes (May–June 2026)</summary>
+
+This is an archival record, not the current backlog. References to “before 1.1”, old engines, old hook ordering, proposed approaches and historical credentials handling describe their original context. The current priorities and linked contracts above take precedence. GA shipped on 2026-05-26.
 
 ## How alpha.3 actually performed
 
@@ -171,7 +219,12 @@ kimi-code's own plugin system can carry our PreToolUse hook via `kimi.plugin.jso
 
 Remaining v1.1 items: H1 (hook fail-open runtime drift), H3 partial (unknown top-level roles), H4 (Node version manager soft-recovery), H5 (per-spawn thinking control via kimi-code CLI, upstream-blocked), H7 (real-binary CI smoke), H8 (surface installed kimi-code plugins at setup), H9 (pin known-good kimi-code version range — extends H6).
 
+</details>
+
 ## Post-GA audit log
+
+<details>
+<summary>Open the dated release and compatibility audit history</summary>
 
 - **2026-05-27** — kimi-code 0.3.0 (released 2026-05-26) and 0.4.0 (released 2026-05-27) audited by 4 independent reviewers (hook contract, stream-json, CLI surface, adversarial). Verdict: COMPAT-PRESERVED. No runtime changes required. Findings:
   - `packages/agent-core/src/agent/hooks/` byte-identical 0.2.0→0.4.0
@@ -494,3 +547,6 @@ Remaining v1.1 items: H1 (hook fail-open runtime drift), H3 partial (unknown top
   config/OAuth copies for certification, sequential execution and cleanup.
   Release and Codex-only host upgrade authorized separately. Evidence:
   `.claude/kimi-code-research/certification-2.0.0/`.
+- **2026-09-17 (documentation follow-up to 2.0.0)** — Rebuilt the README around first-time onboarding for both hosts: prerequisites, install and first request, workflow choice, model selection, job follow-up, updates and troubleshooting. English, Simplified Chinese, French and Japanese use GitHub-native expandable sections in the same file. Reorganized this roadmap to lead with current capability, remaining investigations and release discipline; retained the original GA plan and full dated audit record as history. No runtime, safety-policy or version change.
+
+</details>
