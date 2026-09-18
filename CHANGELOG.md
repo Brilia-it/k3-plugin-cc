@@ -2,6 +2,18 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.2 — 2026-09-18
+
+Plugin-only maintenance release. Kimi Code CLI certification remains unchanged through exact 2.0.0; this does not certify upstream 2.0.1 or 2.0.2.
+
+- Restore visibility of completed native-v2 plugin sessions in Kimi Code Desktop and Web by filling missing redacted prompt previews and notifying the shared session index.
+- Keep new fallback titles replaceable by Kimi's native generation. Preserve manual and already-generated titles. The plugin does not call the native title endpoint automatically because it resumes an agent; use Desktop's Gen Title action or continue an eligible session there.
+- Add `repair-sessions [--apply] [--all]`: preview existing-session repairs by default, recover prompts from bounded invocation logs with digest and provenance checks, and preserve titles, existing previews and session journals.
+- Redact fallback-title source text before truncation and detect changed state before atomic publication. Report index-notification failures separately so an idempotent repair can retry them.
+- Validation: full `bun run check` passes with 881 tests, 26 opt-in skips, and no failures. Ten local sessions were repaired and became visible after Desktop refresh. One native generated title and its transcript were verified after refresh. Separate Web browser rendering was not exercised.
+
+See [session visibility and titles](./docs/session-visibility.md). Update Codex or Claude Code independently, then run that host's setup command to re-pin its versioned hook.
+
 ## 2.0.1 — 2026-09-17
 
 Plugin-only maintenance release. The recommended certified Kimi Code CLI remains 2.0.0; the exact certification table is unchanged.

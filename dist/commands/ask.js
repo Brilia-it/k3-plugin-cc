@@ -36,6 +36,14 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //     keeps it across resumes.
 const ASK_SUMMARY_MAX = 120;
 const ASK_AGENT_PROFILE_PLACEHOLDER = "<cli-client>";
+const ASK_PROMPT_PREFIX = [
+    "Answer the user's question directly in free-form prose.",
+    "Stay read-only.",
+    "Do not emit JSON unless the user explicitly asks for it.",
+    "",
+    "User question:",
+    "",
+].join("\n");
 export async function runAsk(argv, context) {
     const parsed = parseAskArgs(argv);
     if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
@@ -180,10 +188,11 @@ export async function executeAskJob(jobId, prompt, context, options) {
             store.updateRunningJob(job.job_id, { kimi_session_id: result.sessionId });
         }
         await syncKimiSessionTitle({
+            promptText: prompt,
             env: context.env,
             cwd: job.cwd,
             sessionId: result.sessionId ?? job.kimi_session_id,
-            title: buildKimiSessionTitle("ask", job.summary),
+            title: buildKimiSessionTitle("ask", prompt.startsWith(ASK_PROMPT_PREFIX) ? prompt.slice(ASK_PROMPT_PREFIX.length) : prompt),
             stderr: context.stderr,
         });
         // For ask, missing session id breaks both -r (latest-resume) and
@@ -298,14 +307,7 @@ function ensureAskSessionIsNotRunning(job) {
 }
 function buildAskPrompt(question, reusedSession) {
     if (question?.trim()) {
-        return [
-            "Answer the user's question directly in free-form prose.",
-            "Stay read-only.",
-            "Do not emit JSON unless the user explicitly asks for it.",
-            "",
-            "User question:",
-            question.trim(),
-        ].join("\n");
+        return ASK_PROMPT_PREFIX + question.trim();
     }
     if (reusedSession) {
         return [

@@ -111,6 +111,10 @@ Pursue and swarm have time limits. Swarm runs tasks in parallel, so it can use m
 
 Claude Code also has an optional [review gate](./commands/setup.md). It checks work when Claude finishes a turn and is off by default.
 
+## View sessions in Kimi
+
+Plugin sessions use the shared Kimi Code Desktop and `kimi web` history. New native-v2 sessions receive a readable fallback title that Kimi can replace with a generated title. Manual renames are preserved. For missing older sessions and the native **Gen Title** action, see [session visibility and titles](./docs/session-visibility.md).
+
 ## Choose a model
 
 New Kimi sessions use your configured default model. You only need to choose a model if you want a different one.
