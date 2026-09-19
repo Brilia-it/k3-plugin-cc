@@ -1,14 +1,14 @@
 # Native v2 certification and engine-provenance contract
 
 **Approved:** 2026-08-28 · **Amended:** 2026-09-09 (§2 alternate basis, §4 matrix, §5 fields)
-**Current production state:** native v2 certified at exact kimi-code `0.42.0`, `0.43.0`, `0.43.1` and `2.0.0` for every operation under the §2 construction; `legacy-v1` remains selectable only for a pinned binary ≤ 0.41.x.
+**Current release capability (2.0.3):** native v2 certified at exact kimi-code `0.42.0`, `0.43.0`, `0.43.1`, `2.0.0` and `2.0.1` for every operation under the §2 construction; `legacy-v1` remains selectable only for a pinned binary ≤ 0.41.x.
 
 For the dated upstream evidence and follow-up, see [Native v2 status](native-v2-status.md).
 
 This contract defines what must be true before kimi-plugin-cc can route any
 production operation to kimi-code's native `agent-core-v2` engine. It also
 defines the provenance that must survive process, background-worker, job-store,
-and session boundaries. The first implementation slice recorded legacy-v1 provenance without enabling v2. The shipped runtime now routes certified versions to native v2 under the no-plan construction below.
+and session boundaries. The first implementation slice recorded legacy-v1 provenance without enabling v2. The runtime routes only the versions listed in its capability table to native v2 under the no-plan construction below. Installed hosts retain their existing tables until explicitly updated.
 
 Tower mode, subagent fork, Remote Control, and other experimental feature work
 are outside this contract. The removal of v1 in kimi-code 0.42.0 did not waive any gate below.
@@ -112,7 +112,7 @@ matrix. The shipped certification table controls engine selection. Adding a vers
 
 | Engine | Operation | Production state |
 |---|---|---|
-| `native-v2` | review, challenge, ask, rescue, review_gate, pursue, swarm, swarm-write | certified at exact `0.42.0`, `0.43.0`, `0.43.1`, `2.0.0` (`NATIVE_V2_CERTIFIED` in `runtime/kimi-engine.ts`), safety profile `native-v2-no-plan/1` |
+| `native-v2` | review, challenge, ask, rescue, review_gate, pursue, swarm, swarm-write | certified at exact `0.42.0`, `0.43.0`, `0.43.1`, `2.0.0`, `2.0.1` (`NATIVE_V2_CERTIFIED` in `runtime/kimi-engine.ts`), safety profile `native-v2-no-plan/1` |
 | `legacy-v1` | review, challenge, ask, rescue, review_gate | certified within `KIMI_TESTED_MINORS` (≤ 0.41) for an explicitly pinned binary |
 | `legacy-v1` | pursue / swarm / swarm-write | certified from kimi-code 0.8 / 0.12 / 0.18 within `KIMI_TESTED_MINORS` |
 

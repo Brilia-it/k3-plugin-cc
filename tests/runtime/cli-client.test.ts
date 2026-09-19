@@ -525,6 +525,26 @@ describe("runCliPrompt", () => {
     }
   });
 
+  test.each(["pursue", "rescue", "review", "swarm"] as const)(
+    "exports immutable operation %s over ambient provenance in fresh and resumed children",
+    async (operationKind) => {
+      const root = await createTestPluginDataRoot("cli-client-operation");
+      try {
+        const opts = mockOptions({ cwd: root, records: [], commandLabel: operationKind === "pursue" ? "rescue" : operationKind });
+        opts.executionPlan = { ...opts.executionPlan, operationKind };
+        opts.env.KIMI_PLUGIN_CC_OPERATION = operationKind === "pursue" ? "review" : "pursue";
+        opts.env.KIMI_MOCK_ECHO_ENV = "KIMI_PLUGIN_CC_OPERATION";
+        for (const resumeSessionId of [undefined, "session_existing_operation"]) {
+          const result = await runCliPrompt({ ...opts, resumeSessionId, trustedWorkspaceRoot: root });
+          expect(result.exitCode).toBe(0);
+          expect(result.records).toContainEqual({ role: "assistant", content: `KIMI_PLUGIN_CC_OPERATION=${operationKind}` });
+        }
+      } finally {
+        await cleanupTestPath(root);
+      }
+    },
+  );
+
   test("exports swarmMaxConcurrency as KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY to the child", async () => {
     const root = await createTestPluginDataRoot("cli-client-swarm-concurrency");
     try {

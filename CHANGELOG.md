@@ -2,6 +2,15 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.3 — 2026-09-19
+
+- Certify exact Kimi Code CLI 2.0.1 for all eight native-v2 operations. Review and pin its same-wire restore-chain API and unchanged hook schema; future patches remain fail-closed. Exact tag scan 15/15, plan-on/off controls passed, live smoke 15/15 with no retries. See [certification evidence](docs/upstream-2.0.1-certification.md).
+- Fix repeated pursue goal-tool denials: trusted per-spawn operation metadata permits only current-goal reads and terminal complete/blocked updates. Rescue workspace restrictions, plan refusal and wall-clock limits remain unchanged. Remove the misleading SetGoalBudget prompt hint; turn counts remain soft.
+- Validation: `bun run check` passed (898 passed, 28 opt-in skips, zero failures, 2,965 assertions).
+- Keep plugin versions independent of upstream using ordinary SemVer. Plugin 2.0.3 certifies CLI 2.0.1; published versions are never reused.
+- Older coexisting host hooks can still veto goal tools. Updating and re-pinning each host requires its own authorization; no installed Claude Code hook was changed in this slice.
+
+
 ## 2.0.2 — 2026-09-18
 
 Plugin-only maintenance release. Kimi Code CLI certification remains unchanged through exact 2.0.0; this does not certify upstream 2.0.1 or 2.0.2.

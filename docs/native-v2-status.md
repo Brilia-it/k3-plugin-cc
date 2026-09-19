@@ -1,4 +1,13 @@
-# Native v2 status — 2026-09-17
+# Native v2 status — 2026-09-19
+
+> **2.0.1 (certified 2026-09-19, plugin 2.0.3):** exact release `caf7d4e2`
+> preserves the no-plan construction. The reviewed same-wire restore API and
+> exact hook schema pass the updated tag scan (15/15). Plan-ON reproduced the
+> bypass; plan-OFF denied Write and EnterPlanMode. All 15 candidate smoke tests
+> passed without retries, including pursue completion/blocked status and swarm
+> confinement. Plugin versions now advance independently from upstream.
+> See [certification evidence and limitations](upstream-2.0.1-certification.md).
+
 
 > **2.0.0 (certified 2026-09-17, plugin 2.0.0):** the exact release
 > `1b89e4b0` preserves the no-plan construction and hook schema. The changed

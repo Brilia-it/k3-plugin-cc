@@ -16,6 +16,7 @@ for (const name of [
   "PLUGIN_ROOT",
   "KIMI_PLUGIN_CC_WORKSPACE_CWD",
   "KIMI_PLUGIN_CC_CMD",
+  "KIMI_PLUGIN_CC_OPERATION",
   "KIMI_PLUGIN_CC_WORKSPACE_ROOT",
 ]) {
   delete process.env[name];

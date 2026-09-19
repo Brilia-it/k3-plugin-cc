@@ -34,6 +34,7 @@ export const NATIVE_V2_CERTIFIED_VERSIONS = Object.freeze([
     "0.43.0",
     "0.43.1",
     "2.0.0",
+    "2.0.1",
 ]);
 /** Per-operation native-v2 certification. One green operation never certifies another. */
 export const NATIVE_V2_CERTIFIED = new Map([

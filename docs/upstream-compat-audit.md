@@ -2,24 +2,24 @@
 
 How to verify a new kimi-code release against kimi-plugin-cc without breaking the safety guarantees we ship.
 
-Use this routine for every new exact native-v2 version, including patches. The 2.0.0 certification is the current worked example. Earlier audits remain useful historical evidence, but their legacy-v1 minor-version rules do not apply to native v2.
+Use this routine for every new exact native-v2 version, including patches. The 2.0.1 certification is the current worked example. Earlier audits remain useful historical evidence, but their legacy-v1 minor-version rules do not apply to native v2.
 
-## Current certified boundary (2026-09-17)
+## Current certified boundary (2026-09-19)
 
 The plugin certifies **native agent-core-v2 at exact `@moonshot-ai/kimi-code@0.42.0`,
-`0.43.0`, `0.43.1` and `2.0.0`** (release commits `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`,
+`0.43.0`, `0.43.1`, `2.0.0` and `2.0.1`** (release commits `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`,
 `ffa94fae854dedf594919acbea280d98cbe8e14e`, `75ac010bcb2050338444455de8328492d152c919`,
-`1b89e4b039f052d10f258464413b2047acca12ba`)
+`1b89e4b039f052d10f258464413b2047acca12ba`, `caf7d4e2fef06967280b325da06e44a4b0516eba`)
 for all eight operations, and legacy-v1 through 0.41.x for an explicitly pinned binary.
-The most recent worked example is the 2026-09-17 exact 2.0.0 certification
-(plugin 2.0.0; ROADMAP-TO-GA.md § Post-GA audit log).
+The most recent worked example is the 2026-09-19 exact 2.0.1 certification
+(plugin 2.0.3; [certification evidence](upstream-2.0.1-certification.md)).
 0.42.0 removed `packages/agent-core` and `KIMI_CODE_LEGACY_FLAG` (#3542; not in
 its changelog): `kimi -p` is v2 unconditionally, so the v1 pin is inert there.
 
 The certification basis is the **no-plan construction** (see
 [`native-v2-certification-provenance.md` §2](native-v2-certification-provenance.md#2-native-v2-entry-gate)),
 not an upstream ordering guarantee — plan still registers before external
-hooks at every certified version through 2.0.0 (confirmed in `dist/main.mjs` at 0.42.0 and by the
+hooks at every certified version through 2.0.1 (confirmed in `dist/main.mjs` at 0.42.0 and by the
 plan-ON live control on every certified binary). Certification is per EXACT
 version and per operation; a patch release is NOT certified until the three
 gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
@@ -64,9 +64,10 @@ gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
    Review and represent a new major's hook schema first. Only after all gates
    pass may the shipped certification table gain the version.
 
-From plugin 2.0.0 onward, certification releases normally align with the upstream
-version. Maintenance releases may use a newer plugin patch; never reuse a published
-plugin version when certifying a later CLI. The matching number does not replace any certification gate.
+Plugin versions advance independently using ordinary SemVer. A compatible
+certification update takes the next unused plugin patch and states the exact CLI
+version separately; never reuse a published plugin version or tag. Version labels
+do not replace any certification gate.
 
 Do not extend `KIMI_TESTED_MINORS` (legacy table) past 0.41. Do not write a
 "plan-file write denied under plan mode" smoke — under the construction that
@@ -293,7 +294,7 @@ Read all four reports and the live results. Save a synthesis to `reports/NN-upst
 | Finding | Outcome |
 |---|---|
 | An already-certified version needs documentation corrections | Documentation update; no certification or version change |
-| A new exact native-v2 version passes every gate | Add the production certification row and prepare a release, aligning with upstream when that plugin version is unused |
+| A new exact native-v2 version passes every gate | Add the production certification row and prepare the next unused plugin patch release with explicit upstream compatibility |
 | A gate fails or evidence is incomplete | Keep the candidate uncertified; record the blocker and required follow-up |
 
 A certification-table addition changes runtime routing even when upstream's hook implementation is unchanged. It is not a docs-only checkup. Matching upstream's version number never substitutes for a passing gate.
@@ -323,7 +324,7 @@ Apply must-fix findings before commit. Nits are at your discretion.
 
 Review the final diff and confirm `bun run check` passed. Stage only the intended files, including generated distributions when they changed. Commit, push, tag, and publish only within the user's authorization.
 
-For a certification release, follow the [release checklist](../AGENTS.md#releasing). From 2.0.0 onward, certification releases normally align with upstream; use the next unused plugin version if a maintenance release has already used that number. Write release notes to a file and pass it to `gh release create --notes-file`.
+For a certification release, follow the [release checklist](../AGENTS.md#releasing). Use the next unused plugin patch, independently of the upstream version, and state the exact certified CLI version in the notes. Write release notes to a file and pass it to `gh release create --notes-file`.
 
 Documentation corrections do not need a new version or a compatibility tag. Historical `compat-verified-kimi-code-*` tags record earlier legacy-v1 audits; they do not certify new native-v2 versions.
 

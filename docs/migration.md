@@ -1,23 +1,22 @@
 # Compatibility and upgrades
 
-For plugin 2.0.1, use Kimi Code CLI 2.0.0. The plugin also certifies exact native-v2 versions `0.42.0`, `0.43.0`, and `0.43.1` for all eight operations. It does not automatically accept later patches or minor releases.
+For plugin 2.0.3, use Kimi Code CLI 2.0.1. The plugin also certifies exact native-v2 versions `0.42.0`, `0.43.0`, `0.43.1`, and `2.0.0` for all eight operations. It does not automatically accept later patches or minor releases.
 
 Explicitly pinned legacy-v1 binaries remain supported within `KIMI_TESTED_MINORS`, through 0.41.x, subject to each operation's minimum version. The [runtime table](../runtime/kimi-engine.ts) is the authority.
 
 Use the [README installation and update steps](../README.md) for Claude Code or Codex. Model and provider choices are covered in the [model setup guide](./models.md). Do not change your host application's authentication to configure Kimi.
 
-## Upgrading to 2.0 (versions track kimi-code)
+## Plugin versions and upgrades
 
-From 2.0.0 onward, plugin certification releases normally align with
-upstream kimi-code. Plugin-only maintenance fixes use a new patch version: plugin
-2.0.1 still targets certified Kimi Code CLI 2.0.0. Published versions are never reused. This numbering change preserves the native-v2 no-plan
-safety profile introduced in 1.10, the plugin/marketplace IDs, and the existing
-job store. The runtime's exact-version table still determines compatibility;
-future upstream patches require their own certification.
+Plugin versions advance independently using ordinary SemVer. Plugin 2.0.3 certifies
+exact Kimi Code CLI 2.0.1; the runtime table records that mapping. Each compatible
+maintenance or certification update takes the next unused plugin patch. Published
+versions and tags are never reused. Every upstream patch requires its own certification.
+The native-v2 no-plan profile, plugin/marketplace IDs and existing job store are preserved.
 
 After updating the plugin, run Claude Code `/kimi:setup` or Codex `$kimi-setup`
 from that host's active install to re-pin its version-stamped hook path, then
-run setup with `--check`. Keep `default_plan_mode` absent or false. Upgrades
+run setup with `--check`. This fixes path drift, not policy omissions in an older installed plugin. Older coexisting hooks still veto pursue goal-status tools; update each host only when authorized. Keep `default_plan_mode` absent or false. Upgrades
 from pre-1.10 releases must also follow the historical native-v2 migration section below.
 
 ## Historical migration instructions
@@ -25,7 +24,7 @@ from pre-1.10 releases must also follow the historical native-v2 migration secti
 <details>
 <summary>Earlier migrations from the Python CLI and legacy engine</summary>
 
-These sections record earlier upgrades. Old tags, paths, and installation commands are historical examples, not the current installation procedure. Follow the current guidance above for 2.0.1.
+These sections record earlier upgrades. Old tags, paths, and installation commands are historical examples, not the current installation procedure. Follow the current guidance above for the current release.
 
 ## Migrating from v0.4 to v1.0
 

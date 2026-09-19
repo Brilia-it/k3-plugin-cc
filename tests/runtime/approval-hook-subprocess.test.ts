@@ -261,3 +261,44 @@ describe("approval-hook entry script", () => {
     expect(result.exitCode).toBe(0);
   });
 });
+
+describe("pursue metadata hook environment", () => {
+  test.each([
+    ["GetGoal", {}],
+    ["UpdateGoal", { status: "complete" }],
+    ["UpdateGoal", { status: "blocked" }],
+  ] as const)("pursue environment allows %s %j through the real hook subprocess", async (tool_name, tool_input) => {
+    const result = await invokeHook({ hook_event_name: "PreToolUse", tool_name, tool_input }, {
+      ...process.env,
+      KIMI_PLUGIN_CC_CMD: "rescue",
+      KIMI_PLUGIN_CC_OPERATION: "pursue",
+      KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
+  test("untrusted payload cannot supply pursue provenance, and ordinary rescue stays denied", async () => {
+    for (const operationKind of [undefined, "rescue"]) {
+      const env: NodeJS.ProcessEnv = { ...process.env, KIMI_PLUGIN_CC_CMD: "rescue", KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd() };
+      if (operationKind !== undefined) env.KIMI_PLUGIN_CC_OPERATION = operationKind;
+      else delete env.KIMI_PLUGIN_CC_OPERATION;
+      const result = await invokeHook({
+        tool_name: "UpdateGoal", tool_input: { status: "complete" }, operationKind: "pursue", cwd: process.cwd(),
+      }, env);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("UpdateGoal");
+    }
+  });
+
+  test.each([
+    ["UpdateGoal", { status: "active" }], ["UpdateGoal", { status: "complete", extra: true }],
+    ["SetGoalBudget", { turns: 1 }], ["CreateGoal", { objective: "replace" }],
+  ] as const)("pursue environment denies %s %j with exit 2", async (tool_name, tool_input) => {
+    const result = await invokeHook({ tool_name, tool_input }, {
+      ...process.env, KIMI_PLUGIN_CC_CMD: "rescue", KIMI_PLUGIN_CC_OPERATION: "pursue", KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+    });
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain(tool_name);
+  });
+});

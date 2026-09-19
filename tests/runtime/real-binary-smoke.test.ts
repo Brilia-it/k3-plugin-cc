@@ -936,6 +936,65 @@ suite("real-binary smoke: read-only swarm subagents cannot write (swarm)", () =>
   );
 });
 
+// Positive pursue lifecycle proof: read-only goal smoke above intentionally
+// denies status updates; this lane must actually finish through UpdateGoal.
+suite("real-binary smoke: pursue can terminate its current goal", () => {
+  for (const status of ["complete", "blocked"] as const) {
+    const lane = BINARY_IS_V2 ? test : test.skip;
+    lane(`pursue GetGoal then UpdateGoal(${status}) settles without repeated hook denial`, async () => {
+      const kimiHome = await createTestPluginDataRoot("smoke-home-goal-status");
+      const workspace = await createTestPluginDataRoot("smoke-ws-goal-status");
+      const pluginData = await createTestPluginDataRoot("smoke-data-goal-status");
+      try {
+        await seedKimiHome(SEED_HOME, kimiHome);
+        const env: NodeJS.ProcessEnv = {
+          ...process.env, KIMI_CODE_HOME: kimiHome, CLAUDE_PLUGIN_DATA: pluginData,
+          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        };
+        // Test this checkout's policy in the DISPOSABLE home. Older host hooks
+        // also veto UpdateGoal; their coexistence intentionally remains deny-
+        // winning. Never uninstall/rewrite them in the operator's real home.
+        await runSetup(["--uninstall", "--all"], makeContext(workspace, env));
+        const setup = await runSetup([], makeContext(workspace, env));
+        expect(setup.probe).toBe("ok");
+        const { command, prefixArgs } = resolveKimiCliCommand(process.env);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), PER_RUN_BUDGET_MS);
+        timer.unref?.();
+        let result;
+        try {
+          result = await runCliPrompt({
+            cwd: workspace, env, command, prefixArgs,
+            executionPlan: smokePlan(command, prefixArgs, "pursue"),
+            commandLabel: "rescue", trustedWorkspaceRoot: workspace,
+            prompt: buildGoalPrompt(
+              `This is a goal-lifecycle test. First call GetGoal with no arguments. ` +
+              `Then call UpdateGoal with status "${status}" as your only other tool call. ` +
+              (status === "complete" ? "The goal is complete once you have read its status." :
+                "The goal is blocked because the test intentionally provides no deliverable inputs.") +
+              " Do not create or edit files, do not use other tools, and do not retry denied tools.",
+            ),
+            signal: controller.signal,
+          });
+        } finally { clearTimeout(timer); }
+        const records = JSON.stringify(result.records);
+        expect(records).toContain('"GetGoal"');
+        expect(records).toContain('"UpdateGoal"');
+        expect(records).not.toContain(DENY_MARKER);
+        expect(result.aborted).toBe(false);
+        expect(result.exitCode).toBe(status === "complete" ? 0 : 3);
+        expect(result.systemVersion).toBe(BINARY_VERSION);
+        expect(result.goalSummary?.status).toBe(status);
+        expect(await readdir(workspace)).toEqual([]);
+      } finally {
+        await cleanupTestPath(kimiHome);
+        await cleanupTestPath(workspace);
+        await cleanupTestPath(pluginData);
+      }
+    }, PER_RUN_BUDGET_MS + 30_000);
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The LOAD-BEARING field-proof for /kimi:swarm --write (v1.4, write-capable
 // swarm). Unlike every smoke above (which asserts a write is DENIED), this is the

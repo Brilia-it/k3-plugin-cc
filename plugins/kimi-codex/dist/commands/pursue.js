@@ -84,12 +84,12 @@ export function classifyGoalExit(exitCode) {
 /**
  * Build the headless goal prompt. The objective becomes the goal; an optional
  * turn cap is appended as a model INSTRUCTION (soft — headless create has no
- * argv/env to set a hard turn budget, so we ask the model to call SetGoalBudget
- * itself). The hard bound is always the wall-clock AbortController.
+ * argv/env to set a hard turn budget). The hard bound is always the
+ * wall-clock AbortController; goal budget mutation is not authorized.
  */
 export function buildGoalPrompt(objective, turns) {
     const trimmed = objective.trim();
-    const turnHint = turns !== undefined ? ` Stop after at most ${turns} turns; call SetGoalBudget to enforce this.` : "";
+    const turnHint = turns !== undefined ? ` Stop after at most ${turns} turns; this is a soft instruction, not an enforced turn budget.` : "";
     return `/goal ${trimmed}${turnHint}`;
 }
 function renderGoalHeader(summary, exitStatus) {
