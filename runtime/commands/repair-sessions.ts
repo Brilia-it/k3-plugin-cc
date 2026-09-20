@@ -75,9 +75,16 @@ async function readRepairJobs(filename: string, repoId: string | undefined): Pro
     throw error;
   }
   const require = createRequire(import.meta.url);
-  const db = typeof Bun !== "undefined"
-    ? new (require("bun:sqlite") as typeof import("bun:sqlite")).Database(filename, { readonly: true })
-    : new (require("node:sqlite") as typeof import("node:sqlite")).DatabaseSync(filename, { readOnly: true });
+  // Bind constructors before `new`: compiler emission must not turn the
+  // module-loader call into the constructor (new require(...).Database).
+  const db = (() => {
+    if (typeof Bun !== "undefined") {
+      const { Database } = require("bun:sqlite") as typeof import("bun:sqlite");
+      return new Database(filename, { readonly: true });
+    }
+    const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+    return new DatabaseSync(filename, { readOnly: true });
+  })();
   try {
     // Never construct JobStore here: it performs migrations and stale-row
     // reconciliation. Both preview and apply keep plugin job data read-only.

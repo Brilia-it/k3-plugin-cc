@@ -4,6 +4,13 @@ Normal CI uses mock models and needs no model credentials. Live smoke tests are 
 
 ## Base CI
 
+Before release validation, run `bun install --frozen-lockfile` locally too.
+An existing `node_modules` directory can disagree with the committed lockfile.
+Generate both runtime distributions with those dependencies, run the full
+check, and wait for the release commit's CI success before tagging/publishing.
+Keep compiled-runtime regressions that execute emitted JS under Node and Bun;
+source-only Bun tests do not exercise TypeScript's compiler output.
+
 [ci.yml](../.github/workflows/ci.yml) runs on pushes to `main` and on pull requests. It installs locked dependencies, runs `bun audit`, and then runs `bun run check`.
 
 The full check covers:

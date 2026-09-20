@@ -1,8 +1,10 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { appendFile, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { runRepairSessions } from "../../runtime/commands/repair-sessions.js";
 import { resolveRepoIdentity } from "../../runtime/git.js";
@@ -62,6 +64,42 @@ function parse(output: string) {
 }
 
 describe("repair-sessions", () => {
+  for (const host of ["dist", "plugins/kimi-codex/dist"]) {
+    for (const engine of ["node", "bun"]) {
+      test(`compiled ${host} opens the real SQLite store read-only under ${engine}`, async () => {
+        const f = await fixture();
+        const session = await f.seed("compiled");
+        const beforeState = await readFile(session.statePath, "utf8");
+        const beforeDb = await readFile(f.paths.stateDbPath);
+        const beforeStat = await lstat(f.paths.stateDbPath);
+        const moduleUrl = pathToFileURL(path.resolve(import.meta.dir, "../..", host, "commands/repair-sessions.js")).href;
+        // Execute emitted JS in a separate engine, not Bun's TS loader. A missing
+        // store would return before opening SQLite and hide constructor regressions.
+        const script = `import(${JSON.stringify(moduleUrl)}).then(async ({ runRepairSessions }) => {
+          process.stdout.write(await runRepairSessions([], {
+            cwd: ${JSON.stringify(f.cwd)}, env: process.env,
+            stdout: process.stdout, stderr: process.stderr
+          }));
+        }).catch(error => { console.error(error); process.exitCode = 1; });`;
+        const result = spawnSync(engine === "bun" ? process.execPath : "node", ["--eval", script], {
+          cwd: f.cwd,
+          env: { ...process.env, ...f.context.env, KIMI_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: "1" },
+          encoding: "utf8",
+          timeout: 5000,
+        });
+        expect(result.error).toBeUndefined();
+        expect(result.status, result.stderr).toBe(0);
+        expect(parse(result.stdout)).toMatchObject({
+          mode: "dry-run", scope: "repository", sessions: 1, counts: { "would-update": 1 },
+        });
+        expect(result.stdout).not.toContain(session.prompt);
+        expect(await readFile(session.statePath, "utf8")).toBe(beforeState);
+        expect(await readFile(f.paths.stateDbPath)).toEqual(beforeDb);
+        expect((await lstat(f.paths.stateDbPath)).mtimeMs).toBe(beforeStat.mtimeMs);
+      });
+    }
+  }
+
   test("defaults to a non-mutating preview and applies faithful prompt metadata while preserving a custom title", async () => {
     const f = await fixture();
     const session = await f.seed("repair");

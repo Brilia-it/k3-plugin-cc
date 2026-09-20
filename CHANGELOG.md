@@ -2,6 +2,14 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.5 — 2026-09-20
+
+- Fix lockfile-clean TypeScript 7.0.2 emission for `repair-sessions` by binding SQLite constructors before `new`. Preserve read-only database access and preview behavior.
+- Add four compiled-runtime regressions: root and Codex distributions each run under Node and Bun against a real fixture database. All four failed before the fix and passed afterward; all 14 repair-session tests pass.
+- Frozen-dependency full check: 902 passed, 28 opt-in skips, zero failures, 3,015 assertions. Dependency audit and both final reviews passed.
+- Rebuild both hosts with frozen dependencies. Require a successful CI check before tagging and publishing future releases. v2.0.4's local check used stale TypeScript 6.0.2 dependencies and missed the emitted-code failure; its published tag remains unchanged.
+- Exact CLI certification stays through 2.0.2. No hook, plan-mode, permission, swarm or installed-host changes. See [build-fix evidence](docs/release-2.0.5-build-fix.md).
+
 ## 2.0.4 — 2026-09-20
 
 - Certify exact Kimi Code CLI 2.0.2 for all eight native-v2 operations under the unchanged no-plan safety construction. Previous certified versions remain supported; legacy-v1 stays capped at 0.41.x.

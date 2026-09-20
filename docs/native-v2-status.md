@@ -1,5 +1,9 @@
 # Native v2 status — 2026-09-20
 
+Plugin 2.0.5 fixes lockfile-clean compiled output for session repair; exact
+CLI certification remains through 2.0.2. It does not change hook enforcement
+or the no-plan construction. See [build-fix evidence](release-2.0.5-build-fix.md).
+
 > **2.0.2 (certified 2026-09-20, plugin 2.0.4):** exact source `9d07f634`
 > retains the no-plan construction and unchanged hook schema. Four source
 > reviews, the 15-test tag scan, plan-ON/OFF controls and all 15 candidate

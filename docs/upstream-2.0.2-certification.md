@@ -1,5 +1,10 @@
 # Kimi Code 2.0.2 certification — 2026-09-20
 
+Build correction: v2.0.4's post-push CI failed because local validation used
+stale compiler dependencies. Plugin 2.0.5 fixes the emitted SQLite constructor
+expression and adds Node/Bun compiled-runtime tests. The exact CLI safety
+evidence below remains unchanged. See [build-fix evidence](release-2.0.5-build-fix.md).
+
 Plugin 2.0.4 certifies exact Kimi Code 2.0.2 for all eight native-v2
 operations under the unchanged no-plan construction. The user authorized
 publication after the source and live gates passed. Installed-host updates

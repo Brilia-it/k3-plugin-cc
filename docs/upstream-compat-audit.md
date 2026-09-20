@@ -323,7 +323,11 @@ Apply must-fix findings before commit. Nits are at your discretion.
 
 ### Phase 5 — Commit and publish
 
-Review the final diff and confirm `bun run check` passed. Stage only the intended files, including generated distributions when they changed. Commit, push, tag, and publish only within the user's authorization.
+Install frozen dependencies before building; confirm `bun run check` passed
+and review the final diff. Stage only intended files, including regenerated
+distributions. Within the user's authorization, commit and push, wait for
+that commit's CI to pass, then tag and publish. Do not substitute an existing
+local dependency directory for lockfile-clean validation.
 
 For a certification release, follow the [release checklist](../AGENTS.md#releasing). Use the next unused plugin patch, independently of the upstream version, and state the exact certified CLI version in the notes. Write release notes to a file and pass it to `gh release create --notes-file`.
 
