@@ -1,12 +1,12 @@
 # Roadmap
 
-Current direction after [2.0.1](https://github.com/linxule/kimi-plugin-cc/releases/tag/v2.0.1), updated 2026-09-17. The original filename is retained so existing links keep working.
+Current direction after [2.0.4](https://github.com/linxule/kimi-plugin-cc/releases/tag/v2.0.4), updated 2026-09-20. The original filename is retained so existing links keep working.
 
 For installation, start with the [multilingual README](./README.md). For release details, see the [changelog](./CHANGELOG.md). The exact compatibility table lives in [runtime/kimi-engine.ts](./runtime/kimi-engine.ts); the standing safety contracts live in [AGENTS.md](./AGENTS.md) and [docs/invariants.md](./docs/invariants.md).
 
 ## Where the project stands
 
-The plugin is released for **Claude Code and Codex**, using the same subprocess runtime. The native-v2 safety model keeps plan mode unreachable in plugin-managed sessions and checks compatibility before spawning Kimi. Plugin 2.0.1 retains exact kimi-code 2.0.0 certification. Certification releases normally track upstream; plugin-only maintenance fixes use a new patch version without expanding CLI support.
+The plugin is released for **Claude Code and Codex**, using the same subprocess runtime. The native-v2 safety model keeps plan mode unreachable in plugin-managed sessions and checks compatibility before spawning Kimi. Plugin 2.0.4 certifies exact kimi-code 2.0.2. Plugin versions advance independently using ordinary SemVer; certification and compatible maintenance use the next unused patch.
 
 | Available now | What that means for users |
 | --- | --- |
@@ -559,3 +559,5 @@ Remaining v1.1 items: H1 (hook fail-open runtime drift), H3 partial (unknown top
 
 
 - **2026-09-19 (plugin 2.0.3)** — Certified exact kimi-code 2.0.1 (`caf7d4e2`) after four source audits, 15/15 tag scan, plan-ON/OFF controls and 15/15 sequential live smoke with no retries. Added a narrow pursue goal-status permission to fix repeated UpdateGoal denial; older coexisting host hooks remain enforcing and can still veto it. Adopted independent plugin SemVer numbering. [Evidence and limitations](docs/upstream-2.0.1-certification.md). No host rollout in this slice.
+
+- **2026-09-20 (plugin 2.0.4)** — Certified exact kimi-code 2.0.2 (`9d07f634`) for all eight operations after four source reviews, 15/15 tag scan, plan-ON/OFF controls and 15/15 sequential live smoke (84 assertions, no retries). Reviewed exact hook schema and source hashes; future versions remain fail-closed. The known plan-file bypass persists, so plan mode remains unreachable in managed sessions. [Evidence and limitations](docs/upstream-2.0.2-certification.md). Publication authorized; no installed-host or operator CLI changes.

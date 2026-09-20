@@ -2,6 +2,14 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.4 — 2026-09-20
+
+- Certify exact Kimi Code CLI 2.0.2 for all eight native-v2 operations under the unchanged no-plan safety construction. Previous certified versions remain supported; legacy-v1 stays capped at 0.41.x.
+- Accept only the reviewed exact 2.0.2 hook schema and pin its source hashes. Future versions, prereleases and build suffixes remain refused.
+- Verification: four source reviews, exact tag scan 15/15, plan-ON/OFF controls and sequential live smoke 15/15 (84 assertions), with no retries. The known upstream plan-file bypass persists; managed sessions still refuse plan mode. See [certification evidence and limitations](docs/upstream-2.0.2-certification.md).
+- Final `bun run check`: 898 passed, 28 opt-in skips, zero failures, 2,987 assertions on an identical staged-tree snapshot in a clean temporary worktree. The original checkout hit filesystem-copy timeouts; no test limits or assertions were relaxed.
+- Plugin 2.0.4 and upstream CLI 2.0.2 are independent version numbers. This release does not update installed hosts or re-pin their hooks.
+
 ## 2.0.3 — 2026-09-19
 
 - Certify exact Kimi Code CLI 2.0.1 for all eight native-v2 operations. Review and pin its same-wire restore-chain API and unchanged hook schema; future patches remain fail-closed. Exact tag scan 15/15, plan-on/off controls passed, live smoke 15/15 with no retries. See [certification evidence](docs/upstream-2.0.1-certification.md).

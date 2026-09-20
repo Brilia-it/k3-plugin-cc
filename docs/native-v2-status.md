@@ -1,4 +1,11 @@
-# Native v2 status — 2026-09-19
+# Native v2 status — 2026-09-20
+
+> **2.0.2 (certified 2026-09-20, plugin 2.0.4):** exact source `9d07f634`
+> retains the no-plan construction and unchanged hook schema. Four source
+> reviews, the 15-test tag scan, plan-ON/OFF controls and all 15 candidate
+> smoke tests passed, with no live retries. The production matrix includes
+> exact 2.0.2 for all eight operations. Installed hosts remain unchanged.
+> See [certification evidence](upstream-2.0.2-certification.md).
 
 > **2.0.1 (certified 2026-09-19, plugin 2.0.3):** exact release `caf7d4e2`
 > preserves the no-plan construction. The reviewed same-wire restore API and
