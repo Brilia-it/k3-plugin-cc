@@ -36,11 +36,16 @@ flagged it on 2026-09-21 and notified Slack and email; this closes what it found
 
 **On the rename, and what we did not repeat.** On 2026-09-10 a tree-wide rename of `/kimi:` to
 `/k3:` destroyed 156 historical and comparative references, including the changelog entry that
-described the rename itself. This time the four registers — `CHANGELOG.md`, `ROADMAP-TO-GA.md`,
-`README.md`, `SECURITY.md` — were excluded by name before the merge, and the count was checked
-after: 59, 34, 2 and 1 occurrences, unchanged. The rename touched 19 lines in 8 files, all of them
-live instructions that upstream had introduced, telling readers to run commands this plugin does
-not have.
+described the rename itself. This time the four registers (`CHANGELOG.md`, `ROADMAP-TO-GA.md`,
+`README.md`, `SECURITY.md`) were excluded by name before the merge ran.
+
+Counted before and after, as occurrences of `/kimi:` rather than lines containing it: CHANGELOG 69
+to 72, ROADMAP-TO-GA 40 to 42, README 2 to 2, SECURITY 1 to 1. **None decreased**, which is the
+property that matters. Two grew, because the merge appended upstream release entries that
+legitimately carry those references; nothing of ours was overwritten.
+
+The rename then touched 19 lines in 8 files, all of them live instructions that upstream had
+introduced, telling readers to run commands this plugin does not have.
 
 ## 1.10.1-brilia.0.3.0 — 2026-09-10 (fork)
 
