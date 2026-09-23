@@ -8,7 +8,7 @@ describe("GHSA-7w5x-hrqm-74c2: EOF comments in unfinished TOML structures", () =
   for (const modulePath of [
     "../../runtime/vendor/smol-toml/parse.js",
     "../../dist/vendor/smol-toml/parse.js",
-    "../../plugins/kimi-codex/dist/vendor/smol-toml/parse.js",
+    "../../plugins/k3-codex/dist/vendor/smol-toml/parse.js",
   ]) {
     test(modulePath, () => {
       const moduleUrl = new URL(modulePath, import.meta.url).href;

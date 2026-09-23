@@ -14,12 +14,12 @@ Read [AGENTS.md](./AGENTS.md) before changing the runtime. It summarizes the [ru
 
 ## Make and check a change
 
-1. Edit the source files. Do not edit `dist/` or `plugins/kimi-codex/` by hand.
+1. Edit the source files. Do not edit `dist/` or `plugins/k3-codex/` by hand.
 2. Run `bun run build && bun run generate:surfaces` after changing runtime code, shell entry points, or generated text sources.
-3. Review and stage the generated changes in `dist/` and `plugins/kimi-codex/`.
+3. Review and stage the generated changes in `dist/` and `plugins/k3-codex/`.
 4. Run `bun run check` from the repository root.
 
-The check rebuilds the runtime, checks generated surfaces, typechecks, runs tests, and checks for generated-file drift. It covers both `dist/` and `plugins/kimi-codex/`, including untracked files. Unstaged generated changes fail the drift check.
+The check rebuilds the runtime, checks generated surfaces, typechecks, runs tests, and checks for generated-file drift. It covers both `dist/` and `plugins/k3-codex/`, including untracked files. Unstaged generated changes fail the drift check.
 
 Claude commands, agents, and plugin manifests have locked hashes in `scripts/surface-registry.ts`. Update the affected hashes after editing those files, then regenerate surfaces.
 
@@ -32,7 +32,7 @@ Use these commands during development:
 
 ## Keep installed packages complete
 
-Both hosts install precompiled JavaScript. Claude Code uses the root package; Codex uses the self-contained package in `plugins/kimi-codex/`. Commit both generated trees when they change so users can install without building.
+Both hosts install precompiled JavaScript. Claude Code uses the root package; Codex uses the self-contained package in `plugins/k3-codex/`. Commit both generated trees when they change so users can install without building.
 
 ## Keep onboarding translations aligned
 

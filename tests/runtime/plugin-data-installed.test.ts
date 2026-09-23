@@ -26,7 +26,7 @@ describe("installed data-root isolation", () => {
       const aliasedData = path.join(alias, "plugins/data", dataName);
       await mkdir(install, { recursive: true });
       for (const dir of ["dist", "scripts"]) {
-        await cp(path.join(repo, host === "codex" ? "plugins/kimi-codex" : "", dir), path.join(install, dir), { recursive: true });
+        await cp(path.join(repo, host === "codex" ? "plugins/k3-codex" : "", dir), path.join(install, dir), { recursive: true });
       }
       const manifest = host === "codex" ? ".codex-plugin" : ".claude-plugin";
       await mkdir(path.join(install, manifest));
@@ -55,7 +55,7 @@ describe("installed data-root isolation", () => {
       const custom = path.join(scratch, `${host}-custom-data`);
       await mkdir(install, { recursive: true });
       for (const dir of ["dist", "scripts"]) {
-        await cp(path.join(repo, host === "codex" ? "plugins/kimi-codex" : "", dir), path.join(install, dir), { recursive: true });
+        await cp(path.join(repo, host === "codex" ? "plugins/k3-codex" : "", dir), path.join(install, dir), { recursive: true });
       }
       const manifest = host === "codex" ? ".codex-plugin" : ".claude-plugin";
       await mkdir(path.join(install, manifest));

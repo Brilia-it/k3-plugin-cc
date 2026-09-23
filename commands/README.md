@@ -1,6 +1,6 @@
 # Claude Code commands
 
-These Markdown files route Claude Code commands through `scripts/companion.sh` to the Node runtime. They also describe supported flags and model-selection rules. Codex uses the generated skills in `plugins/kimi-codex/skills/`.
+These Markdown files route Claude Code commands through `scripts/companion.sh` to the Node runtime. They also describe supported flags and model-selection rules. Codex uses the generated skills in `plugins/k3-codex/skills/`.
 
 | File | Purpose |
 | --- | --- |

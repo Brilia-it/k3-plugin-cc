@@ -19,7 +19,7 @@ The full check covers:
 - Claude surface hashes and generated Codex surfaces
 - TypeScript types
 - the test suite
-- changed or untracked files in `dist/` and `plugins/kimi-codex/`
+- changed or untracked files in `dist/` and `plugins/k3-codex/`
 
 The real-binary smoke suite skips unless explicitly enabled. A successful base CI run does not certify a new CLI version.
 

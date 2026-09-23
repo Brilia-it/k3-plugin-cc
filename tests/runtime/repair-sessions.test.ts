@@ -64,7 +64,7 @@ function parse(output: string) {
 }
 
 describe("repair-sessions", () => {
-  for (const host of ["dist", "plugins/kimi-codex/dist"]) {
+  for (const host of ["dist", "plugins/k3-codex/dist"]) {
     for (const engine of ["node", "bun"]) {
       test(`compiled ${host} opens the real SQLite store read-only under ${engine}`, async () => {
         const f = await fixture();

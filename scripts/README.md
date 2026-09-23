@@ -14,6 +14,6 @@ Both shell entry points accept `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT` and otherwi
 
 `companion.sh` preserves the caller's directory in `KIMI_PLUGIN_CC_WORKSPACE_CWD`. It resolves Node from `KIMI_PLUGIN_CC_NODE_BIN` or `PATH` and requires Node.js 22.5 or newer.
 
-After changing runtime code or shell scripts, run `bun run build && bun run generate:surfaces`. Review and stage `dist/` and `plugins/kimi-codex/`, then run `bun run check`. Never edit the generated Codex package by hand.
+After changing runtime code or shell scripts, run `bun run build && bun run generate:surfaces`. Review and stage `dist/` and `plugins/k3-codex/`, then run `bun run check`. Never edit the generated Codex package by hand.
 
 Live smoke scripts use model calls. Read the script and the [smoke run instructions](../docs/ci.md) before using them. They are not part of routine offline checks.

@@ -227,7 +227,7 @@ Add a `subscription` object and attempt summaries to status and `result --json`.
 | User output | Status, result, renderer, Claude surfaces and `scripts/surface-registry.ts` | Same choices and visible switch evidence in both hosts |
 | Release contracts | `docs/models.md`, `docs/invariants.md`, AGENTS.md, README translations | Update present-tense contracts only when behavior ships |
 
-Generated `dist/` and `plugins/kimi-codex/` are rebuilt from sources. Stage A does not require the Stage B coordinator or attempt schema. No runtime feature flags or empty stubs are added by this documentation change.
+Generated `dist/` and `plugins/k3-codex/` are rebuilt from sources. Stage A does not require the Stage B coordinator or attempt schema. No runtime feature flags or empty stubs are added by this documentation change.
 
 ## Acceptance tests
 
