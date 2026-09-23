@@ -277,3 +277,61 @@ describe("decideHookOutcome", () => {
     });
   });
 });
+
+describe("pursue goal metadata", () => {
+  const pursue = { commandLabel: "rescue", operationKind: "pursue", trustedWorkspaceRoot: "/workspace" };
+
+  test.each([
+    ["GetGoal", {}],
+    ["UpdateGoal", { status: "complete" }],
+    ["UpdateGoal", { status: "blocked" }],
+  ] as const)("allows exact terminal metadata %s %j only for pursue", async (tool_name, tool_input) => {
+    expect(await decideHookOutcome({ tool_name, tool_input }, pursue)).toEqual({ decision: "allow" });
+    for (const commandLabel of ["ask", "review", "challenge", "review_gate", "swarm", "swarm-write", "unknown"]) {
+      expect((await decideHookOutcome({ tool_name, tool_input }, { ...pursue, commandLabel })).decision).toBe("deny");
+    }
+    for (const operationKind of [undefined, "", "rescue", "review", "swarm", "unknown"]) {
+      expect((await decideHookOutcome({ tool_name, tool_input }, { ...pursue, operationKind })).decision).toBe("deny");
+    }
+    for (const trustedWorkspaceRoot of [undefined, "", "  "]) {
+      expect((await decideHookOutcome({ tool_name, tool_input }, { ...pursue, trustedWorkspaceRoot })).decision).toBe("deny");
+    }
+  });
+
+  test("rejects malformed, extra-field and forbidden goal mutations before the rescue evaluator", async () => {
+    let evaluatorCalls = 0;
+    const ctx = { ...pursue, rescueEvaluator: async () => { evaluatorCalls++; return { decision: "allow" as const }; } };
+    const cases: Array<[string, unknown]> = [
+      ["UpdateGoal", { status: "active" }], ["UpdateGoal", { status: "paused" }],
+      ["UpdateGoal", { status: "complete", objective: "replace the goal" }],
+      ["UpdateGoal", { status: "complete", token_budget: 100 }],
+      ["UpdateGoal", { status: "blocked", reason: "extra field" }],
+      ["UpdateGoal", {}], ["UpdateGoal", null], ["UpdateGoal", []], ["UpdateGoal", "complete"],
+      ["UpdateGoal", { status: true }], ["UpdateGoal", Object.create({ status: "complete" })],
+      ["GetGoal", { status: "complete" }], ["GetGoal", null], ["GetGoal", []], ["GetGoal", undefined],
+      ["CreateGoal", {}], ["CreateGoal", { objective: "new objective" }],
+      ["SetGoalBudget", {}], ["SetGoalBudget", { turns: 1 }],
+      ["EnterPlanMode", {}], ["ExitPlanMode", {}],
+    ];
+    for (const [tool_name, tool_input] of cases) {
+      expect((await decideHookOutcome({ tool_name, tool_input }, ctx)).decision).toBe("deny");
+    }
+    expect(evaluatorCalls).toBe(0);
+  });
+
+  test("preserves the rescue evaluator for writes and shell commands", async () => {
+    const calls: unknown[] = [];
+    for (const tool_name of ["Write", "Edit", "Bash"]) {
+      const tool_input = { path: "file", command: "git status" };
+      const result = await decideHookOutcome({ tool_name, tool_input, cwd: "/forged" }, {
+        ...pursue,
+        rescueEvaluator: async (root, tool, args) => {
+          calls.push([root, tool, args]);
+          return { decision: "deny", reason: "existing write boundary" };
+        },
+      });
+      expect(result).toEqual({ decision: "deny", reason: "existing write boundary" });
+      expect(calls.at(-1)).toEqual(["/workspace", tool_name, tool_input]);
+    }
+  });
+});

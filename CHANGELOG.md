@@ -8,6 +8,40 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.5-brilia.0.4.0 — 2026-09-23 (fork)
+
+**Re-aligned to upstream v2.0.5, closing a gap of eight releases.** The weekly upstream watch
+flagged it on 2026-09-21 and notified Slack and email; this closes what it found.
+
+- **Upstream v2.0.5 merged**, across a major bump. kimi-code itself went to 2.0, so upstream's
+  plugin followed. Native-v2 certification stays per EXACT kimi-code version and now covers
+  `0.42.0`, `0.43.0`, `0.43.1`, `2.0.0`, `2.0.1` and `2.0.2`; anything outside that list, and
+  outside the legacy 0.1-0.41.x range, refuses rather than guessing.
+- **Security: upstream's v1.10.2 fixes a denial of service in the vendored command parser.** That
+  arrives here with this merge and is on its own a reason to update.
+- **Existing installs keep working.** Verified rather than assumed: the legacy-v1 table still
+  carries minors 0.1 through 0.41.x, 30 included, so a machine on kimi-code 0.30.0 is unaffected
+  by the 2.x move.
+- **The three Windows fixes survived and were re-proven.** Upstream touched
+  `runtime/commands/setup.ts` again in v2.0.0, so a clean merge proved nothing on its own. The
+  enforcement matrix was re-run after merging: nine write vectors denied on `cmd.exe` and on `sh`,
+  positive control allowed, negative control detected, workspace untouched.
+- **Finished a rename this project had already claimed to finish.** The 0.2.1 entry said the five
+  Codex skills `kimi-{setup,status,result,cancel,replay}` had moved to `k3-*`. They had not: the
+  names live in `scripts/surface-registry.ts`, which was never edited, so the shipped skills still
+  carried the upstream name. All twelve Codex skills are now `k3-*`.
+- **Upstream adopted a fix this fork reported.** The hook-gate test that asserted host state
+  instead of behaviour, patched here on 2026-09-10, is fixed upstream too, with a better fixture
+  (a real stub binary rather than pinning `process.execPath`). Their version wins; ours is removed.
+
+**On the rename, and what we did not repeat.** On 2026-09-10 a tree-wide rename of `/kimi:` to
+`/k3:` destroyed 156 historical and comparative references, including the changelog entry that
+described the rename itself. This time the four registers — `CHANGELOG.md`, `ROADMAP-TO-GA.md`,
+`README.md`, `SECURITY.md` — were excluded by name before the merge, and the count was checked
+after: 59, 34, 2 and 1 occurrences, unchanged. The rename touched 19 lines in 8 files, all of them
+live instructions that upstream had introduced, telling readers to run commands this plugin does
+not have.
+
 ## 1.10.1-brilia.0.3.0 — 2026-09-10 (fork)
 
 **Re-aligned to upstream v1.10.1, closing a gap of six releases.** The previous entry measured
@@ -136,6 +170,207 @@ and a rewritten `README.md`/`SECURITY.md`. No behaviour change on macOS or Linux
 hook, permission, concurrency, budget, confinement or allowlist policy.
 
 Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the upstream plugin.
+## 2.0.5 — 2026-09-20
+
+- Fix lockfile-clean TypeScript 7.0.2 emission for `repair-sessions` by binding SQLite constructors before `new`. Preserve read-only database access and preview behavior.
+- Add four compiled-runtime regressions: root and Codex distributions each run under Node and Bun against a real fixture database. All four failed before the fix and passed afterward; all 14 repair-session tests pass.
+- Frozen-dependency full check: 902 passed, 28 opt-in skips, zero failures, 3,015 assertions. Dependency audit and both final reviews passed.
+- Rebuild both hosts with frozen dependencies. Require a successful CI check before tagging and publishing future releases. v2.0.4's local check used stale TypeScript 6.0.2 dependencies and missed the emitted-code failure; its published tag remains unchanged.
+- Exact CLI certification stays through 2.0.2. No hook, plan-mode, permission, swarm or installed-host changes. See [build-fix evidence](docs/release-2.0.5-build-fix.md).
+
+## 2.0.4 — 2026-09-20
+
+- Certify exact Kimi Code CLI 2.0.2 for all eight native-v2 operations under the unchanged no-plan safety construction. Previous certified versions remain supported; legacy-v1 stays capped at 0.41.x.
+- Accept only the reviewed exact 2.0.2 hook schema and pin its source hashes. Future versions, prereleases and build suffixes remain refused.
+- Verification: four source reviews, exact tag scan 15/15, plan-ON/OFF controls and sequential live smoke 15/15 (84 assertions), with no retries. The known upstream plan-file bypass persists; managed sessions still refuse plan mode. See [certification evidence and limitations](docs/upstream-2.0.2-certification.md).
+- Final `bun run check`: 898 passed, 28 opt-in skips, zero failures, 2,987 assertions on an identical staged-tree snapshot in a clean temporary worktree. The original checkout hit filesystem-copy timeouts; no test limits or assertions were relaxed.
+- Plugin 2.0.4 and upstream CLI 2.0.2 are independent version numbers. This release does not update installed hosts or re-pin their hooks.
+
+## 2.0.3 — 2026-09-19
+
+- Certify exact Kimi Code CLI 2.0.1 for all eight native-v2 operations. Review and pin its same-wire restore-chain API and unchanged hook schema; future patches remain fail-closed. Exact tag scan 15/15, plan-on/off controls passed, live smoke 15/15 with no retries. See [certification evidence](docs/upstream-2.0.1-certification.md).
+- Fix repeated pursue goal-tool denials: trusted per-spawn operation metadata permits only current-goal reads and terminal complete/blocked updates. Rescue workspace restrictions, plan refusal and wall-clock limits remain unchanged. Remove the misleading SetGoalBudget prompt hint; turn counts remain soft.
+- Validation: `bun run check` passed (898 passed, 28 opt-in skips, zero failures, 2,965 assertions).
+- Keep plugin versions independent of upstream using ordinary SemVer. Plugin 2.0.3 certifies CLI 2.0.1; published versions are never reused.
+- Older coexisting host hooks can still veto goal tools. Updating and re-pinning each host requires its own authorization; no installed Claude Code hook was changed in this slice.
+
+
+## 2.0.2 — 2026-09-18
+
+Plugin-only maintenance release. Kimi Code CLI certification remains unchanged through exact 2.0.0; this does not certify upstream 2.0.1 or 2.0.2.
+
+- Restore visibility of completed native-v2 plugin sessions in Kimi Code Desktop and Web by filling missing redacted prompt previews and notifying the shared session index.
+- Keep new fallback titles replaceable by Kimi's native generation. Preserve manual and already-generated titles. The plugin does not call the native title endpoint automatically because it resumes an agent; use Desktop's Gen Title action or continue an eligible session there.
+- Add `repair-sessions [--apply] [--all]`: preview existing-session repairs by default, recover prompts from bounded invocation logs with digest and provenance checks, and preserve titles, existing previews and session journals.
+- Redact fallback-title source text before truncation and detect changed state before atomic publication. Report index-notification failures separately so an idempotent repair can retry them.
+- Validation: full `bun run check` passes with 881 tests, 26 opt-in skips, and no failures. Ten local sessions were repaired and became visible after Desktop refresh. One native generated title and its transcript were verified after refresh. Separate Web browser rendering was not exercised.
+
+See [session visibility and titles](./docs/session-visibility.md). Update Codex or Claude Code independently, then run that host's setup command to re-pin its versioned hook.
+
+## 2.0.1 — 2026-09-17
+
+Plugin-only maintenance release. The recommended certified Kimi Code CLI remains 2.0.0; the exact certification table is unchanged.
+
+- Harden plugin data-root selection against shared host environment pollution (#13). Standard cache installs verify ownership, custom locations can use `KIMI_PLUGIN_CC_DATA`, and conflicts fail before store access. Existing state is not moved. Background workers keep the selected root; the Stop hook reports a visible skip on conflicts.
+- Handle first-run symlinked homes before data directories exist, and require an explicit data root for fully sanitized launches without a home instead of using a shared `/tmp` fallback.
+- Refresh the README with English, Chinese, French, and Japanese onboarding and screenshots from both hosts. Update safety, migration, contributor, test, and CI documentation. Correct reasoning-setting guidance and default the manual smoke workflow to CLI 2.0.0.
+- Validation: `bun run check` passes with 861 tests, 26 opt-in skips, and no failures. No real-provider calls are needed for this data-routing change.
+
+After updating, run the setup command from each updated host to re-pin its hook. If `PLUGIN_DATA_CONFLICT` is reported, follow its expected-directory remedy or deliberately set the absolute `KIMI_PLUGIN_CC_DATA` parent for your existing custom store. No data is migrated automatically.
+
+## 2.0.0 — 2026-09-17
+
+**Certifies exact kimi-code 2.0.0 for native agent-core-v2 across all eight
+operations.** Starting here, plugin certification releases use the same
+version number as the upstream release they certify. Previous exact native-v2
+versions remain supported; the legacy table stays capped at 0.41.x.
+
+Setup now accepts PermissionRequest, PermissionResult and Interrupt on the
+reviewed exact 2.0.0 schema. Future patches/minors, prereleases and other
+nonzero versions remain refused for those events. Hook policy, workspace
+allowlist and no-plan preflight behavior are unchanged.
+
+Model selection now includes a credential-safe offline inventory through
+`setup --models [--json]`, native subscription/API-provider setup guidance, and
+model-choice instructions for both Claude and Codex. Fresh tasks use the default;
+named requests resolve configured aliases without a silent fallback. The review
+gate now follows the default unless its model override is set. See
+[models and provider setup](./docs/models.md).
+
+Evidence:
+
+- Exact source `1b89e4b0`: tag scan 15/15, including new hook-schema pins.
+  The wire flush now drains the same agent journal directly; swarm eviction
+  and rebuild retain normal lifecycle creation and eager child hooks.
+- Plan-ON reproduced the known bypass (769-byte plan, hook saw Glob only);
+  plan-OFF denied both Write and EnterPlanMode without creating files.
+- Full candidate smoke: 12 passed, one failed its fan-out precondition (no
+  AgentSwarm call, no escape files). After clarifying that the paths are
+  authorized disposable negative-test fixtures, a targeted retry passed with
+  the original assertions and a surfaced hook-denial reason. All 13 cases
+  are covered by the full run plus that retry; this was not a clean single run.
+- Goal mode: five turns over the two-minute budget, zero writes. Write-swarm:
+  278-byte patch, user tree clean, worktree removed. Resume/taint lanes passed.
+- Final `bun run check` after model-selection additions: 847 pass / 26 skip / 0 fail; build, typecheck,
+  generated surfaces and drift gate passed. Fake-credential fixtures cover
+  secret-free inventory/errors, no writes, environment defaults, explicit
+  aliases and resume, and default/override review-gate argv. Both compiled
+  host entrypoints passed an offline fixture without provider calls.
+- An authorized live Moonshot K3 API test completed through an explicit
+  configured alias; the saved subscription default remained unchanged.
+
+The smoke harness can select an exact audited v2 candidate before production
+certification, with an exact-binary mismatch refusal and a test-process-only
+write-swarm capability row. Temporary config/OAuth copies were explicitly
+authorized for this run and removed afterward. After upgrading either host,
+run its setup command to refresh the version-stamped hook path.
+
+## 1.10.3 — 2026-09-15
+
+**Certifies kimi-code 0.43.0 and 0.43.1 for native agent-core-v2 (all eight
+operations).** kimi-code published 0.43.0 on 2026-09-14 and 0.43.1 on
+2026-09-15; the operator's binary auto-upgraded to 0.43.1 the same morning, so
+every model-spawning command on an auto-updating host had started refusing with
+`KIMI_CAPABILITY_NOT_CERTIFIED`. `NATIVE_V2_CERTIFIED_VERSIONS` is now
+`0.42.0, 0.43.0, 0.43.1`. No approval-policy, allowlist, hook, preflight or
+engine-selection change.
+
+Certification evidence (per docs/upstream-compat-audit.md, all three gates, per
+exact version):
+
+- **Tag scan** (`tests/audit/v2-tag-scan.test.ts`): 15/15 on the exact 0.43.0
+  and 0.43.1 source trees (and still 15/15 on 0.42.0). New hash rows for both
+  versions; the seven load-bearing files are byte-identical between 0.43.0 and
+  0.43.1, and five of them are byte-identical to 0.42.0. The two that changed
+  are upstream's restore refactor (`state/eventDispatcherService.ts`,
+  `state/state.ts`): patch-history undo replaced by in-memory state snapshots,
+  and `restore()` now folds `wire.readRestorable()` before `wire.readJournal()`.
+  `readRestorable()` is `readStableEntries()` over the same `wire.jsonl`
+  append-log filtered by the pure `restorableChain()` (`wire/tree/fork.ts`) —
+  no second on-disk restore source — so the resume taint scan's premise holds.
+  The "restore folds only the wire journal" check now also asserts that every
+  `this.wire.read*()` call in the dispatcher is `readJournal`/`readRestorable`,
+  that every append-log read in the wire service names `AGENT_WIRE_RECORD_KEY`
+  (`'wire.jsonl'`), and that `restorableChain` takes only the entries it is
+  handed.
+- **Live controls on both exact binaries**: plan-ON (`default_plan_mode = true`,
+  deny-all hook) still shows the upstream bypass — one `system.version`, plan
+  file written, the hook saw `Glob` only — so the plugin's refusal remains
+  load-bearing (#3431 unchanged). Plan-OFF (new `repro-clean.ts`): an ordinary
+  `Write` and an `EnterPlanMode` attempt both reached the hook and were denied;
+  no file, no plan file.
+- **Real-binary smoke** (`bun run smoke:real`): 13 pass / 0 fail / 0 skip on the operator's installed **0.43.1** (312 s) and on a temp-installed exact **0.43.0** via `KIMI_PLUGIN_CC_KIMI_BIN` (285 s) — every native-v2 lane: all read-only labels hook-denied, the goal-mode run wrote zero files across the budget (0.43.1: `turnsUsed:8`, paused on the plugin abort; 0.43.0: `turnsUsed:10`), default-plan preflight and resume/taint lanes, swarm subagent write denied, and write-swarm confined to its worktree with a captured patch (0.43.1: `patchBytes=278 userTreeClean=true worktreeCleaned=true`; 0.43.0: `patchBytes=278 userTreeClean=true worktreeCleaned=true`).
+
+Also read for this release: the 0.42.0→0.43.1 diffs of `run-v2-print.ts`
+(prompt submission moved from `IAgentPromptService.enqueue()` to
+`IAgentLoopService.submit()`; no argv or provenance change), the before-execute
+subscriber set (unchanged eight; sole `.allow()` still `planService.ts:110`),
+the experimental flag set (`KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE` removed,
+nothing added; `tower`/`subagent_fork` refusals unchanged), and the
+`[secondary_model]` subagent validation added in 0.43.1 (config diagnostics
+only), and the 0.43.0→0.43.1 `_base/di/**` diff (`cascadeEngine`,
+`dependencyGraph`, `instantiationService`, `scopeUnits`): disposal-path cleanup
+only (`dropScope`/`removeScope`/`deleteScope`, ledger release on retract,
+`.sort()`→`.toSorted()`) — no change to service resolution, child-scope
+creation or singleton-vs-scoped wiring, so the "every `AgentSwarm` subagent has
+its own eager external-hooks service" claim stands (Codex release review).
+Upstream removed its 24-hour goal limit; the plugin's mandatory finite
+`--budget` is unaffected.
+
+Test fix: `tests/runtime/shell-quote-linear.test.ts` (1.10.2) asserted an empty
+stderr from a `node --import tsx` subprocess; Node 26.8 prints a `DEP0205`
+deprecation warning for tsx's `module.register()`, failing all three lanes on
+an unmodified checkout. The test now strips only that warning pair from stderr
+before asserting it is empty, so any other stderr output still trips it.
+
+Docs: `AGENTS.md` trimmed from 43.6 KB to 23.6 KB (Kimi flagged it above the
+32 KB instruction-file guidance; every host loads it each turn). It is now the
+contract sheet — one present-tense statement per invariant plus a pointer —
+and the full mechanics/rationale moved verbatim to the new `docs/invariants.md`.
+`CLAUDE.md` stays an `@AGENTS.md` import (single source, nothing to mirror).
+
+Release reviews (Codex via its plugin; Kimi via the 1.10.3 runtime against the
+installed hook pin): both approve. Kimi's two low findings are closed in this
+release — the tag scan now (a) pins `wire/wireService.ts`, `wire/record.ts` and
+`wire/tree/fork.ts` so the `readRestorable` regex assertions cannot degrade
+silently, with an explicit body-delimiter check, and (b) asserts that no
+`wire/migration/*` source references the plan domain, because migrations run on
+each journal line BEFORE restore folds by type while the plugin's taint scan
+reads the raw line (no such migration exists at 0.42.0–0.43.1; this closes the
+vector for future tags).
+
+Operational notes: run live controls and smokes sequentially — two isolated
+homes refreshing a copy of the managed OAuth grant concurrently invalidated the
+operator's token (remedy `kimi login`). Update the plugin through its
+marketplace and run `/kimi:setup` (Claude Code) or `$kimi-setup` (Codex) to
+activate; publishing does not update existing host caches or hook pins.
+
+## 1.10.2 — 2026-09-14
+
+**Security patch: bounded parser work during hook validation.** Vendored TOML
+parsing now rejects unfinished arrays or inline tables ending in a comment
+without a newline, instead of looping indefinitely (GHSA-7w5x-hrqm-74c2).
+Vendored shell parsing finalizes tokens in linear time, including callback
+environments, instead of repeatedly copying growing arrays
+(GHSA-395f-4hp3-45gv). Both complete upstream fixes are backported into the
+existing parser versions and included in the Claude and Codex distributions;
+provenance is recorded beside each vendored parser.
+
+Development dependencies, Bun, and GitHub Actions are current. Grouped weekly
+Dependabot checks and CI dependency auditing cover the manifest and lockfile;
+vendor-specific regression tests cover the shipped source that package audits
+cannot inspect. A swarm test fixture now supplies its own executable stub so
+CI does not require an installed Kimi binary.
+
+No UI, approval-policy, engine-selection, or certification changes. Exact
+native-v2 certification remains kimi-code **0.42.0**. Validation: frozen install,
+zero dependency audit findings, generated-surface/distribution checks, and the
+full local suite (832 pass, 25 intentional source-audit/provider-smoke skips).
+Paid live-provider smoke was not run for this maintenance release. Update the
+plugin through its marketplace and run the appropriate host's setup command
+(`/kimi:setup` in Claude Code or `$kimi-setup` in Codex) to activate the new
+version; publishing does not update existing host caches or hook pins.
+
 ## 1.10.1 — 2026-09-09
 
 **Patch: every plugin refusal now states its setup-retryability explicitly.** The 1.10.0

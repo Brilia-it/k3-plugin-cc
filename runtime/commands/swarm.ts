@@ -630,6 +630,7 @@ async function executeSwarmJob(
       store.updateRunningJob(job.job_id, { kimi_session_id: result.sessionId });
     }
     await syncKimiSessionTitle({
+      promptText: objective,
       env: context.env,
       cwd: job.cwd,
       sessionId: result.sessionId ?? job.kimi_session_id,

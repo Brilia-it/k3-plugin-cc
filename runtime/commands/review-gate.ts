@@ -11,14 +11,14 @@ import {
 } from "../kimi-engine.js";
 import { readPluginConfig } from "../config.js";
 import { getManagedCommandConfig } from "./registry.js";
-import { RuntimeError } from "../errors.js";
+import { RuntimeError, formatError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
 import { digestPrompt, markJobFailed } from "../jobs.js";
 import { JobStore } from "../job-store.js";
 import { classifyManagedCommandFailure, summarizeKimiAvailabilityWarning } from "../kimi-errors.js";
 import { KIMI_REVIEW_GATE_TIMEOUT_MS, isTimeoutCode } from "../kimi-timeouts.js";
 import { writeInvocationLogHeader } from "../logging.js";
-import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
+import { ensurePluginPaths, resolvePluginPaths, type PluginPaths } from "../paths.js";
 import {
   type ReviewGateOutput,
 } from "../schemas/review-gate-output.js";
@@ -31,7 +31,6 @@ import { maybeWarnHookMissing, verifyHookInstalled } from "../hooks/install.js";
 import { resolveKimiHome } from "../kimi-home.js";
 import { assertCliResultSuccess, reassembleProseFromRecords } from "./cli-helpers.js";
 
-const DEFAULT_REVIEW_GATE_MODEL = "kimi-for-coding";
 const REVIEW_GATE_AGENT_PROFILE_PLACEHOLDER = "<cli-client>";
 
 export interface StopHookInput {
@@ -75,7 +74,15 @@ export async function runReviewGateStopHook(
     );
   }
 
-  const paths = resolvePluginPaths(context.env);
+  let paths: PluginPaths;
+  try {
+    paths = resolvePluginPaths(context.env);
+  } catch (error) {
+    if (error instanceof RuntimeError && ["PLUGIN_DATA_CONFLICT", "INVALID_PLUGIN_DATA", "MISSING_PLUGIN_DATA"].includes(error.code)) {
+      return reviewGateSkipped(formatError(error));
+    }
+    throw error;
+  }
   await ensurePluginPaths(paths);
   const config = await readPluginConfig(paths);
 
@@ -176,8 +183,8 @@ async function executeReviewGate(
       cwd: payload.cwd,
       repoRoot: repoIdentity.repoRoot,
     });
-    const model =
-      context.env.KIMI_PLUGIN_CC_REVIEW_GATE_MODEL ?? DEFAULT_REVIEW_GATE_MODEL;
+    const configuredModel = context.env.KIMI_PLUGIN_CC_REVIEW_GATE_MODEL;
+    const model = configuredModel?.trim() ? configuredModel : undefined;
     const executionPlan = await prepareKimiExecutionPlan({
       operationKind: "review_gate",
       cwd: payload.cwd,
@@ -202,7 +209,7 @@ async function executeReviewGate(
       repo_id: repoIdentity.repoId,
       command_type: "review_gate",
       cwd: payload.cwd,
-      model,
+      model: model ?? null,
       thinking: false,
       background: false,
       pid: null,

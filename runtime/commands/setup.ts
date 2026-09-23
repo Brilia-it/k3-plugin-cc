@@ -1521,6 +1521,7 @@ export function renderSetupResult(result: SetupResult): string {
     ...result.details.map((detail) => `- ${detail}`),
     "",
     `Next step: ${result.nextStep}`,
+    "Models: run setup --models to list configured aliases and provider setup guidance without making a model call.",
   ].join("\n");
 }
 

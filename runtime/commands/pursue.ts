@@ -115,13 +115,13 @@ export function classifyGoalExit(exitCode: number): GoalExitStatus {
 /**
  * Build the headless goal prompt. The objective becomes the goal; an optional
  * turn cap is appended as a model INSTRUCTION (soft — headless create has no
- * argv/env to set a hard turn budget, so we ask the model to call SetGoalBudget
- * itself). The hard bound is always the wall-clock AbortController.
+ * argv/env to set a hard turn budget). The hard bound is always the
+ * wall-clock AbortController; goal budget mutation is not authorized.
  */
 export function buildGoalPrompt(objective: string, turns?: number): string {
   const trimmed = objective.trim();
   const turnHint =
-    turns !== undefined ? ` Stop after at most ${turns} turns; call SetGoalBudget to enforce this.` : "";
+    turns !== undefined ? ` Stop after at most ${turns} turns; this is a soft instruction, not an enforced turn budget.` : "";
   return `/goal ${trimmed}${turnHint}`;
 }
 
@@ -333,6 +333,7 @@ async function executePursueJob(
       store.updateRunningJob(job.job_id, { kimi_session_id: result.sessionId });
     }
     await syncKimiSessionTitle({
+      promptText: objective,
       env: context.env,
       cwd: job.cwd,
       sessionId: result.sessionId ?? job.kimi_session_id,

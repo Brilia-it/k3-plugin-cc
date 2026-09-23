@@ -94,6 +94,26 @@ export async function decideHookOutcome(input, ctx) {
             reason: `kimi-plugin-cc safety hook: tool "${toolName}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks; native plan mode is never armed in plugin-managed sessions.`,
         };
     }
+    if (["GetGoal", "UpdateGoal", "CreateGoal", "SetGoalBudget"].includes(toolName)) {
+        // Pursue keeps the rescue write boundary, but must be able to inspect and
+        // terminally settle its existing goal. Never allow creating/reactivating a
+        // goal or changing its budget through this metadata-only exception.
+        const args = input.tool_input;
+        const objectArgs = typeof args === "object" && args !== null && !Array.isArray(args) &&
+            (Object.getPrototypeOf(args) === Object.prototype || Object.getPrototypeOf(args) === null);
+        const keys = objectArgs ? Reflect.ownKeys(args) : [];
+        const validArgs = objectArgs && ((toolName === "GetGoal" && keys.length === 0) ||
+            (toolName === "UpdateGoal" && keys.length === 1 && keys[0] === "status" &&
+                (args.status === "complete" || args.status === "blocked")));
+        if (label === "rescue" && ctx.operationKind === "pursue" &&
+            typeof ctx.trustedWorkspaceRoot === "string" && ctx.trustedWorkspaceRoot.trim().length > 0 && validArgs) {
+            return { decision: "allow" };
+        }
+        return {
+            decision: "deny",
+            reason: `kimi-plugin-cc safety hook: tool "${toolName}" requires a pursue run with a trusted workspace root and exact terminal goal metadata arguments; goal creation, reactivation, and budget changes are denied.`,
+        };
+    }
     switch (label) {
         case "ask":
         case "review":

@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import { MAX_DURATION_MS, parseSwarmArgs } from "../../runtime/parsing.js";
 import {
@@ -156,20 +158,18 @@ describe("runSwarm hook gate", () => {
     const workspace = await createTestPluginDataRoot("swarm-hook-gate-ws");
     const kimiHome = await createTestPluginDataRoot("swarm-hook-gate-home");
     try {
+      // Execution planning resolves a runnable binary before checking the hook.
+      // This fixture must reach that hook gate even on hosts without kimi.
+      const kimiBin = path.join(workspace, "kimi-stub");
+      await writeFile(kimiBin, "#!/bin/sh\nexit 91\n", { mode: 0o755 });
       const output = await runSwarm(
         ["review", "two", "targets"],
         makeContext(workspace, {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
           KIMI_CODE_HOME: kimiHome,
+          KIMI_PLUGIN_CC_KIMI_BIN: kimiBin,
           KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
-          // The gate under test is the HOOK check, which sits behind the
-          // execution-plan gate added in 1.10. Without a resolvable binary the
-          // run refuses earlier with KIMI_EXECUTION_PLAN_UNRESOLVED and never
-          // reaches it, so this asserted host state instead of behaviour: it
-          // passed only on machines with kimi-code installed. Pin an executable
-          // that always exists; it is never spawned, only resolved.
-          KIMI_PLUGIN_CC_KIMI_BIN: process.execPath,
         }),
       );
 

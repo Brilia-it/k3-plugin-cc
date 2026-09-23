@@ -629,7 +629,7 @@ interface HookSetInspection {
  */
 export function validateKimiHookSet(
   contents: string,
-  version?: { major: number; minor: number },
+  version?: { major: number; minor: number; patch?: number; version?: string },
 ): KimiHookSetValidation {
   const inspection = inspectKimiHookSet(contents);
   if (!inspection.validation.valid) return inspection.validation;
@@ -759,7 +759,7 @@ function validateHookEntry(
 
 function validateVersionSensitiveEvents(
   events: VersionSensitiveEvent[],
-  version?: { major: number; minor: number },
+  version?: { major: number; minor: number; patch?: number; version?: string },
 ): KimiHookSetValidation {
   if (events.length === 0) return { valid: true };
   const first = events[0]!;
@@ -769,6 +769,17 @@ function validateVersionSensitiveEvents(
       first.entry,
       first.line,
     );
+  }
+  // Exact schemas reviewed at 2.0.0 (1b89e4b0), 2.0.1 (caf7d4e2),
+  // and 2.0.2 (9d07f634):
+  // the additive events and HookDefSchema are unchanged. Require the full
+  // version string AND matching components; no inferred 2.x compatibility.
+  if (version.major === 2 && version.minor === 0 && (
+    (version.version === "2.0.0" && version.patch === 0) ||
+    (version.version === "2.0.1" && version.patch === 1) ||
+    (version.version === "2.0.2" && version.patch === 2)
+  )) {
+    return { valid: true };
   }
   if (version.major !== 0) {
     return invalidHookSet(

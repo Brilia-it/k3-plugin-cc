@@ -59,6 +59,7 @@ async function main(): Promise<void> {
 
   const decision = await decideHookOutcome(input, {
     commandLabel: process.env.KIMI_PLUGIN_CC_CMD,
+    operationKind: process.env.KIMI_PLUGIN_CC_OPERATION,
     rescueEvaluator: evaluateRescueHookRequest,
     // Trusted root for rescue/pursue/swarm-write. Set by the plugin spawn; the
     // model inside kimi cannot forge it and hook payload cwd is not trusted.

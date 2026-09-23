@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmod, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -8,6 +8,7 @@ import {
   normalizeTitleFragment,
   shortenForTitle,
   syncKimiSessionTitle,
+  promptMetadataText,
 } from "../../runtime/session-title.js";
 import { resolveKimiHome } from "../../runtime/kimi-home.js";
 import { cleanupTestPath, createTestPluginDataRoot } from "../helpers/test-env.js";
@@ -51,7 +52,7 @@ describe("buildKimiSessionTitle", () => {
   });
 
   test("bounds final title length to 120 chars", () => {
-    const title = buildKimiSessionTitle("rescue", "x".repeat(500));
+    const title = buildKimiSessionTitle("rescue", "word ".repeat(100));
     expect(title.length).toBeLessThanOrEqual(KIMI_SESSION_TITLE_MAX_LENGTH);
     expect(title.endsWith("…")).toBe(true);
   });
@@ -473,6 +474,125 @@ describe("syncKimiSessionTitle", () => {
     expect(resolveKimiHome({ ...process.env, KIMI_CODE_HOME: "relative-home" }, "/tmp/workspace")).toBe(
       "/tmp/workspace/relative-home",
     );
+  });
+});
+
+describe("native-v2 session discovery", () => {
+  test("repairs the real empty-session predicate and leaves fallback eligible for native generation", async () => {
+    const home = await createTestPluginDataRoot("kimi-v2-discovery");
+    const id = "session_native-test";
+    try {
+      const statePath = await seedKimiSession(home, id, {
+        id, version: 2, title: "New Session", titleKind: "replaceable",
+        archived: false, cwd: "/example", agents: { main: { untouched: true } },
+        updatedAt: "2026-09-18T00:00:00Z",
+      });
+      // KAP's exclude_empty / meta.has_prompt queries project this field from
+      // root state.json, rather than inferring it from persisted agent messages.
+      const visible = (state: { lastPrompt?: string }) => (state.lastPrompt ?? "").length > 0;
+      expect(visible(JSON.parse(await readFile(statePath, "utf8")))).toBe(false);
+      expect(await syncKimiSessionTitle({
+        env: { KIMI_CODE_HOME: home }, sessionId: id,
+        title: "Kimi Ask: explain storage", promptText: "Explain storage. token=private-value",
+      })).toBe("updated");
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      expect(visible(state)).toBe(true);
+      expect(state.lastPrompt).toBe("Explain storage. token=[redacted]");
+      expect(state.titleKind).toBe("replaceable");
+      expect(state.isCustomTitle).toBe(false);
+      expect(state.agents).toEqual({ main: { untouched: true } });
+      expect(state.updatedAt).toBe("2026-09-18T00:00:00Z");
+      const marks = await readdir(path.join(home, "sessions", ".index-dirty"));
+      expect(marks.length).toBe(1);
+      expect(marks[0]!.slice(0, marks[0]!.lastIndexOf("."))).toBe(id);
+      expect((await stat(path.join(home, "sessions", ".index-dirty", marks[0]!))).size).toBe(0);
+    } finally { await cleanupTestPath(home); }
+  });
+
+  test.each([
+    { title: "Human title", titleKind: "custom" },
+    { title: "Human title", isCustomTitle: true },
+    { title: "Native generated title", titleKind: "generated", isCustomTitle: false },
+    { title: "Legacy custom", customTitle: "Legacy custom" },
+  ])("repairs previews independently of preserved titles: %j", async (titleState) => {
+    const home = await createTestPluginDataRoot("kimi-v2-preserved-title");
+    const id = "session_preserve";
+    try {
+      const p = await seedKimiSession(home, id, { id, version: 2, ...titleState });
+      expect(await syncKimiSessionTitle({ env: { KIMI_CODE_HOME: home }, sessionId: id,
+        title: "Must not replace", promptText: "Actual task" })).toBe("updated");
+      const s = JSON.parse(await readFile(p, "utf8"));
+      expect(s).toEqual({ id, version: 2, ...titleState, lastPrompt: "Actual task" });
+    } finally { await cleanupTestPath(home); }
+  });
+
+  test("dry-run writes neither metadata nor dirty markers; repeated repair preserves previews", async () => {
+    const home = await createTestPluginDataRoot("kimi-v2-dry-run");
+    const id = "session_dry";
+    try {
+      const p = await seedKimiSession(home, id, { id, version: 2, title: "Manual", isCustomTitle: true });
+      const before = await readFile(p, "utf8");
+      const options = { env: { KIMI_CODE_HOME: home }, sessionId: id, title: "",
+        preserveTitle: true, requireNativeV2: true, promptText: "Original task" };
+      expect(await syncKimiSessionTitle({ ...options, dryRun: true })).toBe("would-update");
+      expect(await readFile(p, "utf8")).toBe(before);
+      expect(await readdir(path.join(home, "sessions"))).toEqual(["wd_repo_123"]);
+      expect(await syncKimiSessionTitle(options)).toBe("updated");
+      const repaired = await readFile(p, "utf8");
+      expect(await syncKimiSessionTitle({ ...options, promptText: "Later replacement" })).toBe("unchanged");
+      expect(await readFile(p, "utf8")).toBe(repaired);
+      expect((await readdir(path.join(home, "sessions", ".index-dirty"))).length).toBe(2);
+    } finally { await cleanupTestPath(home); }
+  });
+
+  test("dirty-journal symlink fails visibly without writing outside, and retry invalidates", async () => {
+    const home = await createTestPluginDataRoot("kimi-v2-dirty-symlink");
+    const outside = await createTestPluginDataRoot("kimi-v2-dirty-outside");
+    const id = "session_dirty";
+    try {
+      await seedKimiSession(home, id, { id, version: 2, title: "Manual", titleKind: "custom" });
+      const dir = path.join(home, "sessions", ".index-dirty");
+      await symlink(outside, dir);
+      const opts = { env: { KIMI_CODE_HOME: home }, sessionId: id, title: "",
+        preserveTitle: true, promptText: "Actual task" };
+      expect(await syncKimiSessionTitle(opts)).toBe("index-failed");
+      expect(await readdir(outside)).toEqual([]);
+      await rm(dir);
+      expect(await syncKimiSessionTitle(opts)).toBe("unchanged");
+      expect((await readdir(dir)).length).toBe(1);
+    } finally { await cleanupTestPath(home); await cleanupTestPath(outside); }
+  });
+
+  test("native-only repair refuses legacy state and mismatched identity", async () => {
+    const home = await createTestPluginDataRoot("kimi-v2-identity");
+    const id = "session_expected";
+    try {
+      const p = await seedKimiSession(home, id, { title: "Legacy" });
+      const options = { env: { KIMI_CODE_HOME: home }, sessionId: id, title: "",
+        preserveTitle: true, requireNativeV2: true, promptText: "Task" };
+      expect(await syncKimiSessionTitle(options)).toBe("unsupported-state");
+      await writeFile(p, JSON.stringify({ version: 2, id: "session_other" }));
+      expect(await syncKimiSessionTitle(options)).toBe("invalid-state");
+      expect(await readdir(path.join(home, "sessions"))).toEqual(["wd_repo_123"]);
+    } finally { await cleanupTestPath(home); }
+  });
+});
+
+describe("prompt metadata redaction", () => {
+  test("fallback titles redact long quoted credentials before shortening loses their closing quote", () => {
+    const title = buildKimiSessionTitle("ask", 'Fix login password="' + "privateword ".repeat(100) + '" and check it');
+    expect(title).toBe("Kimi Ask: Fix login password=[redacted] and check it");
+    expect(title).not.toContain("privateword");
+  });
+  test("redacts credential forms and private keys before whitespace normalization and truncation", () => {
+    const secret = "a".repeat(50);
+    expect(promptMetadataText(`\nDo work\tAuthorization: Bearer abc123\napi_key="private value" password=abc token='def ghi' secret: ${secret}\n-----BEGIN RSA PRIVATE KEY-----\nSECRET\n-----END RSA PRIVATE KEY----- sk-abcdefghijklmnopqrst`))
+      .toBe("Do work Authorization: Bearer [redacted] api_key=[redacted] password=[redacted] token=[redacted] secret=[redacted] [redacted] [redacted]");
+    expect(promptMetadataText(" \n\0 ")).toBeUndefined();
+    const prefix = "word ".repeat(799);
+    const result = promptMetadataText(prefix + 'password="' + "secret ".repeat(1000) + '"');
+    expect(result?.length).toBe(4000);
+    expect(result).not.toContain("secret");
   });
 });
 

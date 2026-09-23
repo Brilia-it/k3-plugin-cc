@@ -783,6 +783,10 @@ function buildEnv(opts) {
     // The update preflight runs on the `-p` path too; a plugin spawn must never
     // swap the certified binary underneath the execution plan.
     env.KIMI_CODE_NO_AUTO_UPDATE = "1";
+    // Rescue and pursue share the write label. Only the immutable execution
+    // plan can grant pursue's narrow goal-metadata access; never trust ambient
+    // state inherited from another plugin job.
+    env.KIMI_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
     env.KIMI_CODE_HOME = resolveKimiHome(opts.env, opts.cwd);
     if (opts.commandLabel !== undefined) {
         env.KIMI_PLUGIN_CC_CMD = opts.commandLabel;

@@ -2,20 +2,26 @@
 
 How to verify a new kimi-code release against kimi-plugin-cc without breaking the safety guarantees we ship.
 
-This document captures the routine that ran on 2026-05-27 for `@moonshot-ai/kimi-code@0.4.0` (reports 31-35 in `.claude/kimi-code-research/reports/`, commit `b67263c`, tag `compat-verified-kimi-code-0.4.0`). Repeat it whenever a new kimi-code minor or major lands. The most recent minor worked example is the 2026-09-06 0.41.0 certification (reports 121-125: hook, stream/bootstrap, CLI, adversarial, synthesis; same-day monitor smoke reused for a boundary-only release); the 2026-08-29 exact-0.39.1 patch check is the most recent patch-checkup example.
+Use this routine for every new exact native-v2 version, including patches. The 2.0.2 certification is the current worked example. Earlier audits remain useful historical evidence, but their legacy-v1 minor-version rules do not apply to native v2.
 
-## Current certified boundary (2026-09-09)
+## Current certified boundary (2026-09-20)
 
-The plugin certifies **native agent-core-v2 at exact `@moonshot-ai/kimi-code@0.42.0`**
-(release commit `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`) for all eight
-operations, and legacy-v1 through 0.41.x for an explicitly pinned binary.
+The plugin certifies **native agent-core-v2 at exact `@moonshot-ai/kimi-code@0.42.0`,
+`0.43.0`, `0.43.1`, `2.0.0`, `2.0.1` and `2.0.2`** (release commits `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`,
+`ffa94fae854dedf594919acbea280d98cbe8e14e`, `75ac010bcb2050338444455de8328492d152c919`,
+`1b89e4b039f052d10f258464413b2047acca12ba`, `caf7d4e2fef06967280b325da06e44a4b0516eba`,
+`9d07f634be94ebeb1deba2f55d247807cf729315`)
+for all eight operations, and legacy-v1 through 0.41.x for an explicitly pinned binary.
+The most recent worked example is the 2026-09-20 exact 2.0.2 certification
+(plugin 2.0.4; [certification evidence](upstream-2.0.2-certification.md)).
 0.42.0 removed `packages/agent-core` and `KIMI_CODE_LEGACY_FLAG` (#3542; not in
 its changelog): `kimi -p` is v2 unconditionally, so the v1 pin is inert there.
 
 The certification basis is the **no-plan construction** (see
 [`native-v2-certification-provenance.md` §2](native-v2-certification-provenance.md#2-native-v2-entry-gate)),
 not an upstream ordering guarantee — plan still registers before external
-hooks at 0.42.0 (confirmed in `dist/main.mjs`). Certification is per EXACT
+hooks at every certified version through 2.0.2 (confirmed in `dist/main.mjs` at 0.42.0 and by the
+plan-ON live control on every certified binary). Certification is per EXACT
 version and per operation; a patch release is NOT certified until the three
 gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
 
@@ -29,15 +35,40 @@ gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
    `enter()` caller, a changed config section, a new executor entry point,
    changed tool field names) is a human re-audit, not a pin update. The scan
    cannot see semantic regressions: also read every NEW subscriber's
-   statements, check for tools with side effects in `resolveExecution`, and
-   grep `os/backends/` for a non-local runtime selector.
-2. **Live control on the exact binary** (`repro-0391/repro.ts` style, isolated
-   seeded home, deny-all hook): with `default_plan_mode = true` the plan-file
-   `Write` must STILL bypass the hook (if it stops bypassing, upstream may have
-   shipped the ordering fix — re-read #3431 and re-decide the basis); with plan
-   mode off, an ordinary `Write` and an `EnterPlanMode` attempt must both reach
-   the hook and be denied. Count payloads for the specific tool, not all calls.
+   statements, check for tools with side effects in `resolveExecution`, grep
+   `os/backends/` for a non-local runtime selector, and diff `_base/di/**`
+   (scope units, cascade engine, instantiation service) for changes to child
+   scope creation or singleton-vs-scoped resolution — the swarm-subagent
+   "own eager external-hooks service" claim rests on that subsystem.
+2. **Live control on the exact binary** (`repro-0391/repro.ts` = plan ON and
+   `repro-0391/repro-clean.ts` = plan OFF, both under
+   `.claude/kimi-code-research/upstream-v2-hook-coverage/`; isolated seeded home,
+   deny-all hook; run `PATH=<exact-binary-dir>:$PATH bun <script>`): with
+   `default_plan_mode = true` the plan-file `Write` must STILL bypass the hook
+   (if it stops bypassing, upstream may have shipped the ordering fix — re-read
+   #3431 and re-decide the basis); with plan mode off, an ordinary `Write` and
+   an `EnterPlanMode` attempt must both reach the hook and be denied. Count
+   payloads for the specific tool, not all calls. `repro-clean.ts` sends the two
+   probes as SEPARATE prompts — a single two-step prompt lets the model stop at
+   the first denial and never issue the second call (observed 2026-09-15).
+   **Run every live control and smoke SEQUENTIALLY.** Before any run, arrange dedicated test authentication or obtain an explicit
+   exception for temporary credential copies as described in [Live smoke authentication](ci.md#authentication-and-credential-handling). The harness can copy the managed OAuth credentials; two copies refreshing concurrently
+   invalidated the operator's grant on 2026-09-15 (`The provided authorization
+   grant is invalid`, fixed by `kimi login`).
 3. **Real-binary smoke** (Phase 1b) with the v2 lanes green for every operation.
+   Before adding a production certification row, set
+   `KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE=<exact-version>` together with
+   `KIMI_PLUGIN_CC_KIMI_BIN=<exact-binary>`. The harness refuses a version
+   mismatch, selects v2 lanes, and adds only an in-memory test-process
+   write-swarm capability row so that command's real gates can run. It does
+   not bypass the hook schema, hook installation or no-plan preflight.
+   Review and represent a new major's hook schema first. Only after all gates
+   pass may the shipped certification table gain the version.
+
+Plugin versions advance independently using ordinary SemVer. A compatible
+certification update takes the next unused plugin patch and states the exact CLI
+version separately; never reuse a published plugin version or tag. Version labels
+do not replace any certification gate.
 
 Do not extend `KIMI_TESTED_MINORS` (legacy table) past 0.41. Do not write a
 "plan-file write denied under plan mode" smoke — under the construction that
@@ -45,7 +76,7 @@ path is never armed and a green result is the vacuous-precondition failure.
 
 ## When to run
 
-- A new `@moonshot-ai/kimi-code` minor (e.g., 0.5.0) or major (1.0.0) ships
+- A new exact native-v2 `@moonshot-ai/kimi-code` version ships, including a patch
 - An adversarial finding in a different audit suggests a contract we depend on may have moved
 - The `/k3:setup` version probe starts firing "outside tested range" warnings for a version users are actually running
 - Quarterly even if none of the above triggered, just to catch silent drift
@@ -70,35 +101,21 @@ Before starting a new upstream audit or release catch-up:
 
 Monitor statuses are operational signals, not certifications:
 
-- `NO ACTION` means latest is already inside the tested minor and no action is
-  currently warranted.
-- `PATCH CHECKUP` means a newer patch landed inside an already-tested minor; use
-  the scoped diffs to decide whether a smoke or docs-only marker is worthwhile.
-- `CERTIFICATION NEEDED` means upstream crossed into an untested minor/major;
-  run this playbook before touching `KIMI_TESTED_MINORS`.
-- `BLOCKER` means operator state, dirty repo state, missing tags/binary, or a
-  possible safety break prevented a clean judgement.
+- `NO ACTION` means the exact native-v2 version is already certified for the required operations, or an explicitly pinned legacy version is within its tested range, and no new concern warrants action.
+- `PATCH CHECKUP` applies only to a newer patch inside an already-tested legacy-v1 minor. It cannot certify a native-v2 patch.
+- `CERTIFICATION NEEDED` means the exact native-v2 version is not certified, even if only its patch number changed. Run all three gates above before adding it to `NATIVE_V2_CERTIFIED`.
+- `BLOCKER` means missing evidence, operator state, or a possible safety break prevents a conclusion.
 
-Do not extend `KIMI_TESTED_MINORS`, tag, or release from a monitor report alone.
-The release-quality gate remains: scoped source audit, real-binary smoke against
-the exact target release, post-edit review, `bun run check`, and clean diff
-checks.
+A monitor report cannot extend a certification table or authorize publication. The release gate requires a source audit, exact-binary controls and smoke, post-edit review, `bun run check`, and a reviewed diff. Do not extend the legacy `KIMI_TESTED_MINORS` table past 0.41.
 
-**Skip** for patch releases unless the changelog explicitly touches (paths under `packages/agent-core-v2/src` unless noted):
-- `apps/kimi-code/src/cli/run-prompt.ts`, `cli/v2/`, `prompt-render.ts`, `goal-prompt.ts` (print-mode bootstrap, stream-json output, `system.version` marker, goal summary, session pinning)
-- `features/externalHooks/` (the hook engine: config schema, runner, matcher, aggregation)
-- `agent/toolExecutor/` or `agent/permissionGate/` (the before-execute channel and the auto-approve gate — the sole `.allow()` invariant)
-- `features/plan/`, `state/`, `workspace/sessionLifecycle/` (plan-mode arming vectors and the restore-folding source the journal taint scan depends on)
-- `apps/kimi-code/src/cli/commands.ts` / `options.ts` (argv surface)
-
-**Never skip** the mechanized gate: even a patch release is uncertified until `tests/audit/v2-tag-scan.test.ts` passes against its tree and its exact version is appended to `NATIVE_V2_CERTIFIED` (see "Current certified boundary" above).
+Do not skip native-v2 certification because a changelog omits safety-related changes. Diff the source surfaces below and run all three gates for the exact release.
 
 ### Forward-scan mode (no release, but `origin/main` moved)
 
-When the routine fires but **nothing new has shipped** — npm `latest`, GitHub `Latest`, and the local binary are all still the version we already verified — do **not** run the full Phase 1 four-agent audit, extend `KIMI_TESTED_MINORS`, or cut a tag. There's no release to certify. Instead run the *forward-scan*: a free look at what the next release will contain.
+When the routine fires but **nothing new has shipped** — npm `latest`, GitHub `Latest`, and the local binary are all still the version we already verified — do **not** run the full Phase 1 four-agent audit, extend either certification table, or cut a tag. There's no release to certify. Instead run the *forward-scan*: a free look at what the next release will contain.
 
-1. Generate the four scoped diffs exactly as in Phase 0, but with `NEW='origin/main'` (after `git fetch`) and `PREV` = the last verified tag's referent.
-2. Read them yourself in the main thread (no agent dispatch). The same 0-byte signal applies: **0-byte `02-permission.diff` + 0-byte `03-hooks.diff` means the two surfaces the safety model rests on are untouched** — that alone covers most of the risk.
+1. Generate the six scoped diffs exactly as in Phase 0, but with `NEW='origin/main'` (after `git fetch`) and `PREV` = the last verified tag's referent.
+2. Read them yourself in the main thread (no agent dispatch). The same 0-byte signal applies: zero-byte diffs for the before-execute gates (`02`), hooks (`03`), and plan arming (`04`) show those files are unchanged. Bootstrap (`05`) and tool/fan-out (`06`) changes can still affect enforcement.
 3. Triage the non-empty diffs against the surface table below. Anything internal-only (record types not emitted to `-p` stdout, provider/model plumbing, internal abort-reason propagation) is benign for us; flag only changes to the stream-json **output shape**, argv, or the deny chain.
 4. Log a one-bullet entry in `ROADMAP-TO-GA.md`'s Post-GA audit log dated and explicitly marked **"forward-scan, not a triggered audit"**, with the scanned `main` SHA, the per-surface result, a provisional verdict, and the specific items to re-confirm with `bun run smoke:real` when the release actually lands.
 5. **No commit beyond the log bullet, no tag, no version bump** — the scanned code is unreleased and will change before shipping. (The 2026-06-01 entry is the worked example.)
@@ -140,7 +157,7 @@ git checkout '@moonshot-ai/kimi-code@<NEW_VERSION>'
 git describe --tags --always  # confirm
 ```
 
-Generate scoped diffs against the previous audited version (typically the last tag's referent — check `tags/compat-verified-kimi-code-*` to find it):
+Generate scoped diffs against the previous audited version (use the exact source tag recorded in the previous certification report):
 
 ```bash
 mkdir -p /tmp/kimi-<NEW>-diff
@@ -229,8 +246,8 @@ A 0-byte `03-hooks.diff` is the canonical "hook engine unchanged" signal, and a 
 Dispatch four reviewers in parallel via the Agent tool with `run_in_background: true`. Each gets one surface and produces one report under `.claude/kimi-code-research/reports/NN-upstream-<scope>.md`.
 
 Reviewer 1 — **PreToolUse hook contract** (`general-purpose` agent)
-- Question: did the JSON-in / exit-code-out contract change? Did matcher semantics change? After any permission-system refactor, does our hook still fire first in `-p` mode?
-- For v2, trace production service-registration order and every listener that can call final `event.allow()`. "External hooks are awaited before execution" is insufficient. Prove both fresh `default_plan_mode=true` and restored plan state cannot skip the managed hook; otherwise the fail-closed v2 refusal stays.
+- Question: did the JSON-in / exit-code-out contract change? Did matcher semantics change? Under the no-plan construction, does every executed tool call still pass through our hook?
+- For v2, trace production service-registration order and every listener that can call final `event.allow()`. "External hooks are awaited before execution" is insufficient. Verify that active plan mode remains the only chain-breaking final allow and that the plugin closes every way to arm it: config, tools, and journal replay. The plan-ON control must reproduce the known bypass; the plugin must refuse configured or restored plan state before spawning.
 - Output: `reports/NN-upstream-<ver>-hook-contract.md`
 
 Reviewer 2 — **Stream-json output** (`general-purpose` agent)
@@ -252,73 +269,44 @@ Verdicts to use (consistent across reports):
 - `COMPAT-AT-RISK` — narrow specific concern flagged, may or may not require code
 - `COMPAT-BROKEN` — actual breakage, runtime change required
 
-### Phase 1b — Assertion check: real-binary smoke (10 min)
+### Phase 1b — Real-binary smoke
 
-Source-reading proves the *contract* looks unchanged; the smoke proves it *behaves* unchanged. Run it against the actual new release:
+Run the exact candidate with the final implementation under review. Follow the [smoke instructions](ci.md) for isolated binary installation, authentication, and credential handling. Run controls and smoke sequentially. Authentication can use dedicated API credentials or an explicitly authorized temporary copy of subscription credentials; a previous successful run does not prove credentials are still valid.
 
-```bash
-# Install / activate the new kimi-code release so `kimi` on PATH is <NEW_VERSION>
-kimi --version                  # confirm it reports <NEW_VERSION>
-bun run smoke:real              # KIMI_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts
-```
-
-It spawns the real `kimi -p` in an isolated `KIMI_CODE_HOME` (seeded from your authenticated home — never mutates the real config or session store) and asserts, for review / challenge / ask / review_gate, that a forced write attempt is denied by the hook and no file lands. A green run is direct evidence that the policy-queue-index-0 / hook-deny chain still holds end-to-end on the new release — the single highest-signal check in this whole routine. If it goes red, the source-reading verdict is *probably* wrong somewhere — but first rule out the operator-auth false alarm below; once that's excluded, treat as `COMPAT-BROKEN` until reconciled.
-
-Prereqs: a kimi binary + an authenticated `~/.kimi-code` (config + `credentials/` + `oauth/`). Skipped automatically without them, so note in the synthesis whether the smoke actually ran or was skipped — a skipped smoke is not a passed smoke.
-
-**Smoking a release without touching the operator's install (the temp-binary technique).** `kimi upgrade` is unreliable on some installs (e.g., the 2026-06-03 run reported a bogus "native (windows)" source on macOS and refused to update, leaving the binary at 0.8.0 while certifying through 0.9.0). The smoke resolves its binary from `KIMI_PLUGIN_CC_KIMI_BIN` (falling back to `kimi` on PATH — see `runtime/kimi-command.ts::resolveKimiCliCommand`), so you can certify the exact target release without mutating `~/.kimi-code/bin`:
+For a version not yet in the production certification table, use the candidate mode:
 
 ```bash
-D=/tmp/kimi-<NEW>; rm -rf "$D"; mkdir -p "$D"; cd "$D"
-echo '{"name":"smoke","private":true}' > package.json
-bun add @moonshot-ai/kimi-code@<NEW>
-"$D/node_modules/.bin/kimi" --version    # confirm <NEW>
-cd -  # back to the plugin repo
-KIMI_PLUGIN_CC_SMOKE=1 \
-  KIMI_PLUGIN_CC_KIMI_BIN="$D/node_modules/.bin/kimi" \
-  bun test tests/runtime/real-binary-smoke.test.ts
+KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE=<exact-version> \
+  KIMI_PLUGIN_CC_KIMI_BIN=<absolute-path-to-exact-binary> \
+  KIMI_PLUGIN_CC_SMOKE_HOME=<authorized-test-seed-home> \
+  bun run smoke:real
 ```
 
-Auth still seeds from the real `~/.kimi-code` (`KIMI_PLUGIN_CC_SMOKE_HOME`) into an isolated `KIMI_CODE_HOME`, so a previously-green smoke proves the token is valid. This is how the 0.9.0 cert earned "tested end-to-end" without altering the operator's 0.8.0 install.
+The candidate version must match the binary. Candidate mode does not bypass hook-schema review, hook installation, or the no-plan preflight. Review and represent a new major's hook schema before running it.
 
-**Current v2 rule (v1.10.0).** The smoke is engine-aware: for a binary whose
-exact version is in `NATIVE_V2_CERTIFIED` it asserts the `system.version`
-marker is the FIRST stream-json line and equals the probed version, then runs
-every operation lane under the v2 plan; for a pinned ≤ 0.41 binary it runs the
-legacy lanes and asserts the marker is absent. Truthy `KIMI_CODE_EXPERIMENTAL_FLAG`
-and `[experimental] tower`/`subagent_fork` must still fail before spawn; a
-`default_plan_mode = true` home must fail before spawn with
-`CLI_V2_PLAN_MODE_CONFIGURED` and the test must assert the input was effective
-and no process was created; a seeded `plan_mode.enter` journal must make
-resume refuse with `KIMI_SESSION_PLAN_TAINTED`. An `EnterPlanMode` attempt
-must reach the hook and be denied. Write lanes additionally assert an
-out-of-root `Bash.cwd` is denied while an in-root one runs.
+For native v2, the smoke checks the first-line `system.version` marker against the probed version and exercises every operation. It covers hook denials, default-plan and experimental-selector refusals, native-v2 resume and tainted-journal refusal, `Bash.cwd` confinement, and write-swarm patch capture and cleanup. Pinned legacy binaries use the legacy lanes and must not emit the v2 provenance marker. Read the test results to confirm which lanes ran; skipped tests are not passing evidence.
 
-**Operator-auth false alarm (seen on the 2026-05-31 0.6.0 run).** The skip-gate only checks that `config.toml` + `credentials/` *exist*, not that the token inside is *still valid*. An expired OAuth token sails past the gate, so the smoke **runs** (not skipped) and goes **red** with every label failing at `auth.login_required: OAuth provider "managed:kimi-code" requires login` — `records` is `[]` and the deny marker never appears because kimi dies before any tool call. This looks alarmingly like a hard break but is pure machine state: re-login (`kimi` interactive auth) and re-run. Distinguish it from a real break by the error string — a true compat break would show the model *attempting* a write and the hook *not* denying, not an auth abort with empty records. Don't pin `COMPAT-BROKEN` on an `auth.login_required` red. Related gotcha: don't pipe the smoke through `... | tail -N` and trust the reported exit code — the pipe's status is `tail`'s, not bun's, so a red suite can look like exit 0. Read the body, or run `bun run smoke:real; echo $?` unpiped.
+If authentication fails before a tool call, record an authentication blocker. Do not infer that hook enforcement passed or failed. Obtain authorization before fetching credentials or retrying paid calls. Run the smoke unpiped, or preserve its exit status; a successful `tail` command does not mean the tests passed.
 
-### Phase 2 — Synthesis (15 min, main thread)
+### Phase 2 — Synthesis
 
-Read all four reports. Write a synthesis to `reports/NN-upstream-<ver>-synthesis.md`. Decide one of three outcomes:
+Read all four reports and the live results. Save a synthesis to `reports/NN-upstream-<ver>-synthesis.md`.
 
-| Findings | Outcome | Commit shape |
-|---|---|---|
-| Nothing load-bearing | Docs-only update + lightweight compat-marker tag | `docs: verify kimi-code <ver> compat — no runtime changes required` |
-| Minor adjustments (e.g., extend `KIMI_TESTED_MINORS`, tighten a comment) | Patch release | Bump 5 version files, tag `vX.Y.Z`, gh release |
-| Real breakage | Real fix + minor release by default | Bump 5 version files to the next minor, tag, gh release |
+| Finding | Outcome |
+|---|---|
+| An already-certified version needs documentation corrections | Documentation update; no certification or version change |
+| A new exact native-v2 version passes every gate | Add the production certification row and prepare the next unused plugin patch release with explicit upstream compatibility |
+| A gate fails or evidence is incomplete | Keep the candidate uncertified; record the blocker and required follow-up |
 
-"Load-bearing" means runtime code changes. Doc tightening alone is not load-bearing.
+A certification-table addition changes runtime routing even when upstream's hook implementation is unchanged. It is not a docs-only checkup. Matching upstream's version number never substitutes for a passing gate.
 
-Narrow exception: a patch release may fail closed on an explicitly opt-in experimental engine when the stable/default engine remains compatible, the refusal happens before spawn, and it cannot be bypassed by the hook-check diagnostic escape hatch. This exception does not certify the refused engine; re-enabling it still requires a released upstream fix plus the full exact-binary gate.
+### Phase 3 — Edits
 
-### Phase 3 — Edits (variable)
+After all candidate gates pass, update `NATIVE_V2_CERTIFIED` through its version list in `runtime/kimi-engine.ts`. Keep the legacy table capped at 0.41. Update the exact-version source hashes and assertions in `tests/audit/v2-tag-scan.test.ts` only after reviewing their source changes.
 
-Surgical only. Common doc edits even when no code changes:
-- `AGENTS.md`: extend the "Upstream compat" line with the verified version
-- `AGENTS.md`: update the dual-source session-meta paragraph's verified-through range
-- `runtime/stream-json.ts`: update the source-of-truth comment's verified-through range
-- `ROADMAP-TO-GA.md`: append an audit log entry with date, verdict, and findings
+Update the current compatibility statements in `AGENTS.md`, `docs/invariants.md`, `docs/native-v2-status.md`, and this playbook. Record evidence and residual risks in the provenance guide and roadmap audit log. Follow the [release checklist](../AGENTS.md#releasing) for version metadata and the changelog.
 
-If extending `KIMI_TESTED_MINORS` (`runtime/kimi-version-probe.ts`), that's a runtime change — bump to patch release. The "untested minor" test fixtures (`tests/runtime/kimi-engine.test.ts` `NEXT_UNTESTED_VERSION`, `tests/runtime/kimi-version-probe.test.ts`) derive from `maxTestedMinor()` since 2026-09-02, so the boundary move needs no test edit — but the `isInTestedRange` "known minor" list in the probe test still enumerates each certified minor and should gain a line. Probe-list comments compile into `dist/`, so batch every wording fix before the final `bun run build && bun run generate:surfaces`; each reviewer round otherwise costs a full gate re-run. On a monitor `BLOCKER` that cites `auth.login_required`, probe auth first: copy `config.toml` + `credentials/` + `oauth/` + `device_id` into a temp `KIMI_CODE_HOME` (never print them) and run `kimi -p 'Reply with exactly: OK' --output-format stream-json` — 20 seconds decides whether anything else is wrong.
+Batch source and wording edits before running `bun run build` and `bun run generate:surfaces`. Stage the generated root and Codex distributions, then run `bun run check`. Never copy personal config or credential stores as an automatic troubleshooting step; use the authentication procedure in [CI and live smoke](ci.md).
 
 ### Phase 4 — Multi-reviewer pass on the audit commit
 
@@ -333,40 +321,27 @@ Apply must-fix findings before commit. Nits are at your discretion.
 
 > Why not use `code-reviewer` for both: independence. The fidelity audit specifically grades the writing against the source reports, which is a different question than the code-reviewer's "is this commit correct."
 
-### Phase 5 — Commit, tag, push
+### Phase 5 — Commit and publish
 
-**Docs-only outcome** (most common — no breakage):
-```bash
-git add AGENTS.md ROADMAP-TO-GA.md runtime/stream-json.ts dist/stream-json.js
-git commit -m "docs: verify kimi-code <ver> compat — no runtime changes required" \
-  -m "<audit summary>"
-git push origin main
-git tag -a "compat-verified-kimi-code-<ver>" -m "<audit verdict + reports>"
-git push origin "compat-verified-kimi-code-<ver>"
-```
+Install frozen dependencies before building; confirm `bun run check` passed
+and review the final diff. Stage only intended files, including regenerated
+distributions. Within the user's authorization, commit and push, wait for
+that commit's CI to pass, then tag and publish. Do not substitute an existing
+local dependency directory for lockfile-clean validation.
 
-**Patch release outcome** (something load-bearing):
-```bash
-# Bump runtime/version.ts, package.json, .claude-plugin/plugin.json,
-#                 .claude-plugin/marketplace.json, AGENTS.md
-bun run check       # must be green
-git add -A
-git commit -m "release: <new-version> — kimi-code <ver> compat"
-git tag -a "v<new-version>" -m "..."
-git push origin main "v<new-version>"
-gh release create "v<new-version>" --notes-file <(echo "<audit body>")
-```
+For a certification release, follow the [release checklist](../AGENTS.md#releasing). Use the next unused plugin patch, independently of the upstream version, and state the exact certified CLI version in the notes. Write release notes to a file and pass it to `gh release create --notes-file`.
 
-The compat-marker tag (`compat-verified-kimi-code-<ver>`) is independent of the plugin version tag (`v<X.Y.Z>`). Both can coexist.
+Documentation corrections do not need a new version or a compatibility tag. Historical `compat-verified-kimi-code-*` tags record earlier legacy-v1 audits; they do not certify new native-v2 versions.
 
 ## Anti-patterns
 
-- **Don't use the `kimi:k3-challenge` subagent for the adversarial pass**. It invokes `kimi -p` under the hood; its foreground job can disappear (`FOREGROUND_PROCESS_DISAPPEARED`) leaving the wrapper agent unsure whether the work completed. Use `general-purpose` with an adversarial brief instead.
-- **Don't extend `KIMI_TESTED_MINORS` on source-reading alone — run the Phase 1b smoke against the new release first.** The probe is the user's only signal that we tested against their version. The local real-binary smoke (`bun run smoke:real`) now exists (H7 partial), so "tested" should mean "smoke ran green against this release", not just "four agents read the diff". Until the smoke runs in per-push CI against a pinned release (H7 remaining — blocked on an OAuth-credentials secret), it stays a manual pre-release gate; record in the synthesis whether it ran or was skipped.
-- **A headless/cloud-prepared catch-up DEFERS its smoke — treat the PR as smoke-pending until you run it locally against that branch.** A catch-up prepared in a cloud/CI session with no kimi binary cannot run Phase 1b (`PREREQS_OK` is false; the suite skips — installing the binary doesn't help, the smoke needs valid Moonshot OAuth creds). Before merging such a PR, run `bun run smoke:real` **locally against the actual PR branch**, then flip the "smoke pending" docs (`CHANGELOG`, `kimi-version-probe.ts` comment, `ROADMAP`) to GREEN so the tagged commit is accurate. Do **not** substitute the daily-checkup routine's `report-NN` green smoke for this if the PR added code the report's smoke didn't cover: the 2026-06-19 v1.2.6 PR bundled the `/k3:swarm --cap` env-wiring feature, but report 81's green smoke *predated* that code (report 81 had explicitly said the feature should NOT be bundled), so it certified only the pre-feature tree. Re-running locally against the branch is what actually closed the gate. (Same run: watch for the cwd-persisted-into-the-clone trap — `bun run check` piped through `tail` reported exit 0 while actually failing "Script not found check" because a prior `cd` had left the shell in `.claude/kimi-code-research/kimi-code-repo`; run gates unpiped from the plugin root.)
-- **Don't tag a plugin version (`vX.Y.Z`) for zero-code-change audits.** Reserve patch and minor releases for actual changes. Use the compat-marker tag for verification-only events.
-- **Don't skip the multi-reviewer pass on the audit commit.** The 2026-05-27 run caught a `~/.kimi/plugins/installed.json` path error (correct path: `~/.kimi-code/plugins/installed.json`) propagated from the source audit reports into the roadmap — exactly the kind of detail one reader misses.
-- **Don't conclude `additionalDirs`/session config is empty by reading `run-prompt.ts` alone — the harness impl (v1: `rpc/core-impl.ts`; v2: `app/bootstrap/` + `workspace/sessionLifecycle/`) can auto-load project-local config at bootstrap.** `run-prompt.ts` only delegates to `createKimiHarness().createSession/resumeSession`; the real bootstrap (`createSessionWithOverrides`/`resumeSessionWithOverrides`) lives in `packages/agent-core/src/rpc/core-impl.ts` and is where on-disk config is merged into the permission context. In the 2026-06-23 0.19.1 audit, #812 (commit `c0eeca2`) made both the `-p` create and resume paths unconditionally read `.kimi-code/local.toml` `[workspace] additional_dir` into `additionalDirs` — so reading run-prompt.ts made it look `--add-dir`-only, and only the Phase-4 adversarial reviewer caught it. Always read `05-session-bootstrap.diff`; if a claim depends on a session field being empty/default on the `-p` path, trace it through `core-impl.ts`, not just the CLI entrypoint. (The safety conclusion held — the index-0 hook + single-root `rescue-approval.ts` bind before the only `additionalDirs` consumer, `GitCwdWriteApprovePermissionPolicy` at index 17, which is dead below auto-approve on `-p` — but the audit *reasoning* was wrong. See report 85's CORRECTION box.)
+- Do not add a certification row on source reading alone. Record the exact binary, source tag, final implementation, and live gates that passed.
+- Do not describe a skipped smoke as a pass. A cloud-prepared change remains smoke-pending until the final tree passes with authorized authentication. The manual GitHub workflow supports API-key authentication; enabling per-push calls is a separate cost decision.
+- Do not reuse an earlier green run to cover later behavior changes. Run the affected live lanes against the implementation that will ship.
+- Do not treat a zero-byte hook diff as proof of the whole construction. Inspect bootstrap, session restoration, tool execution, and child scope creation too.
+- Do not assume the hook is the first native-v2 listener. Its enforcement depends on the no-plan construction and the absence of any other chain-breaking final allow.
+- Do not skip the review of the plugin edits. Source-audit reports can contain wrong paths, stale assumptions, or claims that the live evidence does not support.
+- Do not infer completion from a missing foreground process. Retain job status, artifacts, exit codes, and reports when a reviewer uses the plugin runtime.
 
 ## Reference: the 2026-05-27 0.4.0 audit
 

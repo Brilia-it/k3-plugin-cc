@@ -1,20 +1,24 @@
 # Native v2 certification and engine-provenance contract
 
 **Approved:** 2026-08-28 · **Amended:** 2026-09-09 (§2 alternate basis, §4 matrix, §5 fields)
-**Current production state:** native v2 certified at exact kimi-code `0.42.0` for every operation under the §2 construction; `legacy-v1` remains selectable only for a pinned binary ≤ 0.41.x.
+**Current release capability (2.0.5):** native v2 certified at exact kimi-code `0.42.0`, `0.43.0`, `0.43.1`, `2.0.0`, `2.0.1` and `2.0.2` for every operation under the §2 construction; `legacy-v1` remains selectable only for a pinned binary ≤ 0.41.x.
 
 For the dated upstream evidence and follow-up, see [Native v2 status](native-v2-status.md).
+
+Exact 2.0.2 evidence: [certification record](upstream-2.0.2-certification.md).
+The known active-plan bypass remains; only the no-plan construction is
+certified. The bounded smoke covers live resume and goal behavior, not
+exhaustive compaction or crashed-turn recovery. Its nine-turn goal result
+establishes no target files and an aggregate denial marker, not a separate
+denial count on every turn.
 
 This contract defines what must be true before kimi-plugin-cc can route any
 production operation to kimi-code's native `agent-core-v2` engine. It also
 defines the provenance that must survive process, background-worker, job-store,
-and session boundaries. The first implementation slice is intentionally a
-legacy-v1 no-op at the model/tool level: it makes routing explicit and auditable
-without making native v2 reachable.
+and session boundaries. The first implementation slice recorded legacy-v1 provenance without enabling v2. The runtime routes only the versions listed in its capability table to native v2 under the no-plan construction below. Installed hosts retain their existing tables until explicitly updated.
 
 Tower mode, subagent fork, Remote Control, and other experimental feature work
-are outside this contract. A possible upstream retirement of v1 is not evidence
-that v2 is safe and does not waive any gate below.
+are outside this contract. The removal of v1 in kimi-code 0.42.0 did not waive any gate below.
 
 ## 1. Terms
 
@@ -109,14 +113,13 @@ candidate binary:
    suite, and drift gate are green.
 
 Only then may that single operation/version pair be added to the native-v2
-matrix. Certification does not itself change the default engine. Enabling or
-expanding routing is a separate human decision and release slice.
+matrix. The shipped certification table controls engine selection. Adding a version expands production routing and therefore requires the completed gates and an authorized release.
 
 ## 4. Current capability matrix
 
 | Engine | Operation | Production state |
 |---|---|---|
-| `native-v2` | review, challenge, ask, rescue, review_gate, pursue, swarm, swarm-write | certified at exact `0.42.0` (`NATIVE_V2_CERTIFIED` in `runtime/kimi-engine.ts`), safety profile `native-v2-no-plan/1` |
+| `native-v2` | review, challenge, ask, rescue, review_gate, pursue, swarm, swarm-write | certified at exact `0.42.0`, `0.43.0`, `0.43.1`, `2.0.0`, `2.0.1`, `2.0.2` (`NATIVE_V2_CERTIFIED` in `runtime/kimi-engine.ts`), safety profile `native-v2-no-plan/1` |
 | `legacy-v1` | review, challenge, ask, rescue, review_gate | certified within `KIMI_TESTED_MINORS` (≤ 0.41) for an explicitly pinned binary |
 | `legacy-v1` | pursue / swarm / swarm-write | certified from kimi-code 0.8 / 0.12 / 0.18 within `KIMI_TESTED_MINORS` |
 
@@ -209,8 +212,10 @@ legacy-v1 plan on a pinned ≤ 0.41 binary.
 The migration state machine:
 
 1. Forced-v1 plans, v2 matrix empty (v1.9.x).
-2. **Now (v1.10.0):** every operation certified at exact 0.42.0 under Basis B;
+2. **v1.10.0:** every operation certified at exact 0.42.0 under Basis B;
    routing chooses v2 for 0.42.0 and v1 for a pinned ≤ 0.41 binary.
+   **v1.10.3:** 0.43.0 and 0.43.1 appended after their own tag scan, plan-ON /
+   plan-OFF live controls and per-operation smoke (2026-09-15).
 3. Each later kimi-code version is appended per operation after its own tag
    scan, live control, and smoke.
 

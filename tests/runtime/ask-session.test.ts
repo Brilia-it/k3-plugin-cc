@@ -72,6 +72,27 @@ async function waitForJobState(
 }
 
 describe("ask session resume", () => {
+  test("per-run model aliases are single argv values and resume without an override omits -m", async () => {
+    const pluginDataRoot = await createTestPluginDataRoot("ask-model-selection");
+    const repoRoot = await createGitRepoFixture("ask-model-selection-repo");
+    const invocationPath = path.join(pluginDataRoot, "invocation.json");
+    const env = makeMockEnv(pluginDataRoot, "ask-success", invocationPath);
+    const alias = "custom/model with spaces;$(not-a-command)";
+    try {
+      for (const args of [["Explain"], ["-m", alias, "Explain"], ["-r", "Continue"], ["-r", "-m", "other/alias", "Continue"]]) {
+        await runAsk(args, makeContext(repoRoot, env));
+        const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as { argv: string[] };
+        const index = args.indexOf("-m");
+        if (index === -1) expect(invocation.argv).not.toContain("-m");
+        else expect(invocation.argv[invocation.argv.indexOf("-m") + 1]).toBe(args[index + 1]!);
+        if (args.includes("-r")) expect(invocation.argv).toContain("-r");
+      }
+    } finally {
+      await cleanupTestPath(pluginDataRoot);
+      await cleanupTestPath(repoRoot);
+    }
+  });
+
   test("resume with no prior ask jobs throws ASK_RESUME_NOT_FOUND", async () => {
     const pluginDataRoot = await createTestPluginDataRoot("ask-resume-none");
     const repoRoot = await createGitRepoFixture("ask-resume-none-repo");

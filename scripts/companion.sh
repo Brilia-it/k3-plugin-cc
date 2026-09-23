@@ -13,22 +13,9 @@ set -euo pipefail
 : "${CLAUDE_PLUGIN_ROOT:=${PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}}"
 export CLAUDE_PLUGIN_ROOT
 export PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
-if [ -z "${CLAUDE_PLUGIN_DATA:-}" ] && [ -z "${PLUGIN_DATA:-}" ]; then
-  if [ -n "${CODEX_HOME:-}" ]; then
-    KIMI_PLUGIN_CC_CODEX_DATA_ROOT="${CODEX_HOME}/plugins/data"
-  elif [ -n "${HOME:-}" ]; then
-    KIMI_PLUGIN_CC_CODEX_DATA_ROOT="${HOME}/.codex/plugins/data"
-  else
-    KIMI_PLUGIN_CC_CODEX_DATA_ROOT="/tmp/kimi-plugin-cc-codex-data"
-  fi
-  export PLUGIN_DATA="${KIMI_PLUGIN_CC_CODEX_DATA_ROOT}/kimi-marketplace-kimi"
-fi
-if [ -z "${CLAUDE_PLUGIN_DATA:-}" ] && [ -n "${PLUGIN_DATA:-}" ]; then
-  export CLAUDE_PLUGIN_DATA="${PLUGIN_DATA}"
-fi
-if [ -z "${PLUGIN_DATA:-}" ] && [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
-  export PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}"
-fi
+# Data-root selection lives in the runtime so commands, workers, and Stop agree.
+# Preserve shared variables verbatim: conflicting values must not be hidden.
+export KIMI_PLUGIN_CC_SHELL_LAUNCH=1
 export KIMI_PLUGIN_CC_WORKSPACE_CWD="${KIMI_PLUGIN_CC_WORKSPACE_CWD:-$PWD}"
 
 NODE_BIN="${KIMI_PLUGIN_CC_NODE_BIN:-$(command -v node 2>/dev/null || true)}"

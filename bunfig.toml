@@ -1,0 +1,5 @@
+[test]
+# Runs before every test file: scrubs host-plugin env (CLAUDE_PLUGIN_DATA etc.)
+# that a Claude Code / Codex session exports into the shell, so the suite can
+# never write into a real plugin data dir. See tests/helpers/preload.ts.
+preload = ["./tests/helpers/preload.ts"]

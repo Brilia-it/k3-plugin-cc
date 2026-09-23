@@ -114,7 +114,7 @@ that does not own the block simply will not run.
 | Platform | Status |
 |---|---|
 | Windows 11 | **Tested.** Enforcement verified end to end inside a real `kimi-code` session |
-| macOS | **Supported, not tested by us.** Every change we made is gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream v1.10.1, which upstream certifies against `kimi-code` 0.42.0 (native v2) and 0.1-0.41.x (legacy) |
+| macOS | **Supported, not tested by us.** Every change we made is gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream v2.0.5, which upstream certifies against `kimi-code` 0.42.0/0.43.x/2.0.x (native v2) and 0.1-0.41.x (legacy) |
 | Linux | Same as macOS |
 
 If you are the first to run this on macOS or Linux, we would like to hear about it either way.
@@ -164,32 +164,37 @@ its keep; used as an authority it will cost you.
 
 ### Which versions this is
 
-This fork is built on upstream **v1.10.1**, and its version number says so: the half before
+This fork is built on upstream **v2.0.5**, and its version number says so: the half before
 `-brilia.` is the upstream release we are built on, the half after counts our own changes. We
-re-aligned to upstream on **2026-09-10**; before that we sat on v1.9.8.
+re-aligned on **2026-09-23**; before that we sat on v1.10.1, and before that on v1.9.8.
 
-**v1.10 changed how the plugin picks an engine, and it can refuse where v1.9 ran.** Upstream moved
-to kimi-code's native agent-core-v2 because kimi-code **0.42.0 deleted the legacy v1 engine**.
-Engine selection is now:
+**Which engine you get depends on your `kimi-code` version, exactly.** Upstream moved to
+kimi-code's native agent-core-v2 when kimi-code 0.42.0 deleted the legacy v1 engine, and
+kimi-code has since gone to 2.x. Certification for native v2 is per **exact** version, not per
+minor:
 
 | Your `kimi-code` | What happens |
 |---|---|
-| **0.1 through 0.41.x** | Legacy v1 engine, as before. Certified per minor. This is most people today. |
-| **exactly 0.42.0** | Native v2. Certified for all eight operations. |
-| **0.42.1 or newer** | **Every model-spawning command refuses** (`KIMI_CAPABILITY_NOT_CERTIFIED`) until a release certifies that exact version. |
+| **0.1 through 0.41.x** | Legacy v1 engine, as before. Certified per minor. |
+| **0.42.0, 0.43.0, 0.43.1, 2.0.0, 2.0.1, 2.0.2** | Native v2, certified for all eight operations. |
+| **anything else** | **Every model-spawning command refuses** (`KIMI_CAPABILITY_NOT_CERTIFIED`) until a release certifies that exact version. |
 
 That last row is the one to know about, because **kimi-code updates itself in the background**. On
-the next upstream patch after 0.42.0 the plugin will start refusing until upstream certifies it.
-Pin `KIMI_PLUGIN_CC_KIMI_BIN` to a known binary if you need continuity.
+the next kimi-code release after 2.0.2, the plugin will refuse until upstream certifies it. Pin
+`KIMI_PLUGIN_CC_KIMI_BIN` to a known binary if you need continuity.
 
-Two more v1.10 behaviours worth knowing before you update: **sessions created before 1.10 cannot be
-resumed on 0.42.0** (nothing is deleted, but start fresh ones), and **`default_plan_mode = true` in
-`~/.kimi-code/config.toml` now blocks every command** — that setting would arm the one code path
-that bypasses the safety hook, and `/k3:setup` cannot repair it. Full list in
+Two behaviours worth knowing before you update: **sessions created before 1.10 cannot be resumed on
+native v2** (nothing is deleted, but start fresh ones), and **`default_plan_mode = true` in
+`~/.kimi-code/config.toml` blocks every command** — that setting would arm the one code path that
+bypasses the safety hook, and `/k3:setup` cannot repair it. Full list in
 [docs/migration.md](./docs/migration.md).
 
+This release also carries upstream's **v1.10.2 security fix**: a denial of service in the vendored
+command parser. If you are on an older build of this fork, that is the reason to update even if you
+do not care about the rest.
+
 This fork's Windows enforcement was last exercised locally against `kimi-code` **0.30.0**, on
-**2026-09-10**, after the merge with upstream v1.10.1: nine write vectors denied on `cmd.exe` and on
+**2026-09-23**, after the merge with upstream v2.0.5: nine write vectors denied on `cmd.exe` and on
 `sh`, with the positive and negative controls both firing. If you run a different CLI version, that
 measurement describes 0.30.0, not what you have.
 
@@ -225,12 +230,12 @@ and it.
 `--uninstall` removes the managed hook block from `~/.kimi-code/config.toml`. Your Kimi Code login
 is untouched.
 
-## Acknowledgments
+Review and challenge inspect your Git diff. Use ask for general questions about your repository.
 
 All the engineering here is [Xule Lin](https://github.com/linxule)'s. The job store, the cancellation
 handling, the approval policy, the stream parser and the safety architecture are his work. We fixed
 three Windows papercuts and wrote this README.
 
-## License
+Claude Code also has an optional [review gate](./commands/setup.md). It checks work when Claude finishes a turn and is off by default.
 
 Apache-2.0, same as upstream. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).

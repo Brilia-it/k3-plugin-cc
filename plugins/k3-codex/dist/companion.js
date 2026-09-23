@@ -1,7 +1,9 @@
 import { runAsk } from "./commands/ask.js";
+import { runModelInventory } from "./commands/models.js";
 import { runCancel } from "./commands/cancel.js";
 import { notImplementedCompanionCommand } from "./commands/not-implemented.js";
 import { runReplay } from "./commands/replay.js";
+import { runRepairSessions } from "./commands/repair-sessions.js";
 import { runResult } from "./commands/result.js";
 import { runReview } from "./commands/review.js";
 import { runRescue } from "./commands/rescue.js";
@@ -26,6 +28,12 @@ async function main(argv) {
     };
     switch (command) {
         case "setup": {
+            if (rest.includes("--models")) {
+                const args = [...rest];
+                args.splice(args.indexOf("--models"), 1);
+                context.stdout.write(`${await runModelInventory(args, context)}\n`);
+                return;
+            }
             const result = await runSetup(rest, context);
             context.stdout.write(`${renderSetupResult(result)}\n`);
             // A failed probe means the hook did not actually deny when exercised —
@@ -90,11 +98,14 @@ async function main(argv) {
         case "replay":
             context.stdout.write(await runReplay(rest, context));
             return;
+        case "repair-sessions":
+            context.stdout.write(await runRepairSessions(rest, context));
+            return;
         case "worker":
             await runWorker(rest, context);
             return;
         default:
-            throw new RuntimeError("INVALID_COMMAND", `Unknown or missing companion subcommand: ${command ?? "<none>"}. Expected one of setup, review, task, ask, status, result, cancel, replay.`, "companion");
+            throw new RuntimeError("INVALID_COMMAND", `Unknown or missing companion subcommand: ${command ?? "<none>"}. Expected one of setup, review, task, ask, status, result, cancel, replay, repair-sessions.`, "companion");
     }
 }
 main(process.argv.slice(2)).catch((error) => {

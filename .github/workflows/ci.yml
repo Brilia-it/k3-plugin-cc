@@ -1,6 +1,6 @@
 name: CI
 
-# Base CI: build + typecheck + full test suite + dist drift gate. Runs on every
+# Base CI: build, generated surfaces, types, tests, and distribution drift. Runs on every
 # push to main and every PR. NO secrets, NO kimi binary, NO model tokens — the
 # real-binary smokes auto-skip without KIMI_PLUGIN_CC_SMOKE=1. This is the
 # per-push safety net the repo previously only had locally via `bun run check`.
@@ -21,25 +21,27 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.12
+          bun-version: 1.4.2
 
       # The runtime targets Node >= 22.5 (companion + worker spawns); pin the
       # engines floor so CI matches the documented support baseline.
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # build + `bunx tsc --noEmit` + `bun test` + `git diff --exit-code -- dist`
-      # (+ untracked-dist guard). A forgotten `dist/` rebuild fails the drift
-      # gate here, exactly as it does locally.
-      - name: Check (build, typecheck, test, drift gate)
+      - name: Audit dependencies
+        run: bun audit
+
+      # Rebuilds and checks root dist/ plus the self-contained Codex package.
+      # Generated surface hashes and untracked distribution files are checked too.
+      - name: Check (build, surfaces, typecheck, test, drift gate)
         run: bun run check

@@ -1,4 +1,47 @@
-# Native v2 status — 2026-09-09
+# Native v2 status — 2026-09-20
+
+Plugin 2.0.5 fixes lockfile-clean compiled output for session repair; exact
+CLI certification remains through 2.0.2. It does not change hook enforcement
+or the no-plan construction. See [build-fix evidence](release-2.0.5-build-fix.md).
+
+> **2.0.2 (certified 2026-09-20, plugin 2.0.4):** exact source `9d07f634`
+> retains the no-plan construction and unchanged hook schema. Four source
+> reviews, the 15-test tag scan, plan-ON/OFF controls and all 15 candidate
+> smoke tests passed, with no live retries. The production matrix includes
+> exact 2.0.2 for all eight operations. Installed hosts remain unchanged.
+> See [certification evidence](upstream-2.0.2-certification.md).
+
+> **2.0.1 (certified 2026-09-19, plugin 2.0.3):** exact release `caf7d4e2`
+> preserves the no-plan construction. The reviewed same-wire restore API and
+> exact hook schema pass the updated tag scan (15/15). Plan-ON reproduced the
+> bypass; plan-OFF denied Write and EnterPlanMode. All 15 candidate smoke tests
+> passed without retries, including pursue completion/blocked status and swarm
+> confinement. Plugin versions now advance independently from upstream.
+> See [certification evidence and limitations](upstream-2.0.1-certification.md).
+
+
+> **2.0.0 (certified 2026-09-17, plugin 2.0.0):** the exact release
+> `1b89e4b0` preserves the no-plan construction and hook schema. The changed
+> wire flush targets the same agent journal; swarm eviction/rebuild uses the
+> normal lifecycle and eager hooks. Tag scan: 15/15. Plan-ON reproduced the
+> bypass; plan-OFF denied Write and EnterPlanMode. Full smoke: 12 passed and
+> one failed because the coordinator never fanned out. After clarifying the
+> negative-test fixture prompt, that case passed a targeted retry, including
+> the unchanged fan-out/no-escape assertions and the surfaced denial reason.
+> The production matrix now includes exact 2.0.0 for all eight operations.
+> Plugin certification releases now use the upstream version number.
+
+> **0.43.0 / 0.43.1 (certified 2026-09-15, plugin v1.10.3):** every fact below re-verified
+> on both exact tags. All seven load-bearing files are byte-identical between 0.43.0 and
+> 0.43.1; `beforeToolExecuteEvent.ts`, `planService.ts`, `planOps.ts`, `config/toml.ts` and
+> `wire-scan.ts` are byte-identical to 0.42.0. The two that changed are the restore refactor
+> (`state/eventDispatcherService.ts`, `state/state.ts`): patch-history undo became in-memory
+> state snapshots, and `restore()` now folds `wire.readRestorable()` (the undo/branch-filtered
+> view of the SAME `agents/<id>/wire.jsonl`, `wire/tree/fork.ts::restorableChain`, a pure
+> in-memory filter) before `wire.readJournal()`. No second on-disk restore source, so the
+> plugin's raw journal taint scan stays a strict superset of what a resume can replay. The
+> plan-ON live control reproduces the bypass on both binaries (hook saw `Glob` only, plan
+> file written); the plan-OFF control shows `Write` and `EnterPlanMode` both hook-denied.
 
 kimi-code **0.42.0** (commit `6954d2c8bf94a5c7fc29cc6ae35b15d042cc4dcb`) removed the
 legacy agent-core-v1 package and `KIMI_CODE_LEGACY_FLAG` (#3542, not mentioned in
@@ -8,7 +51,7 @@ plugin refused since v1.9.4 is still present — now confirmed in the shipped
 bundle, not only in source (`registerFeature(PlanFeature)` precedes
 `registerFeature(ExternalHooksFeature)` in `dist/main.mjs`).
 
-kimi-plugin-cc **1.10.0** migrates every operation to native v2 under the
+Since kimi-plugin-cc 1.10.0, every operation supports native v2 under the
 [amended entry gate](native-v2-certification-provenance.md#2-native-v2-entry-gate):
 the engine's only chain-breaking final allow is provably never armed in a
 plugin-managed session, and every executed tool call passes the managed hook.

@@ -1,4 +1,32 @@
-# Migrating from v0.4 to v1.0
+# Compatibility and upgrades
+
+For plugin 2.0.3, use Kimi Code CLI 2.0.1. The plugin also certifies exact native-v2 versions `0.42.0`, `0.43.0`, `0.43.1`, and `2.0.0` for all eight operations. It does not automatically accept later patches or minor releases.
+
+Explicitly pinned legacy-v1 binaries remain supported within `KIMI_TESTED_MINORS`, through 0.41.x, subject to each operation's minimum version. The [runtime table](../runtime/kimi-engine.ts) is the authority.
+
+Use the [README installation and update steps](../README.md) for Claude Code or Codex. Model and provider choices are covered in the [model setup guide](./models.md). Do not change your host application's authentication to configure Kimi.
+
+## Plugin versions and upgrades
+
+Plugin versions advance independently using ordinary SemVer. Plugin 2.0.3 certifies
+exact Kimi Code CLI 2.0.1; the runtime table records that mapping. Each compatible
+maintenance or certification update takes the next unused plugin patch. Published
+versions and tags are never reused. Every upstream patch requires its own certification.
+The native-v2 no-plan profile, plugin/marketplace IDs and existing job store are preserved.
+
+After updating the plugin, run Claude Code `/k3:setup` or Codex `$k3-setup`
+from that host's active install to re-pin its version-stamped hook path, then
+run setup with `--check`. This fixes path drift, not policy omissions in an older installed plugin. Older coexisting hooks still veto pursue goal-status tools; update each host only when authorized. Keep `default_plan_mode` absent or false. Upgrades
+from pre-1.10 releases must also follow the historical native-v2 migration section below.
+
+## Historical migration instructions
+
+<details>
+<summary>Earlier migrations from the Python CLI and legacy engine</summary>
+
+These sections record earlier upgrades. Old tags, paths, and installation commands are historical examples, not the current installation procedure. Follow the current guidance above for the current release.
+
+## Migrating from v0.4 to v1.0
 
 v1.0 of kimi-plugin-cc targets the **kimi-code** Node.js binary (Moonshot's successor to Kimi CLI). The v0.4.x line targeted the Python **Kimi CLI** over its Wire JSON-RPC transport. kimi-code dropped the Wire transport from its first release, so v1.0 is a hard cut rather than a backwards-compatible upgrade.
 
@@ -15,7 +43,7 @@ If you're already running v0.4.x with the Python Kimi CLI, you have a choice:
 | Transport | `kimi --wire` (JSON-RPC over stdio) | `kimi -p --output-format stream-json` (subprocess + NDJSON) |
 | Per-command safety | YAML agent profiles (`exclude_tools`) shipped in the plugin | PreToolUse hook installed in `~/.kimi-code/config.toml` |
 | Session id | Client-assigned UUID, passed via `--session` | Server-minted, captured from kimi's stream-json `session.resume_hint` record (stderr announce fallback) |
-| Web UI integration | `kimi web` + PATCH `/api/sessions/{id}` for pre-run human-readable titles | kimi-code session store, with deterministic post-run titles for plugin-created user-command sessions |
+| Web UI integration | `kimi web` + PATCH `/api/sessions/{id}` for pre-run human-readable titles | Shared Desktop/Web session store, repaired prompt previews and replaceable fallback titles for native-v2 sessions |
 | Replay log format | Wire JSON-RPC events (`{direction, message}`) | cli-client NDJSON (`{event, record}`) |
 | Marketplace name | `kimi-marketplace` (plugin: `kimi`) — unchanged | same `kimi-marketplace` / `kimi` (v1 upgrades in place) |
 | Rescue allowlist | In-band approval policy on the Wire client | Out-of-band via the PreToolUse hook (same allowlist code) |
@@ -158,7 +186,7 @@ Claude Code's marketplace tooling uses `@ref` to pin a GitHub shorthand to a bra
 - The `--wire`, `--session`, and `--agent-file` invocation shape. v1.0 uses `kimi -p` only.
 - The YAML agent profiles in `runtime/agents/`. The plugin doesn't ship Kimi-side profiles in v1.0; per-command safety is enforced exclusively by the PreToolUse hook.
 - The Wire-protocol replay path. The runtime no longer parses JSON-RPC turn events.
-- The v0.4 pre-run `Kimi Task: ...` title assignment path through Kimi CLI / `kimi web`. v1 uses `kimi -p`, whose session id is minted only after the run, so the plugin cannot name the session before spawn. Instead, after Kimi announces the session id, the runtime deterministically syncs a title such as `Kimi Ask: ...`, `Kimi Review: ...`, or `Kimi Swarm Write: ...` into kimi-code's session metadata. Manually renamed/custom Kimi titles are preserved. Internal `review_gate` Stop-hook sessions are intentionally not titled.
+- The v0.4 pre-run `Kimi Task: ...` title assignment path through Kimi CLI / `kimi web`. v1 uses `kimi -p`, whose session id is minted only after the run, so the plugin cannot name the session before spawn. Instead, after Kimi announces the session id and the run settles, the runtime syncs a fallback title such as `Kimi Ask: ...`, repairs missing native-v2 prompt previews, and notifies the Desktop/Web index. Native-v2 fallback titles remain eligible for native generation; manual and already-generated titles are preserved. Internal `review_gate` Stop-hook sessions are intentionally excluded. See [session visibility and native titles](session-visibility.md) for generation limits and repair of older plugin sessions.
 
 ## What's new
 
@@ -173,7 +201,7 @@ If you hit problems, file an issue with the output of `/k3:setup --check` and th
 
 This release changes behaviour that earlier 1.x users may depend on. Strictly by semver it is a major; it ships as 1.10.0 because the plugin is upgraded in place through the marketplace and its 1.x line has always advanced compat by minor releases.
 
-- **Certification is now per EXACT kimi-code version, not per minor.** Native v2 is certified at `0.42.0` only. When kimi-code publishes `0.42.1` (or newer), every model-spawning command refuses with `KIMI_CAPABILITY_NOT_CERTIFIED` until a plugin release certifies it — before 1.10, a patch release inside a tested minor kept working. kimi-code self-upgrades in the background, so expect this on the next upstream patch; pin `KIMI_PLUGIN_CC_KIMI_BIN` to a certified binary if you need continuity, and watch for the next plugin release.
+- **Certification is now per EXACT kimi-code version, not per minor.** Native v2 is certified at `0.42.0` only (v1.10.0; v1.10.3 adds `0.43.0` and `0.43.1`). When kimi-code publishes a newer version, every model-spawning command refuses with `KIMI_CAPABILITY_NOT_CERTIFIED` until a plugin release certifies it — before 1.10, a patch release inside a tested minor kept working. kimi-code self-upgrades in the background, so expect this on the next upstream patch; pin `KIMI_PLUGIN_CC_KIMI_BIN` to a certified binary if you need continuity, and watch for the next plugin release.
 - **Sessions created before 1.10 cannot be resumed on 0.42.0.** `ask --resume`, `ask -r`, `rescue --resume` and rescue's implicit latest-session reuse refuse (`KIMI_SESSION_LINEAGE_UNKNOWN` / `KIMI_SESSION_ENGINE_MISMATCH`) — the v1 engine no longer exists in the binary, so nothing could replay those sessions. Nothing is deleted; `/k3:status`, `/k3:result` and `/k3:replay` still work on the old jobs. Start fresh sessions.
 - **`default_plan_mode = true` (any spelling) in `~/.kimi-code/config.toml` now blocks every command** (`CLI_V2_PLAN_MODE_CONFIGURED`). On the old forced-v1 path that setting was harmless; on native v2 it would arm the one code path that bypasses the safety hook. Set it to `false` or remove it. `/k3:setup` cannot fix this one.
 - **`KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` may no longer contain kimi flags** (`-r`, `-c`/`-C`, `-S`, `-p`, `-m`, `--plan`, `--yolo`, `--agent`, `--add-dir`, …) — `INVALID_ENV`. The prefix is a launcher shim only (e.g. `["--import","tsx",…]`).
@@ -184,3 +212,4 @@ No action for the job store (one additive nullable column, migrated automaticall
 
 None of these refusals is repaired by `/k3:setup`; all of them carry `retryable_after_setup: false` explicitly from 1.10.1 (an absent field must still be treated as `false`). They are catalogued with remedies in [docs/safety.md § Refusal codes](./safety.md#refusal-codes-of-the-native-v2-contract-v1100).
 
+</details>

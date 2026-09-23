@@ -5,6 +5,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 @AGENTS.md
 
 Everything project-specific lives in AGENTS.md, imported above — keep it there
-rather than restating it here, so the two cannot drift. (The daily upstream
-monitor procedure that used to be duplicated in this file is in AGENTS.md
-§ Upstream compat, in a fuller form.)
+rather than restating it here, so the two cannot drift. AGENTS.md is the
+contract sheet (kept under 32 KB); the full mechanics live in
+docs/invariants.md and the audit routine in docs/upstream-compat-audit.md.

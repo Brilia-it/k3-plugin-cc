@@ -87,7 +87,8 @@ describe("buildGoalPrompt", () => {
     const prompt = buildGoalPrompt("fix the build", 5);
     expect(prompt.startsWith("/goal fix the build")).toBe(true);
     expect(prompt).toContain("at most 5 turns");
-    expect(prompt).toContain("SetGoalBudget");
+    expect(prompt).toContain("soft instruction");
+    expect(prompt).not.toContain("SetGoalBudget");
   });
 });
 

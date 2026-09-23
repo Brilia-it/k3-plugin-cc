@@ -1,36 +1,57 @@
 # Contributing
 
-## Prerequisites
+## Prepare your environment
 
-- **Node >= 22.5** -- the runtime uses `node:sqlite` (built-in since 22.5) for the job store
-- **bun** -- used for building, testing, and the dev workflow (not required at runtime for installed plugins)
+You need:
 
-## Workflow
+- Node.js 22.5 or newer for the runtime and its built-in SQLite support
+- Bun for installing dependencies, building, and testing
+- macOS or Linux for the POSIX shell entry points
 
-1. Edit source files under `runtime/**/*.ts`
-2. Run `bun run check`
+Run `bun install --frozen-lockfile` from the repository root. Installed plugin users do not need Bun or a build step.
 
-`bun run check` rebuilds `dist/`, runs `tsc --noEmit`, executes the full test suite, then runs `git diff --exit-code -- dist/` as a drift gate. If the rebuild produced unstaged changes in `dist/`, the check fails -- stage the rebuilt files and retry.
+Read [AGENTS.md](./AGENTS.md) before changing the runtime. It summarizes the [runtime contracts](./docs/invariants.md).
 
-### Why `dist/` is committed
+## Make and check a change
 
-Installed plugins run as plain JavaScript with no build step. `dist/` is the precompiled output of `runtime/` and is committed so that users who install via the marketplace or a local clone never need `bun` or `tsc`. The drift gate in `bun run check` catches forgotten rebuilds before they ship.
+1. Edit the source files. Do not edit `dist/` or `plugins/kimi-codex/` by hand.
+2. Run `bun run build && bun run generate:surfaces` after changing runtime code, shell entry points, or generated text sources.
+3. Review and stage the generated changes in `dist/` and `plugins/kimi-codex/`.
+4. Run `bun run check` from the repository root.
 
-### Individual commands
+The check rebuilds the runtime, checks generated surfaces, typechecks, runs tests, and checks for generated-file drift. It covers both `dist/` and `plugins/kimi-codex/`, including untracked files. Unstaged generated changes fail the drift check.
 
-- `bun run build` -- recompile `runtime/**/*.ts` to `dist/**/*.js`
-- `bun test <path>` -- run a single test file
+Claude commands, agents, and plugin manifests have locked hashes in `scripts/surface-registry.ts`. Update the affected hashes after editing those files, then regenerate surfaces.
 
-## Real-binary smoke test
+Use these commands during development:
 
-The test suite includes opt-in real-binary smokes that spawn the actual `kimi -p` and prove read-only commands deny writes end-to-end (plus that autonomous goal mode is hook-gated on every continuation turn):
+- `bun run build` to compile `runtime/` into `dist/`
+- `bun run generate:surfaces` to generate Codex skills, manifests, and the bundled runtime
+- `bun run check:surfaces` to check the generated files and Claude surface hashes
+- `bun test <path>` to run a focused test file
 
-```bash
-bun run smoke:real   # = KIMI_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts
+## Keep installed packages complete
+
+Both hosts install precompiled JavaScript. Claude Code uses the root package; Codex uses the self-contained package in `plugins/kimi-codex/`. Commit both generated trees when they change so users can install without building.
+
+## Keep onboarding translations aligned
+
+The README contains English, Simplified Chinese, French, and Japanese guides on one page. Settle the English content before updating the translations. Check natural wording and meaning in each language. Keep commands, flags, model aliases, paths, and version numbers aligned.
+
+Historical release notes record what was true at the time. Update current guidance without rewriting that history.
+
+## Run real-binary smoke tests
+
+The opt-in smoke suite uses real model calls to check hooks, engine provenance, plan-mode refusal, resume, and swarm behavior:
+
+```sh
+bun run smoke:real
 ```
 
-This requires a local kimi-code install with valid authentication (OAuth seeded from `~/.kimi-code`, or env-model `KIMI_MODEL_*` auth). The smokes are skipped by default in `bun run check`. To smoke against a specific kimi-code release without touching your install, see [docs/ci.md](./docs/ci.md).
+Read [smoke authentication and run instructions](./docs/ci.md#running-the-same-gate-locally) before running it. The harness copies selected files from a seed Kimi home into temporary homes, including credentials when present. Do not treat it as a credential-free check. Use an authorized test account or explicitly authorized temporary credential copies, and run live tests sequentially.
 
-## Platform support
+Normal `bun run check` skips these tests. A skipped smoke does not certify a release. The [upstream audit playbook](./docs/upstream-compat-audit.md) defines the additional gates for a new CLI version.
 
-No Windows support currently. Build and launch scripts (`scripts/companion.sh`, `scripts/review-gate-hook.sh`) use POSIX shell.
+## Release a change
+
+Follow [the release checklist](./AGENTS.md#releasing). Certification releases from 2.0.0 normally align with the upstream version they certify. Plugin-only maintenance fixes use a new patch version without changing the certified CLI table. Never reuse a published plugin version. Matching version numbers never replace the source audit or live tests. Documentation-only updates do not require a release tag.
