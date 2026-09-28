@@ -4,8 +4,8 @@
     "name": "BRILIA"
   },
   "metadata": {
-    "description": "UNOFFICIAL community fork of linxule/kimi-plugin-cc, maintained by BRILIA. Not affiliated with, endorsed by, or supported by Moonshot AI or the upstream author. Adds Windows fixes: the hook command is quoted for cmd.exe, hook paths are normalised so setup works without a manual override, and the Windows shell probe runs instead of reporting success without running.",
-    "version": "2.0.5-brilia.0.4.0"
+    "description": "UNOFFICIAL community fork of linxule/kimi-plugin-cc, maintained by BRILIA, that works on Windows, which upstream does not support. On Windows, hook paths are normalised so setup works without a manual override, the safety hook command is double-quoted so cmd.exe can launch it (the single-quoted form cannot run there, so the write guard would be silently off), and the shell probe runs instead of reporting success without running. Not affiliated with, endorsed by, or supported by Moonshot AI or the upstream author.",
+    "version": "2.0.7-brilia.0.5.0"
   },
   "plugins": [
     {

@@ -1,12 +1,12 @@
 {
   "name": "k3",
-  "version": "2.0.5-brilia.0.4.0",
+  "version": "2.0.7-brilia.0.5.0",
   "description": "Codex plugin that delegates review, challenge, ask, rescue, pursue, and swarm workflows to the local kimi-code CLI through the kimi-plugin-cc companion runtime.",
   "author": {
     "name": "linxule"
   },
-  "homepage": "https://github.com/linxule/kimi-plugin-cc",
-  "repository": "https://github.com/linxule/kimi-plugin-cc",
+  "homepage": "https://github.com/Brilia-it/k3-plugin-cc",
+  "repository": "https://github.com/Brilia-it/k3-plugin-cc",
   "license": "Apache-2.0",
   "keywords": [
     "kimi",
@@ -28,7 +28,7 @@
       "Local Shell",
       "Write"
     ],
-    "websiteURL": "https://github.com/linxule/kimi-plugin-cc",
+    "websiteURL": "https://github.com/Brilia-it/k3-plugin-cc",
     "defaultPrompt": [
       "Use $k3-review to review my current diff.",
       "Use $k3-ask to explain this repository flow.",

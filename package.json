@@ -1,8 +1,8 @@
 {
   "name": "k3-plugin-cc",
-  "version": "2.0.5-brilia.0.4.0",
+  "version": "2.0.7-brilia.0.5.0",
   "private": true,
-  "description": "Kimi for Claude Code and Codex: code questions, reviews, fixes, and parallel tasks through the local Kimi Code CLI.",
+  "description": "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc that supports Windows: the safety hook launches under cmd.exe, setup needs no path override, and the shell probe really runs. Use Kimi K3 from Claude Code through your own Kimi Code subscription. Not affiliated with Moonshot AI. Not published to npm.",
   "type": "module",
   "engines": {
     "node": ">=22.5.0"
@@ -14,7 +14,8 @@
     "build": "rm -rf dist && bunx tsc -p tsconfig.build.json && mkdir -p dist/vendor/shell-quote dist/vendor/smol-toml && cp runtime/vendor/shell-quote/LICENSE dist/vendor/shell-quote/LICENSE && cp runtime/vendor/smol-toml/*.js runtime/vendor/smol-toml/LICENSE dist/vendor/smol-toml/ && echo '{\"type\":\"module\"}' > dist/package.json",
     "companion": "node --import tsx runtime/companion.ts",
     "test": "bun test",
-    "smoke:real": "KIMI_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts"
+    "smoke:real": "KIMI_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts",
+    "check:package": "node scripts/check-package.mjs"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
@@ -23,5 +24,41 @@
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "license": "Apache-2.0",
+  "author": "Xule Lin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Brilia-it/k3-plugin-cc.git"
+  },
+  "homepage": "https://github.com/Brilia-it/k3-plugin-cc#readme",
+  "bugs": {
+    "url": "https://github.com/Brilia-it/k3-plugin-cc/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "kimi",
+    "plugin",
+    "code-review"
+  ],
+  "files": [
+    ".claude-plugin/",
+    ".agents/plugins/marketplace.json",
+    "agents/",
+    "commands/",
+    "hooks/",
+    "dist/",
+    "plugins/k3-codex/",
+    "scripts/companion.sh",
+    "scripts/review-gate-hook.sh",
+    "docs/safety.md",
+    "docs/migration.md",
+    "docs/models.md",
+    "docs/session-visibility.md",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "docs/registry-releases.md"
+  ]
 }

@@ -8,6 +8,43 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.7-brilia.0.5.0 — 2026-09-28 (fork)
+
+**Re-aligned to upstream v2.0.7, and the fork now says plainly why it exists: Windows.** The weekly
+upstream watch flagged v2.0.6 and v2.0.7 on 2026-09-28 and notified Slack and email.
+
+- **Upstream v2.0.6 and v2.0.7 merged.** v2.0.6 certifies kimi-code **2.1.0 and 2.1.1** for all
+  eight native-v2 operations; 2.1.1 is the recommended CLI. v2.0.7 adds npm distribution.
+- **Not on npm, on purpose.** Upstream's `publish.yml` is removed from this fork. It fires on every
+  published GitHub release; on ours only its build job would have run, because the publish job is
+  gated on a repository variable we do not set, but a workflow built to publish has no place in a
+  fork that does not. If an upstream merge brings it back, delete it again. `package.json` stays
+  `"private": true`, `publishConfig` is gone, and `repository`, `homepage` and `bugs` point here,
+  where the README tells users to report problems. The package check (`check:package`) is kept,
+  with its paths moved to this fork's `plugins/k3-codex`.
+- **Windows is now the headline.** Upstream's README states that Windows is not currently
+  supported; the README, the plugin and marketplace descriptions and the repository description now
+  lead with what this fork does there. The `cmd.exe` exit code is reported as what it is, a
+  measurement that moved (255 when found, 1 in an independent re-test today), not a constant.
+- **Claims corrected after review.** Two of them were stronger than the code. "The write guard is
+  silently off" on upstream is true only once the hook path is set by hand, because without that
+  upstream's setup refuses, which is fail-closed. And "macOS and Linux are upstream byte for byte" was
+  false: the parser that recognises this plugin's own hook command accepts the double-quoted form on
+  every platform. The README and `NOTICE` now say both.
+- **Checked against `kimi-code` 2.1.1's source**, not assumed: its `runHook.ts` spawns hooks with
+  Node's `shell: true`, which is `cmd.exe` on Windows, so the double-quoting and the probe still
+  target the right shell. An end-to-end run through a real 2.1.1 session is still owed: the
+  subscription's weekly quota was exhausted on the day.
+- **`main` is protected.** No force push, no deletion, and a green `check` from GitHub Actions
+  must be on a commit before `main` may point at it. Release tags `v*` cannot be moved or deleted.
+  Both rules were tried against throwaway refs before being applied, and both refused. CI now also
+  runs on `staging/**`, and `scripts/promote-to-main.mjs` is how a change reaches `main`: the rule
+  alone cannot tell a green `check` from this repository's CI from one produced by a workflow that a
+  commit or an external pull request wrote for itself, so the script accepts only a `check` from a
+  push run of `.github/workflows/ci.yml` on that staging branch, fast-forward only, and stops on any
+  change to `.github/` until someone has read it.
+
+
 ## 2.0.5-brilia.0.4.0 — 2026-09-23 (fork)
 
 **Re-aligned to upstream v2.0.5, closing a gap of eight releases.** The weekly upstream watch
@@ -175,6 +212,27 @@ and a rewritten `README.md`/`SECURITY.md`. No behaviour change on macOS or Linux
 hook, permission, concurrency, budget, confinement or allowlist policy.
 
 Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the upstream plugin.
+
+## 2.0.7 — 2026-09-26
+
+- Add npm distribution as `kimi-plugin-cc`, with an explicit file allowlist and
+  compiled runtime for both Claude Code and Codex. No install scripts or build
+  tools run on the user's machine; the existing GitHub marketplaces still work.
+- Verify the actual tarball after extraction: both host setup/check probes must
+  enforce the hook in isolated homes, and both distributions must refuse an
+  unsupported CLI version. No credentials or model calls are used by this check.
+- Add tag-verified GitHub Actions publishing with npm Trusted Publishing and
+  document the first-publish bootstrap and registry installation path.
+- Runtime behavior and exact upstream certification remain unchanged from 2.0.6.
+
+## 2.0.6 — 2026-09-24
+
+- Certify exact Kimi Code CLI 2.1.0 and 2.1.1 for all eight native-v2 operations under the no-plan construction. Previous certified versions remain supported; legacy-v1 stays capped at 0.41.x.
+- Review both exact hook schemas and pin their source hashes. Unreviewed versions, prereleases and build suffixes remain refused. Update the recommended CLI and manual smoke default to 2.1.1.
+- Verify each candidate independently with a 15-test tag scan, plan-ON/OFF controls and the complete sequential live smoke. The active-plan bypass remains, so managed sessions continue to refuse plan mode.
+- Document trusted repository Git configuration: internal explorer Git commands can execute helpers outside tool hooks, including read-only swarm. 2.1.1 rolls back much of 2.1.0's path/Git hardening to the certified 2.0.2 baseline.
+- See [certification evidence and validation](docs/upstream-2.1-certification.md). Publication does not update installed hosts or the operator CLI.
+
 ## 2.0.5 — 2026-09-20
 
 - Fix lockfile-clean TypeScript 7.0.2 emission for `repair-sessions` by binding SQLite constructors before `new`. Preserve read-only database access and preview behavior.

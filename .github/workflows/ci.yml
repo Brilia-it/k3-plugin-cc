@@ -4,10 +4,17 @@ name: CI
 # push to main and every PR. NO secrets, NO kimi binary, NO model tokens — the
 # real-binary smokes auto-skip without KIMI_PLUGIN_CC_SMOKE=1. This is the
 # per-push safety net the repo previously only had locally via `bun run check`.
+#
+# BRILIA fork: also runs on `staging/**`. The `main` ruleset requires a green `check`
+# on a commit BEFORE main may point at it, so a change is pushed to a `staging/...`
+# branch first and main is fast-forwarded only once that run passes, with
+# `node scripts/promote-to-main.mjs staging/<name>`. Pull requests produce a `check`
+# too, but the rule cannot tell who wrote the workflow that produced it: the script
+# accepts only a `check` from a push run of THIS file on a staging branch.
 
 on:
   push:
-    branches: [main]
+    branches: [main, "staging/**"]
   pull_request:
 
 permissions:
@@ -45,3 +52,6 @@ jobs:
       # Generated surface hashes and untracked distribution files are checked too.
       - name: Check (build, surfaces, typecheck, test, drift gate)
         run: bun run check
+
+      - name: Check npm package installation
+        run: bun run check:package

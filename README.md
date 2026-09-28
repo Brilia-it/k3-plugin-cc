@@ -1,9 +1,35 @@
-# K3 plugin for Claude Code
+# K3 plugin for Claude Code, built for Windows
 
 Use Kimi K3 from inside Claude Code for code reviews or to delegate tasks to K3.
 
 This plugin is for Claude Code users who already pay for a Kimi Code subscription and want to reach
 it from the workflow they already have.
+
+## Why this fork exists: Windows
+
+The plugin we fork, [linxule/kimi-plugin-cc](https://github.com/linxule/kimi-plugin-cc), states
+that **Windows is not currently supported**. This fork is the version that works on Windows, and
+the difference is not cosmetic:
+
+- **Setup works.** The hook is what stops a read-only review from writing to your files. On Windows,
+  upstream derives the hook path with backslashes, which its own safety check rejects, so setup
+  refuses and every command stays blocked until you set `KIMI_PLUGIN_CC_HOOK_SCRIPT` by hand. Here
+  the path is normalised and setup works with no override.
+- **Once installed, the safety hook actually runs.** If you do set the path by hand on upstream,
+  the next problem appears: upstream writes the hook command with POSIX single quotes, and
+  `kimi-code` launches hooks through `cmd.exe` on Windows (Node's `shell: true`, in `kimi-code`
+  2.1.1 as in 0.30.0), which cannot run that form. The hook never starts, any exit code other than
+  2 means "allow", so the write guard is silently off. Here the command is double-quoted and the
+  guard denies.
+- **The setup probe tells the truth.** Upstream's probe reports "skipped (Windows)" as a success,
+  which is why the case above still shows `Probe: ok`. Here the probe launches the hook the way
+  `kimi-code` does on Windows and reports what actually happened.
+
+What we verified, and when, is under [Which versions this is](#which-versions-this-is). The fixes
+change how the hook command is written and launched on Windows only; on macOS and Linux it is
+written and launched exactly as upstream does. What the fixes do **not** change: if the hook process
+crashes or times out, the call still goes through. That limit belongs to the hook contract and is
+described under [Known limits](#known-limits-stated-plainly).
 
 > ### This is an unofficial fork
 >
@@ -32,7 +58,9 @@ it from the workflow they already have.
     authenticates their own.
   - Usage contributes to your own Kimi Code limits.
 - **The `kimi-code` CLI, installed and authenticated.** Run `kimi login` once, then check with
-  `kimi --version`.
+  `kimi --version`. Use a version this release certifies; **2.1.1** is the recommended one (see
+  [Which versions this is](#which-versions-this-is)). On Windows, `kimi-code` itself needs
+  [Git for Windows](https://gitforwindows.org/), whose Git Bash it uses as its shell.
 - **Node.js 22.5 or later** (the runtime uses the built-in `node:sqlite`).
 
 ### Before you install: the terms, and an open question
@@ -66,7 +94,7 @@ What we can tell you plainly:
 - If the answer matters for your account, ask Moonshot support before installing, or use an API plan
   whose terms cover programmatic use.
 
-Checked against the live page on 2026-09-05. Terms change; check them yourself.
+Checked against the live page on 2026-09-28. Terms change; check them yourself.
 
 ## Install
 
@@ -94,6 +122,9 @@ Verify it is actually enforcing, not just installed:
 /k3:setup --check
 ```
 
+**This fork is not on npm.** Upstream also ships as the `kimi-plugin-cc` package on npm; that
+package is upstream's code, without the Windows fixes. Install this fork from the marketplace above.
+
 ### Coexistence with the upstream plugin
 
 **Partial, and worth understanding before you try it.** The slash commands and the agents no longer
@@ -113,8 +144,8 @@ that does not own the block simply will not run.
 
 | Platform | Status |
 |---|---|
-| Windows 11 | **Tested.** Enforcement verified end to end inside a real `kimi-code` session |
-| macOS | **Supported, not tested by us.** Every change we made is gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream v2.0.5, which upstream certifies against `kimi-code` 0.42.0/0.43.x/2.0.x (native v2) and 0.1-0.41.x (legacy) |
+| Windows 11 | **Tested, and the reason this fork exists.** Upstream does not support Windows. See [Which versions this is](#which-versions-this-is) for what was verified and how |
+| macOS | **Supported, not tested by us.** How the hook command is written, quoted and launched is gated behind `process.platform === "win32"`, so on POSIX it is upstream v2.0.7's, which upstream certifies against `kimi-code` 0.42.0/0.43.x/2.0.x/2.1.0/2.1.1 (native v2) and 0.1-0.41.x (legacy). Not byte-for-byte, though: see [What this fork changes](#what-this-fork-changes) |
 | Linux | Same as macOS |
 
 If you are the first to run this on macOS or Linux, we would like to hear about it either way.
@@ -164,9 +195,9 @@ its keep; used as an authority it will cost you.
 
 ### Which versions this is
 
-This fork is built on upstream **v2.0.5**, and its version number says so: the half before
+This fork is built on upstream **v2.0.7**, and its version number says so: the half before
 `-brilia.` is the upstream release we are built on, the half after counts our own changes. We
-re-aligned on **2026-09-23**; before that we sat on v1.10.1, and before that on v1.9.8.
+re-aligned on **2026-09-28**; before that we sat on v2.0.5, v1.10.1 and v1.9.8.
 
 **Which engine you get depends on your `kimi-code` version, exactly.** Upstream moved to
 kimi-code's native agent-core-v2 when kimi-code 0.42.0 deleted the legacy v1 engine, and
@@ -176,12 +207,18 @@ minor:
 | Your `kimi-code` | What happens |
 |---|---|
 | **0.1 through 0.41.x** | Legacy v1 engine, as before. Certified per minor. |
-| **0.42.0, 0.43.0, 0.43.1, 2.0.0, 2.0.1, 2.0.2** | Native v2, certified for all eight operations. |
+| **0.42.0, 0.43.0, 0.43.1, 2.0.0, 2.0.1, 2.0.2, 2.1.0, 2.1.1** | Native v2, certified for all eight operations. **2.1.1 is the recommended version.** |
 | **anything else** | **Every model-spawning command refuses** (`KIMI_CAPABILITY_NOT_CERTIFIED`) until a release certifies that exact version. |
 
-That last row is the one to know about, because **kimi-code updates itself in the background**. On
-the next kimi-code release after 2.0.2, the plugin will refuse until upstream certifies it. Pin
+That last row is the one to know about, because **kimi-code can update itself**. On the next
+kimi-code release after 2.1.1, the plugin will refuse until upstream certifies it. Pin
 `KIMI_PLUGIN_CC_KIMI_BIN` to a known binary if you need continuity.
+
+The opposite can happen too. On our machine kimi-code sat on 0.30.0 for four days after 2.1.1 was
+out: its updater logged the new version as eligible on every run and never installed it, and we
+only drive it through this plugin. We have not established why. So check `kimi --version` against
+the table rather than assuming you are current. To install an exact version on Windows, the
+official installer takes one: `$env:KIMI_VERSION = '2.1.1'; irm https://code.kimi.com/kimi-code/install.ps1 | iex`.
 
 Two behaviours worth knowing before you update: **sessions created before 1.10 cannot be resumed on
 native v2** (nothing is deleted, but start fresh ones), and **`default_plan_mode = true` in
@@ -193,26 +230,45 @@ This release also carries upstream's **v1.10.2 security fix**: a denial of servi
 command parser. If you are on an older build of this fork, that is the reason to update even if you
 do not care about the rest.
 
-This fork's Windows enforcement was last exercised locally against `kimi-code` **0.30.0**, on
-**2026-09-23**, after the merge with upstream v2.0.5: nine write vectors denied on `cmd.exe` and on
-`sh`, with the positive and negative controls both firing. If you run a different CLI version, that
-measurement describes 0.30.0, not what you have.
+**What we verified on Windows for this release, and what we did not** (2026-09-28, Windows 11,
+after the merge with upstream v2.0.7):
+
+- **The hook, driven the way `kimi-code` drives it.** `tests/manual/enforcement-matrix.mjs` launches
+  the built hook through a shell with Node's `shell: true`, which is how `kimi-code` launches hooks:
+  nine write vectors denied on `cmd.exe` and on `sh`, a read allowed, and the negative control (a
+  hook that does not exist) correctly failing open. It does not go through `kimi-code` itself.
+- **That `kimi-code` 2.1.1 still launches hooks that way.** Read in its source, not measured:
+  `runHook.ts` spawns the hook command with `shell: true`, which on Windows means `cmd.exe`.
+- **Not yet: an end-to-end run through a real `kimi-code` 2.1.1 session.** The last one went
+  through `kimi-code` **0.30.0** on 2026-09-23. The 2.1.1 run waits on our subscription's weekly
+  quota, and this line will say so until it is done.
+- **The unit tests run on Linux, in CI**, which must be green before `main` moves. Run locally on
+  Windows, the suite includes POSIX-only tests (`/usr/bin/false`, symlinks) that fail there for
+  reasons unrelated to this fork.
 
 ## What this fork changes
 
-Three Windows fixes, all gated behind `win32`, none of which alter behaviour on macOS or Linux:
+Three Windows fixes. How the hook command is written, quoted and launched changes on Windows only.
+Two things differ on every platform, so this is not upstream byte-for-byte on macOS or Linux either:
+the parser that recognises this plugin's own hook command also accepts the double-quoted form there,
+so a hand-written double-quoted hook under an upstream install path would be treated as ours; and
+setup's messages and the managed block carry this fork's names and version.
 
 1. **The hook command is double-quoted.** It was quoted POSIX-style with single quotes, which
    `cmd.exe` does not recognise, so the hook never launched. Since any exit code other than 2 means
    "allow", enforcement was silently inert while the setup check (upstream's `/kimi:setup --check` at
    the time we found it) still reported `Probe: ok`.
-   Measured with the same command string: `/bin/sh` exits 2, `cmd.exe` exits 255.
+   Measured with the same command string: `/bin/sh` exits 2, `cmd.exe` exited 255 when we found it
+   (2026-08-12) and 1 in an independent re-test on 2026-09-28. The number moves; what matters is
+   that it is not 2, so the call is allowed. Upstream v2.0.7 still writes the single-quoted form.
 2. **Hook paths are normalised.** The path derived from `CLAUDE_PLUGIN_ROOT` contains backslashes on
    Windows, and the TOML safety check rejects backslashes, so every Windows user had to set
-   `KIMI_PLUGIN_CC_HOOK_SCRIPT` by hand. Setup now works with no override.
+   `KIMI_PLUGIN_CC_HOOK_SCRIPT` by hand. Setup now works with no override, unless the path itself
+   contains `%`, `!` or `"`: those cannot be quoted safely for `cmd.exe`, and setup refuses rather
+   than guess, with or without the override.
 3. **The Windows shell probe runs.** It used to return "skipped (Windows)" as a *success*. We
-   measured how `kimi-code` actually spawns the hook on Windows (`node.exe <- cmd.exe <- kimi.exe`,
-   via `ComSpec`) and the probe now reproduces that path.
+   measured how `kimi-code` 0.30.0 actually spawns the hook on Windows (`node.exe <- cmd.exe <- kimi.exe`,
+   via `ComSpec`) and the probe now reproduces that path. For 2.1.1 its source says the same.
 
 These have **not** been proposed upstream yet, so the upstream project is not aware of them and
 is not responsible for them. We intend to open them as pull requests against
@@ -233,8 +289,8 @@ is untouched.
 Review and challenge inspect your Git diff. Use ask for general questions about your repository.
 
 All the engineering here is [Xule Lin](https://github.com/linxule)'s. The job store, the cancellation
-handling, the approval policy, the stream parser and the safety architecture are his work. We fixed
-three Windows papercuts and wrote this README.
+handling, the approval policy, the stream parser and the safety architecture are his work. We made
+it work on Windows, keep checking that it still does, and wrote this README.
 
 Claude Code also has an optional [review gate](./commands/setup.md). It checks work when Claude finishes a turn and is off by default.
 
