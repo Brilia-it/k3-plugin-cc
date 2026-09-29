@@ -131,6 +131,12 @@ Commit and push the release commit, wait for its CI check to pass, then
 `git tag -a vX.Y.Z -m "..."`, `git push origin vX.Y.Z`, and
 `gh release create --verify-tag`. A published tag is immutable; fix forward.
 
+> **BRILIA fork:** in a clone of this fork `origin` is usually upstream (read-only), and the fork's
+> remote is `brilia`. The release commit reaches `main` through `staging/<name>` and
+> `scripts/promote-to-main.mjs` (see the note under npm distribution); only then tag it
+> `vX.Y.Z-brilia.A.B.C` and push the tag to `brilia`. Release tags `v*` are immutable here too, by
+> ruleset.
+
 ### npm distribution
 
 `package.json` has an explicit publication file allowlist. `bun run check:package`
@@ -147,8 +153,15 @@ through npm OIDC in the `npm` environment. See `docs/registry-releases.md`.
 >
 > **How a change reaches `main` in this fork.** `main` is protected by a ruleset: no force push, no
 > deletion, and a green `check` from GitHub Actions on the commit. Push to a `staging/<name>` branch
-> (CI runs there too), wait for `check` to pass, then run
-> `node scripts/promote-to-main.mjs staging/<name>`. It fast-forwards `main` only if the green
-> `check` comes from a push run of `.github/workflows/ci.yml` on that branch, and refuses a commit
-> that changes `.github/` unless `--workflow-change-reviewed` is passed after reading that diff.
-> Never fast-forward `main` to the head of a pull request from an external fork.
+> (CI runs there too), wait for `check` to pass, then run the copy of
+> `scripts/promote-to-main.mjs` that is on `main` (the script refuses to run if it differs from it).
+> It fast-forwards `main` only if every `check` on the commit comes from a push run of
+> `.github/workflows/ci.yml` on that staging branch, and every attempt of that run succeeded, not
+> only the last (`--accept-failed-attempts=<run id>` for a failure you have understood). It refuses
+> a commit that changes what defines CI (`.github/`, `package.json`, `bun.lock`, `bunfig.toml`, any
+> root `tsconfig*.json`, `scripts/`) unless `--ci-change-reviewed=<full 40-char sha>` names exactly
+> the commit whose diff you read. A change to the script itself goes in its own commit, promoted by
+> the copy already on `main`, before anything that should be judged by the new version. Its logic
+> is tested in `tests/scripts/promote-to-main.test.js`. Never fast-forward `main` to the head of a
+> pull request from an external fork. The ruleset cannot enforce the script: someone with write
+> access can still push a green commit by hand.
