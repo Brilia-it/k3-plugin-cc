@@ -31,21 +31,30 @@ function splitLines(contents) {
     return contents.split("\n").map((line) => line.replace(/\r$/, ""));
 }
 /**
- * Every well-formed block under the old marker, in file order. `alsoOurs` is
- * the command THIS install would write: a block running exactly that command is
- * ours whatever its path (a development checkout keeps one path across
- * versions), the same byte-exact ownership signal the orphan prune uses.
+ * Scan the old marker. A BLOCK is a BEGIN followed by an END carrying the same
+ * host suffix (or both none), with no other old or current marker between
+ * them. Every old marker line that is not part of a block is a STRAY: reported,
+ * never removed, because a lone comment line has no owner we can prove.
+ *
+ * `alsoOurs` is the command THIS install would write: a block running exactly
+ * that command is ours whatever its path (a development checkout keeps one path
+ * across versions), the same byte-exact ownership signal the orphan prune uses.
  */
-export function findLegacyBrandBlocks(contents, alsoOurs) {
+export function scanLegacyBrand(contents, alsoOurs) {
     const lines = splitLines(contents);
     const blocks = [];
+    const strayMarkers = [];
     let i = 0;
     while (i < lines.length) {
-        const begin = LEGACY_BEGIN_RE.exec(lines[i].trim());
+        const trimmedAtI = lines[i].trim();
+        const begin = LEGACY_BEGIN_RE.exec(trimmedAtI);
         if (begin === null) {
+            if (LEGACY_END_RE.test(trimmedAtI))
+                strayMarkers.push(trimmedAtI);
             i += 1;
             continue;
         }
+        const suffix = begin[1]?.toLowerCase() ?? null;
         let endLine = -1;
         let command = null;
         let hooksTables = 0;
@@ -55,14 +64,23 @@ export function findLegacyBrandBlocks(contents, alsoOurs) {
             const trimmed = lines[j].trim();
             if (LEGACY_BEGIN_RE.test(trimmed) || CURRENT_MARKER_RE.test(trimmed))
                 break;
-            if (LEGACY_END_RE.test(trimmed)) {
-                endLine = j;
+            const end = LEGACY_END_RE.exec(trimmed);
+            if (end !== null) {
+                // An END for another host does not close this BEGIN.
+                if ((end[1]?.toLowerCase() ?? null) === suffix)
+                    endLine = j;
                 break;
             }
             if (trimmed.length === 0 || trimmed.startsWith("#"))
                 continue;
             if (HOOKS_TABLE_RE.test(trimmed)) {
                 hooksTables += 1;
+                continue;
+            }
+            // A key before the [[hooks]] header belongs to the table ABOVE the block:
+            // removing it would change that table. Not ours to delete.
+            if (hooksTables === 0) {
+                foreign = true;
                 continue;
             }
             if (EVENT_LINE_RE.test(trimmed)) {
@@ -81,11 +99,22 @@ export function findLegacyBrandBlocks(contents, alsoOurs) {
             foreign = true;
         }
         if (endLine === -1) {
-            // An unmatched legacy BEGIN is not a block. Leave it; nothing to migrate.
+            strayMarkers.push(trimmedAtI);
             i += 1;
             continue;
         }
-        const suffix = begin[1]?.toLowerCase() ?? null;
+        // In TOML the END comment does not end the [[hooks]] table: keys after it,
+        // up to the next table header, still belong to it. If there are any, the
+        // table is more than the block, and removing the block would hand those
+        // keys to whatever table comes before it. Not ours to delete.
+        for (let k = endLine + 1; k < lines.length; k += 1) {
+            const trimmed = lines[k].trim();
+            if (trimmed.length === 0 || trimmed.startsWith("#"))
+                continue;
+            if (!trimmed.startsWith("["))
+                foreign = true;
+            break;
+        }
         const host = suffix ?? (command !== null ? hostIdFromHookCommand(command) : null);
         const simpleBody = hooksTables === 1 && event && command !== null && !foreign;
         blocks.push({
@@ -97,7 +126,11 @@ export function findLegacyBrandBlocks(contents, alsoOurs) {
         });
         i = endLine + 1;
     }
-    return blocks;
+    return { blocks, strayMarkers };
+}
+/** Every well-formed block under the old marker, in file order. */
+export function findLegacyBrandBlocks(contents, alsoOurs) {
+    return scanLegacyBrand(contents, alsoOurs).blocks;
 }
 /**
  * Remove this fork's own legacy blocks. With `host`, only the blocks of that
@@ -106,13 +139,13 @@ export function findLegacyBrandBlocks(contents, alsoOurs) {
  * Blocks that are not ours are kept byte for byte and returned in `kept`.
  */
 export function stripLegacyBrandBlocks(contents, lineEnding, host, alsoOurs) {
-    const blocks = findLegacyBrandBlocks(contents, alsoOurs);
+    const { blocks, strayMarkers } = scanLegacyBrand(contents, alsoOurs);
     // A block running exactly this install's command is this host's own even if
     // a host-id override makes its path-derived host differ (as in the prune).
     const removed = blocks.filter((b) => b.ours && (host === undefined || b.host === host || (alsoOurs !== undefined && b.command === alsoOurs)));
     const kept = blocks.filter((b) => !removed.includes(b));
     if (removed.length === 0)
-        return { stripped: contents, removed, kept };
+        return { stripped: contents, removed, kept, strayMarkers };
     const drop = new Set();
     for (const block of removed) {
         for (let line = block.beginLine; line <= block.endLine; line += 1)
@@ -134,16 +167,15 @@ export function stripLegacyBrandBlocks(contents, lineEnding, host, alsoOurs) {
             collapsed.push(line);
         }
     }
-    return { stripped: collapsed.join(lineEnding), removed, kept };
+    return { stripped: collapsed.join(lineEnding), removed, kept, strayMarkers };
 }
 /** Human-readable notes for setup's warnings. Empty when there is nothing to say. */
-export function describeLegacyBrandBlocks(removed, kept, mode) {
+export function describeLegacyBrandBlocks(removed, kept, mode, strayMarkers = []) {
     const notes = [];
     if (removed.length > 0) {
         notes.push(mode === "removed"
             ? `Migrated ${removed.length} hook block(s) written by k3-plugin-cc before 0.6.0 under the old marker ` +
-                `\`${LEGACY_MARKER_TAG}\`: removed, and replaced by the \`k3-plugin-cc-managed\` block. Their hook read ` +
-                `variables this plugin no longer sets, so they no longer protected K3 sessions.`
+                `\`${LEGACY_MARKER_TAG}\`: removed, and replaced by the \`k3-plugin-cc-managed\` block.`
             : `Found ${removed.length} hook block(s) written by k3-plugin-cc before 0.6.0 under the old marker ` +
                 `\`${LEGACY_MARKER_TAG}\`. They no longer protect K3 sessions; run /k3:setup to remove them.`);
     }
@@ -155,8 +187,14 @@ export function describeLegacyBrandBlocks(removed, kept, mode) {
     }
     const foreign = kept.filter((b) => !b.ours);
     if (foreign.length > 0) {
-        notes.push(`Left ${foreign.length} block(s) under the marker \`${LEGACY_MARKER_TAG}\` untouched: their hook is not ` +
-            `this plugin's (most likely the upstream kimi plugin, which uses that marker). They do not affect K3.`);
+        notes.push(`Left ${foreign.length} block(s) under the marker \`${LEGACY_MARKER_TAG}\` untouched: either their hook is ` +
+            `not this plugin's (most likely the upstream kimi plugin, which uses that marker), or the block holds more ` +
+            `than the hook table this plugin writes. Neither is removed automatically; they do not affect K3.`);
+    }
+    if (strayMarkers.length > 0) {
+        notes.push(`Found ${strayMarkers.length} line(s) with the marker \`${LEGACY_MARKER_TAG}\` that do not form a ` +
+            `complete block: ${[...new Set(strayMarkers)].map((text) => JSON.stringify(text)).join(", ")}. Left in ` +
+            `place: a comment line alone changes no hook, but check it by hand.`);
     }
     return notes;
 }

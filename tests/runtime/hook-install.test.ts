@@ -543,9 +543,9 @@ describe("verifyHookInstalled", () => {
       // version-independent), only the version-stamped path moved — the real
       // plugin-upgrade drift the diagnosis is for.
       const oldHookPath =
-        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
       const newHookPath =
-        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.7.0/dist/hooks/approval-hook.js";
+        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.7.0/dist/hooks/approval-hook.js";
       const staleCommand = canonicalCommandFor(oldHookPath);
       await mkdir(home, { recursive: true });
       await writeFile(
@@ -598,9 +598,9 @@ describe("verifyHookInstalled", () => {
       const home = await createTestPluginDataRoot("hook-install-drift-bare");
       try {
         const oldHookPath =
-          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.7/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.7/dist/hooks/approval-hook.js";
         const newHookPath =
-          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.8/dist/hooks/approval-hook.js";
         await mkdir(home, { recursive: true });
         await writeFile(
           path.join(home, "config.toml"),
@@ -634,9 +634,9 @@ describe("verifyHookInstalled", () => {
       const home = await createTestPluginDataRoot("hook-install-drift-repin");
       try {
         const oldHookPath =
-          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.8/dist/hooks/approval-hook.js";
         const newHookPath =
-          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.9.0/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.9.0/dist/hooks/approval-hook.js";
         // Two real spellings of the SAME interpreter on this machine.
         const resolved = realpathSync(process.execPath);
         const staleCommand = buildHookShellCommand(oldHookPath, {
@@ -674,7 +674,7 @@ describe("verifyHookInstalled", () => {
       const home = await createTestPluginDataRoot("hook-install-drift-node");
       try {
         const hookPath =
-          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.8/dist/hooks/approval-hook.js";
         const staleCommand = buildHookShellCommand(hookPath, {
           K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.0.0/bin/node",
         });
@@ -707,9 +707,9 @@ describe("verifyHookInstalled", () => {
       const home = await createTestPluginDataRoot("hook-install-drift-both");
       try {
         const oldHookPath =
-          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.7/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.7/dist/hooks/approval-hook.js";
         const newHookPath =
-          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.8/dist/hooks/approval-hook.js";
         const staleCommand = buildHookShellCommand(oldHookPath, {
           K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.0.0/bin/node",
         });

@@ -23,7 +23,7 @@ import, so there is one source and nothing to mirror). Release history lives in
 ## Directory layout
 
 ```
-.claude-plugin/     Claude Code plugin manifest (plugin.json, marketplace.json) — in this fork the ids are k3 / brilia-k3-marketplace (upstream keeps kimi / brilia-k3-marketplace)
+.claude-plugin/     Claude Code plugin manifest (plugin.json, marketplace.json) — in this fork the ids are k3 / brilia-k3-marketplace (upstream keeps its own kimi ids)
 .claude/            Gitignored local audit workspace. Upstream clones/reports live here, including daily monitor reports under kimi-code-research/daily-monitor/
 .agents/            Codex repo marketplace sidecar (plugins/marketplace.json) — generated; source.path points at plugins/k3-codex
 commands/           Slash command markdown — thin wrappers over companion.sh (Claude Code surface)

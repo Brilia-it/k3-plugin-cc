@@ -356,18 +356,37 @@ export class JobStore {
     return Number(row?.n ?? 0);
   }
 
-  // Rewrites the stored absolute paths that start with `fromPrefix` so they
-  // start with `toPrefix` instead. Both prefixes end with a path separator, so a
-  // sibling directory whose name merely begins the same way is never touched.
-  // SQLite's substr counts characters, so the length is in code points.
-  rebaseStoredPaths(fromPrefix: string, toPrefix: string): void {
-    const len = [...fromPrefix].length;
-    for (const column of ["final_output_path", "stream_log_path"] as const) {
-      this.db.run(
-        `UPDATE jobs SET ${column} = @to || substr(${column}, @len + 1)
-          WHERE ${column} IS NOT NULL AND substr(${column}, 1, @len) = @from`,
-        { from: fromPrefix, to: toPrefix, len },
+  // Rewrites the stored absolute paths for which `map` returns a new value, in
+  // one write transaction; returns how many jobs changed. The matching lives in
+  // the caller, in JavaScript, so it can follow the platform's path rules (case
+  // and separators on Windows) instead of comparing strings byte for byte.
+  rebaseStoredPaths(map: (storedPath: string) => string | null): number {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const rows = this.db.all<{ job_id: string; final_output_path: string | null; stream_log_path: string }>(
+        `SELECT job_id, final_output_path, stream_log_path FROM jobs`,
       );
+      let changed = 0;
+      for (const row of rows) {
+        const nextFinal = row.final_output_path === null ? null : map(row.final_output_path);
+        const nextLog = map(row.stream_log_path);
+        if (nextFinal === null && nextLog === null) continue;
+        this.db.run(`UPDATE jobs SET final_output_path = ?, stream_log_path = ? WHERE job_id = ?`, [
+          nextFinal ?? row.final_output_path,
+          nextLog ?? row.stream_log_path,
+          row.job_id,
+        ]);
+        changed += 1;
+      }
+      this.db.exec("COMMIT");
+      return changed;
+    } catch (error) {
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        // The original error matters more than a failed rollback.
+      }
+      throw translateSqliteError(error);
     }
   }
 

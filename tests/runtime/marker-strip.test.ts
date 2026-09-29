@@ -389,8 +389,8 @@ describe("scoped uninstall on a stripped config never touches a hand-rolled hook
 
 describe("findUnmanagedApprovalHookBlocks(contents, ownedBy)", () => {
   test("ownedBy scopes to a single host; omitted returns every plugin table but never a hand-rolled hook", () => {
-    const claudeCmd = `'${process.execPath}' '/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js'`;
-    const codexCmd = `'${process.execPath}' '/Users/x/.codex/plugins/cache/brilia-k3-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js'`;
+    const claudeCmd = `'${process.execPath}' '/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.2/dist/hooks/approval-hook.js'`;
+    const codexCmd = `'${process.execPath}' '/Users/x/.codex/plugins/cache/brilia-k3-marketplace/k3/1.8.2/dist/hooks/approval-hook.js'`;
     const handRolledCmd = "'/usr/bin/node' '/opt/acme/my-own-hook.js'";
 
     const table = (command: string): string =>
@@ -421,7 +421,7 @@ describe("findUnmanagedApprovalHookBlocks(contents, ownedBy)", () => {
 
 describe("blank-line-separated matcher (Opus review, HIGH — TOML table span)", () => {
   const NODE = process.execPath;
-  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js";
+  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.2/dist/hooks/approval-hook.js";
   const expected = `'${NODE}' '${HOOK}'`;
   const cmdLine = `command = "'${NODE}' '${HOOK}'"`;
 
@@ -458,7 +458,7 @@ describe("blank-line-separated matcher (Opus review, HIGH — TOML table span)",
 
 describe("parser-based installed check (Codex/Opus/kimi convergence — TOML, not lexing)", () => {
   const NODE = process.execPath;
-  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js";
+  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.2/dist/hooks/approval-hook.js";
   const expected = `'${NODE}' '${HOOK}'`;
   const cmdLine = `command = "'${NODE}' '${HOOK}'"`;
   const inst = (cfg: string) => evaluateInstalled(cfg, expected, { hostId: "claude-code" }).installed;
@@ -522,7 +522,7 @@ describe("parser-based installed check (Codex/Opus/kimi convergence — TOML, no
 // (kimi whole-repo audit 2026-07-17.)
 describe("marked-block matcher rejection (parser-based body check)", () => {
   const NODE = process.execPath;
-  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.5/dist/hooks/approval-hook.js";
+  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.8.5/dist/hooks/approval-hook.js";
   const expected = `'${NODE}' '${HOOK}'`;
   const cmdLine = `command = "'${NODE}' '${HOOK}'"`;
   const hostId = "claude-code";

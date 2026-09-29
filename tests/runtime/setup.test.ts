@@ -1055,7 +1055,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
   test("install prunes orphaned marker-less approval-hook [[hooks]] entries", async () => {
     const { env, configPath } = await makeCase("prune-orphans");
     const orphanHook =
-      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
     const seeded = [
       "[[hooks]]",
       'event = "PreToolUse"',
@@ -1085,7 +1085,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
   test("prune stops at a table header with a trailing comment (never eats the next table)", async () => {
     const { env, configPath } = await makeCase("prune-boundary-comment");
     const orphanHook =
-      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
     // No blank line between the orphan hook and the user's permission rule, and
     // the table header carries an inline comment (Codex review scenario).
     const seeded = [
@@ -1136,7 +1136,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     const { env, configPath } = await makeCase("no-clobber-foreign-legacy");
     // A pre-1.7.0 legacy (un-suffixed) block whose command path is Codex's.
     const codexHook =
-      "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js";
+      "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/k3/1.6.5/dist/hooks/approval-hook.js";
     const legacy = [
       "# === BEGIN k3-plugin-cc-managed (v1.6.5) ===",
       "[[hooks]]",
@@ -1160,7 +1160,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
   test("default uninstall leaves another host's legacy block intact", async () => {
     const { env, configPath } = await makeCase("uninstall-keeps-foreign-legacy");
     const codexHook =
-      "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js";
+      "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/k3/1.6.5/dist/hooks/approval-hook.js";
     const legacy = [
       "# === BEGIN k3-plugin-cc-managed (v1.6.5) ===",
       "[[hooks]]",
@@ -1184,7 +1184,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
   test("prune leaves an unmanaged hook that carries a matcher (not our grammar)", async () => {
     const { env, configPath } = await makeCase("prune-skips-matcher");
     const ourScript =
-      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
     // Reuses approval-hook.js but with a matcher — a deliberate user hook, not
     // an orphan of ours. Must survive the prune.
     const seeded = [
@@ -1205,7 +1205,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
   test("install preserves but refuses an invalid unmanaged hook with a multi-line array", async () => {
     const { env, configPath } = await makeCase("prune-multiline-array");
     const ourScript =
-      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
     // A marker-less table that reuses approval-hook.js but also has a multi-line
     // array key — NOT our grammar. Must be left fully intact (no partial cut).
     const seeded = [

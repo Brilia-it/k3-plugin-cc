@@ -134,13 +134,15 @@ package is upstream's code, without the Windows fixes. Install this fork from th
 ### Upgrading from 0.5.x
 
 Since 0.6.0 this plugin uses its own names everywhere a person or a program can see them. After
-updating, run `/k3:setup` once: until you do, every command refuses, because the hook installed by
-the old version no longer protects K3 sessions. Setup then does the rest, and says what it did:
+updating, run `/k3:setup` once: until you do, every command that starts a model (review, challenge,
+ask, rescue, pursue, swarm, the review gate) refuses, because the hook installed by the old version
+no longer protects K3 sessions; `status`, `result`, `replay` and `cancel` keep working. Setup then
+does the rest, and says what it did:
 
 | What | Up to 0.5.x | From 0.6.0 | What setup does |
 |---|---|---|---|
-| Marker of the hook block in `~/.kimi-code/config.toml` | `kimi-plugin-cc-managed` | `k3-plugin-cc-managed` | Removes the old block, **only if its hook is this fork's**, and writes the new one. A block written by the upstream plugin is left byte for byte. |
-| Data directory (jobs, logs, results, settings) | `kimi-plugin-cc/` | `k3-plugin-cc/` | Moves it when no job is running, and updates the paths stored for past jobs. Until then the old one stays in use, so nothing is lost. |
+| Marker of the hook block in `~/.kimi-code/config.toml` | `kimi-plugin-cc-managed` | `k3-plugin-cc-managed` | Removes the old block **only if its hook is this fork's and the block holds nothing else** (a key after the END comment still belongs to that TOML table, so such a block is left alone), then writes the new one. A block written by the upstream plugin is left byte for byte. Marker lines that do not pair up are reported, never removed. |
+| Data directory (jobs, logs, results, settings) | `kimi-plugin-cc/` | `k3-plugin-cc/` | Renames it when no job is marked running, and leaves an alias under the old name so that a command starting at that very moment keeps working; the next `/k3:setup` removes the alias once no job is running. The paths stored for past jobs are rewritten on every setup, following Windows' rules for case and separators. Until the rename the old directory stays in use, so nothing is lost; if both exist, nothing is merged and `--check` says so. |
 | Environment variables | `KIMI_PLUGIN_CC_*` | `K3_PLUGIN_CC_*` | Lists any old ones still set. They are **not** read: rename yours (for example `KIMI_PLUGIN_CC_KIMI_BIN` becomes `K3_PLUGIN_CC_KIMI_BIN`). |
 
 The old variables are not honoured on purpose: they are the names the upstream plugin reads, and a
@@ -158,10 +160,17 @@ does not recognise as its own; the reverse holds for upstream's sessions. Setup 
 other plugin's block, marked or not. Up to 0.5.x both plugins wrote the same block, so whichever ran
 setup last disabled the other until its own setup ran again.
 
-Two things to know. This holds by construction and is covered by tests; we have not yet run both
-plugins installed together on one machine. And each plugin serialises its own writes to
-`config.toml` with its own lock, so do not run both setups in the same instant: if one write were
-lost, that plugin's commands would refuse until its setup ran again.
+**Verified on 2026-09-29, Windows 11**, by `tests/manual/coexistence-smoke.mjs`: upstream v2.0.7 and
+this fork installed in a temporary home under the real install layout (both on the `claude-code`
+host, the case that used to collide), setups run in turn, each uninstalled in turn. Each setup left
+the other plugin's block byte for byte, and each hook denied a write only under its own label: 16
+checks out of 16. The same smoke run with this fork's 0.5.1 in place of 0.6.0 fails 7 checks,
+starting with "our setup leaves upstream's block byte for byte", which is the old collision. It
+drives no model; a real session with both plugins has not been run.
+
+One thing to know: each plugin serialises its own writes to `config.toml` with its own lock, so do
+not run both setups in the same instant. If one write were lost, that plugin's commands would refuse
+until its setup ran again.
 
 ## Platform support
 
@@ -318,8 +327,13 @@ the job store fix below.
 
    The renaming is mechanical and has a single definition, `scripts/identity-map.mjs`. Every update
    from upstream goes through it: the map is applied to upstream's code **before** it is merged, so
-   upstream arrives already speaking our names, and `tests/scripts/brand-residue.test.js` fails in CI
-   if one of upstream's names reappears anywhere it is not pinned on purpose.
+   upstream arrives already speaking our names. Two checks keep it honest.
+   `node scripts/identity-map.mjs verify v2.0.7` proves that every difference from upstream is
+   either the map or a file declared with its reason; it does not prove the map itself right, nor
+   look inside a declared file. `tests/scripts/brand-residue.test.js` fails in CI when one of
+   upstream's names appears in a line where it is not pinned: every file that keeps some on purpose
+   (the migration code, this README, the changelog, NOTICE) has its count of such lines fixed in the
+   test, so one more fails it.
 
 This fork is maintained independently: these changes are not proposed upstream, so the upstream
 project is not aware of them and is not responsible for them.

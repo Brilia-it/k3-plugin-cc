@@ -273,7 +273,7 @@ describe("resolveHostId / hostIdFromHookScript", () => {
   test("derives claude-code from a ~/.claude install path", () => {
     expect(
       hostIdFromHookScript(
-        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
+        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.6.5/dist/hooks/approval-hook.js",
       ),
     ).toBe("claude-code");
   });
@@ -281,17 +281,17 @@ describe("resolveHostId / hostIdFromHookScript", () => {
   test("derives codex from a ~/.codex install path", () => {
     expect(
       hostIdFromHookScript(
-        "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
+        "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/k3/1.6.5/dist/hooks/approval-hook.js",
       ),
     ).toBe("codex");
   });
 
   test("host id is version-independent (upgrade refreshes the same block)", () => {
     const v1 = hostIdFromHookScript(
-      "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
+      "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/1.6.5/dist/hooks/approval-hook.js",
     );
     const v2 = hostIdFromHookScript(
-      "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/9.9.9/dist/hooks/approval-hook.js",
+      "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/k3/9.9.9/dist/hooks/approval-hook.js",
     );
     expect(v1).toBe(v2);
     expect(v1).toBe("claude-code");
@@ -320,7 +320,7 @@ describe("resolveHostId / hostIdFromHookScript", () => {
     expect(
       resolveHostId(
         {},
-        "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/kimi/2.0.0/dist/hooks/approval-hook.js",
+        "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/k3/2.0.0/dist/hooks/approval-hook.js",
       ),
     ).toBe("codex");
   });
@@ -335,7 +335,7 @@ describe("isOurApprovalHookCommand", () => {
   test("true for a canonical approval-hook command under a brilia-k3-marketplace tree", () => {
     expect(
       isOurApprovalHookCommand(
-        "'/usr/bin/node' '/home/u/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js'",
+        "'/usr/bin/node' '/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js'",
       ),
     ).toBe(true);
   });

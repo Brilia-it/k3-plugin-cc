@@ -11,8 +11,8 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -21,12 +21,15 @@ import { buildHookShellCommand, resolveHookScriptPath } from "../../runtime/hook
 import {
   describeLegacyBrandBlocks,
   findLegacyBrandBlocks,
+  scanLegacyBrand,
   stripLegacyBrandBlocks,
 } from "../../runtime/hooks/legacy-brand.js";
 import { evaluateInstalled } from "../../runtime/hooks/managed-block.js";
 import { JobStore } from "../../runtime/job-store.js";
 import {
   collectLegacyEnvWarnings,
+  describeLegacyDataDirInUse,
+  legacyPathMapper,
   legacyEnvNames,
   migrateLegacyDataDir,
 } from "../../runtime/legacy-names.js";
@@ -83,9 +86,49 @@ describe("blocks under the old marker", () => {
     ]);
   });
 
-  test("an unmatched old BEGIN is not a block", () => {
+  test("an unmatched old BEGIN is not a block, and is reported as a stray", () => {
     const contents = ["# === BEGIN kimi-plugin-cc-managed:claude-code ===", "[[hooks]]", ""].join("\n");
     expect(findLegacyBrandBlocks(contents)).toEqual([]);
+    expect(scanLegacyBrand(contents).strayMarkers).toEqual(["# === BEGIN kimi-plugin-cc-managed:claude-code ==="]);
+  });
+
+  test("an END for another host does not close a BEGIN", () => {
+    const lines = legacyBlock("claude-code", OUR_OLD_SCRIPT);
+    lines[lines.length - 1] = "# === END kimi-plugin-cc-managed:codex ===";
+    const contents = `${lines.join("\n")}\n`;
+    const { blocks, strayMarkers } = scanLegacyBrand(contents);
+    expect(blocks).toEqual([]);
+    expect(strayMarkers).toHaveLength(2);
+    const { stripped, removed } = stripLegacyBrandBlocks(contents, "\n", "claude-code");
+    expect(removed).toEqual([]);
+    expect(stripped).toBe(contents);
+    expect(describeLegacyBrandBlocks([], [], "removed", strayMarkers).join("\n")).toContain("do not form a complete block");
+  });
+
+  test("keys after END still belong to the hook table: the block is not ours to remove", () => {
+    // In TOML the END comment does not close [[hooks]]: `matcher` belongs to it.
+    const contents = [...legacyBlock("claude-code", OUR_OLD_SCRIPT), 'matcher = "Bash"', "", "[other]", "x = 1", ""].join("\n");
+    const [block] = findLegacyBrandBlocks(contents);
+    expect(block!.ours).toBe(false);
+    expect(stripLegacyBrandBlocks(contents, "\n", "claude-code").stripped).toBe(contents);
+    // A table header right after END is fine.
+    const clean = [...legacyBlock("claude-code", OUR_OLD_SCRIPT), "# note", "", "[other]", "x = 1", ""].join("\n");
+    expect(findLegacyBrandBlocks(clean)[0]!.ours).toBe(true);
+  });
+
+  test("a key before [[hooks]] belongs to the table above: the block is not ours to remove", () => {
+    const lines = legacyBlock("claude-code", OUR_OLD_SCRIPT);
+    lines.splice(1, 0, 'extra = "belongs to the table above"');
+    expect(findLegacyBrandBlocks(`${lines.join("\n")}\n`)[0]!.ours).toBe(false);
+    // Even when it has the shape of a key this plugin writes inside [[hooks]]:
+    // above the header it is still the table above's.
+    for (const key of ["timeout = 30", 'event = "PreToolUse"']) {
+      const shaped = legacyBlock("claude-code", OUR_OLD_SCRIPT);
+      shaped.splice(2, 0, key);
+      const contents = `${shaped.join("\n")}\n`;
+      expect({ key, ours: findLegacyBrandBlocks(contents)[0]!.ours }).toEqual({ key, ours: false });
+      expect(stripLegacyBrandBlocks(contents, "\n", "claude-code").stripped).toBe(contents);
+    }
   });
 
   test("host-scoped strip removes this host's own, keeps the other host's and upstream's byte for byte", () => {
@@ -145,6 +188,14 @@ describe("an old hook script is never an installed hook", () => {
     const expected = buildHookShellCommand(hookScriptPath, process.env);
     const contents = `${legacyBlock("claude-code", OUR_OLD_SCRIPT).join("\n")}\n`;
     expect(evaluateInstalled(contents, expected, { hostId: "claude-code" }).installed).toBe(false);
+  });
+
+  test("our pre-0.6 hook table without any marker: not installed either", () => {
+    // kimi-code rewrites config.toml dropping comments, so a 0.5.x block can
+    // survive as a bare [[hooks]] table.
+    const expected = buildHookShellCommand(hookScriptPath, process.env);
+    const bare = legacyBlock("claude-code", OUR_OLD_SCRIPT).filter((line) => !line.startsWith("#"));
+    expect(evaluateInstalled(`${bare.join("\n")}\n`, expected, { hostId: "claude-code" }).installed).toBe(false);
   });
 
   test("the new hook ignores the old label variable, the new one enforces", async () => {
@@ -313,29 +364,108 @@ describe("the data directory", () => {
     expect(existsSync(path.join(root, "kimi-plugin-cc"))).toBe(false);
   });
 
-  test("moves when no job runs, and past jobs' paths follow", async () => {
-    const { root, env } = await dataCase("migrate");
+  async function seedLegacy(root: string, env: NodeJS.ProcessEnv, jobs: Array<[string, "running" | "completed"]>) {
     const old = path.join(root, "kimi-plugin-cc");
     await mkdir(old, { recursive: true });
     const seeded = resolvePluginPaths(env);
     expect(seeded.pluginRoot).toBe(old);
     await ensurePluginPaths(seeded);
     const store = new JobStore(seeded);
-    seedJob(store, "job-done", "completed", old);
+    for (const [id, status] of jobs) seedJob(store, id, status, old);
     store.close();
     await writeFile(path.join(old, "config.json"), '{"reviewGateEnabled":true}');
+    return old;
+  }
+
+  function readJob(env: NodeJS.ProcessEnv, jobId: string) {
+    const store = new JobStore(resolvePluginPaths(env));
+    try {
+      return store.getJob(jobId)!;
+    } finally {
+      store.close();
+    }
+  }
+
+  test("moves when no job runs, leaves an alias, and past jobs' paths follow", async () => {
+    const { root, env } = await dataCase("migrate");
+    const old = await seedLegacy(root, env, [["job-done", "completed"]]);
+    const current = path.join(root, "k3-plugin-cc");
 
     const result = await migrateLegacyDataDir(env);
-    expect(result).toEqual({ status: "migrated", from: old, to: path.join(root, "k3-plugin-cc") });
-    expect(existsSync(old)).toBe(false);
+    expect(result).toEqual({ status: "migrated", from: old, to: current, rebased: 1, alias: "kept" });
+    // The old name is now an alias to the new directory, not a directory.
+    expect(lstatSync(old).isSymbolicLink()).toBe(true);
+    expect(realpathSync(old)).toBe(realpathSync(current));
     const moved = resolvePluginPaths(env);
+    expect(moved.pluginRoot).toBe(current);
     expect(moved.usingLegacyDataDir).toBe(false);
     expect(await readFile(moved.configPath, "utf8")).toContain("reviewGateEnabled");
-    const reopened = new JobStore(moved);
-    const job = reopened.getJob("job-done")!;
-    reopened.close();
-    expect(job.final_output_path).toBe(path.join(root, "k3-plugin-cc", "artifacts", "job-done.md"));
-    expect(job.stream_log_path).toBe(path.join(root, "k3-plugin-cc", "logs", "job-done.jsonl"));
+    const job = readJob(env, "job-done");
+    expect(job.final_output_path).toBe(path.join(current, "artifacts", "job-done.md"));
+    expect(job.stream_log_path).toBe(path.join(current, "logs", "job-done.jsonl"));
+  });
+
+  test("the next setup removes the alias, never the data behind it", async () => {
+    const { root, env } = await dataCase("alias-removal");
+    const old = await seedLegacy(root, env, [["job-done", "completed"]]);
+    const current = path.join(root, "k3-plugin-cc");
+    await migrateLegacyDataDir(env);
+
+    expect(await migrateLegacyDataDir(env)).toEqual({ status: "alias-removed", alias: old, rebased: 0 });
+    expect(existsSync(old)).toBe(false);
+    expect(await readFile(path.join(current, "config.json"), "utf8")).toContain("reviewGateEnabled");
+    expect(existsSync(path.join(current, "state.db"))).toBe(true);
+    expect(readJob(env, "job-done").summary).toBe("seeded");
+  });
+
+  test("the alias stays while a job runs, and a rewrite missed once is done on the next run", async () => {
+    const { root, env } = await dataCase("alias-kept");
+    const old = await seedLegacy(root, env, [["job-done", "completed"]]);
+    const current = path.join(root, "k3-plugin-cc");
+    await migrateLegacyDataDir(env);
+    // A job started by a command that resolved the old path just before the
+    // move: its row keeps the old paths, and it is still running.
+    const store = new JobStore(resolvePluginPaths(env));
+    seedJob(store, "job-late", "running", old);
+    store.close();
+
+    expect(await migrateLegacyDataDir(env)).toEqual({ status: "alias-kept", alias: old, running: 1, rebased: 1 });
+    expect(lstatSync(old).isSymbolicLink()).toBe(true);
+    expect(readJob(env, "job-late").stream_log_path).toBe(path.join(current, "logs", "job-late.jsonl"));
+  });
+
+  test("paths stored under another spelling of the same root are rewritten too", async () => {
+    // 0.5.x stored paths built from CLAUDE_PLUGIN_DATA as the host set it; the
+    // root 0.6 resolves can be spelled differently (here: through an alias).
+    const { root } = await dataCase("spelling");
+    const spelled = path.join(scratch, "spelling-alias");
+    await symlink(root, spelled, process.platform === "win32" ? "junction" : "dir");
+    const env = { K3_PLUGIN_CC_DATA: root, CLAUDE_PLUGIN_DATA: spelled } as NodeJS.ProcessEnv;
+    const old = await seedLegacy(root, { K3_PLUGIN_CC_DATA: root }, []);
+    const store = new JobStore(resolvePluginPaths(env));
+    seedJob(store, "job-spelled", "completed", path.join(spelled, "kimi-plugin-cc"));
+    store.close();
+
+    const result = await migrateLegacyDataDir(env);
+    expect(result.status).toBe("migrated");
+    expect(readJob(env, "job-spelled").final_output_path).toBe(
+      path.join(root, "k3-plugin-cc", "artifacts", "job-spelled.md"),
+    );
+    expect(old).toBe(path.join(root, "kimi-plugin-cc"));
+  });
+
+  test.skipIf(process.platform !== "win32")("on Windows, case and separators do not hide a stored path", () => {
+    const map = legacyPathMapper(["C:\\Data\\kimi-plugin-cc"], "C:\\Data\\k3-plugin-cc");
+    expect(map("c:/data/KIMI-PLUGIN-CC/logs/a.jsonl")).toBe("C:\\Data\\k3-plugin-cc\\logs\\a.jsonl");
+    expect(map("C:\\Data\\kimi-plugin-cc-other\\a")).toBeNull();
+  });
+
+  test("a sibling directory whose name only begins the same way is not rewritten", () => {
+    const base = path.join(scratch, "sibling");
+    const map = legacyPathMapper([path.join(base, "kimi-plugin-cc")], path.join(base, "k3-plugin-cc"));
+    expect(map(path.join(base, "kimi-plugin-cc-backup", "logs", "a.jsonl"))).toBeNull();
+    expect(map(path.join(base, "kimi-plugin-cc"))).toBeNull();
+    expect(map(path.join(base, "kimi-plugin-cc", "logs", "a.jsonl"))).toBe(path.join(base, "k3-plugin-cc", "logs", "a.jsonl"));
   });
 
   test("does not move while a job is running, and never merges two directories", async () => {
@@ -349,10 +479,25 @@ describe("the data directory", () => {
     store.close();
 
     expect(await migrateLegacyDataDir(env)).toEqual({ status: "jobs-running", legacy: old, running: 1 });
-    expect(existsSync(old)).toBe(true);
+    expect(lstatSync(old).isDirectory()).toBe(true);
 
     await mkdir(path.join(root, "k3-plugin-cc"));
     expect((await migrateLegacyDataDir(env)).status).toBe("both-exist");
-    expect(existsSync(old)).toBe(true);
+    expect(lstatSync(old).isDirectory()).toBe(true);
+    // --check says so, instead of the old state silently going invisible.
+    expect(describeLegacyDataDirInUse(env)).toContain("still exists next to");
+  });
+
+  test("an old name that points somewhere else is never touched", async () => {
+    const { root, env } = await dataCase("foreign-alias");
+    const elsewhere = path.join(scratch, "foreign-target");
+    await mkdir(elsewhere, { recursive: true });
+    await writeFile(path.join(elsewhere, "keep.txt"), "keep");
+    await mkdir(path.join(root, "k3-plugin-cc"));
+    await symlink(elsewhere, path.join(root, "kimi-plugin-cc"), process.platform === "win32" ? "junction" : "dir");
+
+    expect((await migrateLegacyDataDir(env)).status).toBe("alias-foreign");
+    expect(lstatSync(path.join(root, "kimi-plugin-cc")).isSymbolicLink()).toBe(true);
+    expect(await readFile(path.join(elsewhere, "keep.txt"), "utf8")).toBe("keep");
   });
 });

@@ -15,8 +15,9 @@ names underneath: the environment variables, the marker of its hook block in
 `~/.kimi-code/config.toml`, its data directory, its messages. From 0.6.0 everything a person or a
 program can see says K3, and the two plugins can be installed side by side.**
 
-**Upgrading: run `/k3:setup` once after updating.** Until then every command refuses, because the
-hook installed by 0.5.x reads variables this version no longer sets.
+**Upgrading: run `/k3:setup` once after updating.** Until then every command that starts a model
+refuses, because the hook installed by 0.5.x reads variables this version no longer sets; `status`,
+`result`, `replay` and `cancel` keep working.
 
 - **Names.** `KIMI_PLUGIN_CC_*` becomes `K3_PLUGIN_CC_*`, the hook block marker
   `kimi-plugin-cc-managed` becomes `k3-plugin-cc-managed`, the data directory `kimi-plugin-cc/`
@@ -24,15 +25,28 @@ hook installed by 0.5.x reads variables this version no longer sets.
   ("K3 review gate") say K3. The Codex plugin lists BRILIA as author and developer. What keeps its
   name is Moonshot's: the `kimi` and `kimi-code` CLI, its `KIMI_CODE_*` settings, and "Kimi" where it
   names the model.
-- **Migration, done by `/k3:setup`.** It removes this fork's own hook blocks under the old marker,
-  only when the hook lives under this fork's install tree (`/brilia-k3-marketplace/` or
-  `/k3-plugin-cc/`), and leaves any other block under that marker byte for byte: that is the
-  upstream plugin's. It moves the data directory when no job is running and rewrites the paths
-  stored for past jobs, so `/k3:result` and `/k3:replay` still find them; until then the old
-  directory stays in use. It lists any `KIMI_PLUGIN_CC_*` variable still set: those are **not**
-  read, because they are the upstream plugin's names and a value set for it (including the switch
-  that skips the hook check) must not steer this one. `--check` reports all three; `--uninstall`
-  removes old blocks too.
+- **Migration, done by `/k3:setup`.**
+  - *Hook block.* It removes this fork's own blocks under the old marker: the hook must live under
+    this fork's install tree (`/brilia-k3-marketplace/` or `/k3-plugin-cc/`) or run exactly the
+    command this install writes, the BEGIN and END must carry the same host, and the block must hold
+    only the hook table this plugin writes. In TOML the END comment does not close `[[hooks]]`: a key
+    after it still belongs to the table, so such a block is left alone, as is a key before the
+    `[[hooks]]` header (it belongs to the table above). Any other block under that marker is kept
+    byte for byte: that is the upstream plugin's. Marker lines that do not pair up are reported by
+    text, never removed.
+  - *Data directory.* Renamed when no job is marked running, leaving an alias under the old name (a
+    junction on Windows, a directory symlink elsewhere) so a command that resolved the old path just
+    before the rename keeps working; the next setup removes the alias once no job is running, and
+    never follows it. The paths stored for past jobs are rewritten on every setup (idempotent, so a
+    rewrite that failed once is done next time), matching every spelling a 0.5.x install may have
+    used: the root, its real path, and the `CLAUDE_PLUGIN_DATA`/`PLUGIN_DATA` value, with Windows'
+    rules for case and separators. Until the rename the old directory stays in use; if both exist,
+    nothing is merged and `--check` says so. On Windows the rename fails while a file inside is open,
+    and setup says to run again later.
+  - *Variables.* It lists any `KIMI_PLUGIN_CC_*` variable still set: those are **not** read, because
+    they are the upstream plugin's names and a value set for it (including the switch that skips the
+    hook check) must not steer this one.
+  - `--check` reports all three; `--uninstall` removes this fork's old blocks too.
 - **The plugin recognises itself.** Its self-recognition still looked for upstream's names, so on
   this fork's installs it never matched: the data-directory ownership check never ran (it fell back
   to the shared variables), a Codex shell launch fell back to upstream's own data directory
@@ -42,16 +56,35 @@ hook installed by 0.5.x reads variables this version no longer sets.
   directory may be the upstream plugin's).
 - **Coexistence.** Up to 0.5.x both plugins wrote the same hook block, so whichever ran setup last
   disabled the other. Now each writes its own, and each hook governs only its own sessions.
+  `tests/manual/coexistence-smoke.mjs` installs upstream v2.0.7 and this fork side by side in a
+  temporary home under the real layout, runs the setups and uninstalls in turn, and checks both
+  hooks under both labels: 16 checks out of 16 on Windows 11. With this fork's 0.5.1 in place of
+  0.6.0 the same smoke fails 7 checks (the old collision), which is what shows it can fail.
 - **`scripts/identity-map.mjs`, the single definition of the renaming.** `apply` rewrites an upstream
   checkout into our names before it is merged, so future updates from upstream arrive already
-  renamed; `verify <upstream-ref>` checks that, apart from the files it declares with a reason, every
-  upstream file maps to ours byte for byte (313 files against v2.0.7, zero undeclared differences).
-  `tests/scripts/brand-residue.test.js` fails if one of upstream's names reappears anywhere it is not
-  pinned on purpose, and checks that every variable the hook reads is one the plugin sets.
-- **Tests.** `tests/runtime/legacy-brand.test.ts` (15 tests) covers the migration: whose block is
-  removed, that an old hook script is never counted as installed, that the new hook ignores the old
-  label variable, and that the data directory moves only with no job running and never merges.
-  Ten deliberate defects, one at a time, each made a test fail.
+  renamed. It treats as text only strict UTF-8 without NUL bytes, refuses before writing anything
+  when a rename would land on an existing path, and has `--dry-run`. `verify <upstream-ref>` checks
+  that every difference from upstream is either the map or a file declared with its reason (313
+  files identical after the map against v2.0.7, zero undeclared differences); it does not prove the
+  map itself right, nor look inside a declared file. `tests/scripts/brand-residue.test.js` covers
+  upstream's names: it fails when one appears in a line not pinned on purpose (every file that keeps
+  some, documents included, has its count fixed), and checks that every variable the hook reads is
+  one the plugin sets.
+- **Tests.** `tests/runtime/legacy-brand.test.ts` (25 tests) covers the migration: whose block is
+  removed and whose is not (other host's END, keys after END, a key before `[[hooks]]`, stray
+  markers), that an old hook script is never counted as installed, marked or bare, that the new hook
+  ignores the old label variable, and the data directory: rename only with no job running, the
+  alias, its removal without touching the data behind it, the rewrite of stored paths under other
+  spellings, never merging, never touching an old name that points elsewhere.
+  `tests/scripts/identity-map.test.js` tests `verify` on a repository built for the purpose, and
+  `apply` on binaries, collisions and dry runs. 23 deliberate defects in the migration and the map,
+  one at a time, each made a test fail.
+- **Reviewed adversarially by Codex before release.** Its first review blocked this release on the
+  hook-block migration (END of another host, keys after END), the data-directory move (a race with
+  a command starting meanwhile, a path rewrite that could not be retried, strict path matching),
+  the map (upstream's own ids renamed in our prose, the plugin directory in install paths left out,
+  binaries without NUL bytes, collisions) and documentation that promised more than the code. All
+  of it is fixed above.
 - **README.** States the platforms (developed and verified on Windows 11; macOS and Linux supported,
   Linux covered by CI), the upgrade steps, and coexistence. It no longer says the Windows fixes will
   be proposed upstream: this fork is maintained independently.

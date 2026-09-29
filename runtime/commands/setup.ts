@@ -301,7 +301,7 @@ async function runInstall(
     // under the old marker that are not ours are kept byte for byte.
     const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
     const legacyBrand = stripLegacyBrandBlocks(inlineHooks.contents, lineEnding, hostId, expectedCommand);
-    warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "removed"));
+    warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "removed", legacyBrand.strayMarkers));
 
     // Prune THIS HOST's orphaned, marker-less approval-hook [[hooks]] entries
     // BEFORE resolving the managed block, so line numbers used for splicing are
@@ -463,7 +463,7 @@ async function runCheck(
   // sessions, and this host's block (checked above) is the one that does.
   const checkLineEnding = detectLineEnding(existing);
   const legacyBrand = stripLegacyBrandBlocks(existing, checkLineEnding, hostId, expectedCommand);
-  warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "found"));
+  warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "found", legacyBrand.strayMarkers));
   const legacyDataNote = describeLegacyDataDirInUse(context.env);
   if (legacyDataNote !== null) warnings.push(legacyDataNote);
   collectLegacyEnvWarnings(context.env, warnings);
@@ -700,6 +700,8 @@ async function runUninstallLocked(
       `Also removed ${legacyBrand.removed.length} block(s) written by k3-plugin-cc before 0.6.0 under the old marker \`kimi-plugin-cc-managed\`.`,
     );
   }
+  // Blocks left in place and stray old-marker lines are reported as on install.
+  warnings.push(...describeLegacyBrandBlocks([], legacyBrand.kept, "removed", legacyBrand.strayMarkers));
   const strippedMarkers = legacyBrand.stripped;
   const removedBlocks = currentRemoved + legacyBrand.removed.length;
   // Pass `expectedCommand` as `alsoMatchCommand` (both scoped and --all) so

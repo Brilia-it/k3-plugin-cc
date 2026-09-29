@@ -38,9 +38,11 @@ six kinds, and are released under the same Apache License, Version 2.0:
    recognises this fork's and not upstream's; in that sense it is not inert,
    and kind 6 describes what follows from it.
 
-3. ADDITIONS that upstream does not carry: two manual test harnesses
-   (tests/manual/enforcement-matrix.mjs and
-   tests/manual/shell-probe-discrimination.mjs), two maintainer scripts
+3. ADDITIONS that upstream does not carry: three manual test harnesses
+   (tests/manual/enforcement-matrix.mjs,
+   tests/manual/shell-probe-discrimination.mjs and
+   tests/manual/coexistence-smoke.mjs, which installs upstream and this fork
+   side by side in a temporary home), two maintainer scripts
    (scripts/promote-to-main.mjs and scripts/identity-map.mjs) with their tests
    (tests/scripts/), and this fork's documentation.
 
@@ -67,9 +69,10 @@ six kinds, and are released under the same Apache License, Version 2.0:
    k3-plugin-cc and keeps using the old kimi-plugin-cc directory while only
    that one exists; runtime/commands/setup.ts removes this fork's own hook
    blocks under the old marker (never another plugin's), moves the data
-   directory when no job is running, and reports the old environment variables,
-   which are not read; runtime/job-store.ts gains the two methods that move
-   needs. Each carries the prominent notice of section 4(b) at the top, as do
+   directory when no job is running, leaving under the old name an alias that a
+   later setup removes, rewrites the paths stored for past jobs, and reports the
+   old environment variables, which are not read; runtime/job-store.ts gains the
+   two methods that move needs. Each carries the prominent notice of section 4(b) at the top, as do
    their compiled counterparts. Added files: runtime/hooks/legacy-brand.ts,
    runtime/legacy-names.ts, tests/runtime/legacy-brand.test.ts,
    tests/scripts/identity-map.test.js and tests/scripts/brand-residue.test.js.

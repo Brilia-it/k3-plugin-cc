@@ -8,11 +8,14 @@
 // does not allowJs.
 //
 // Where upstream's names stay on purpose, the count of lines is pinned, so a
-// new occurrence in the same file still fails the test and gets looked at:
+// new occurrence in the same file still fails the test and gets looked at.
+// Documents are pinned like code: no file is exempt.
 //   - the migration of a pre-0.6 install, which has to recognise the old marker,
 //     the old data directory and the old variables;
-//   - the identity map and the tests of all this;
-//   - documentation that names the upstream project or describes the migration.
+//   - the identity map, the coexistence smoke and the tests of all this;
+//   - documentation that names the upstream project, its npm package, its
+//     history, or describes the migration; docs/registry-releases.md is kept
+//     verbatim from upstream (KEEP_VERBATIM in the map).
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -28,9 +31,14 @@ const PINNED = {
   "runtime/legacy-names.ts": 4,
   "runtime/paths.ts": 2,
   "runtime/commands/setup.ts": 3,
-  "scripts/identity-map.mjs": 8,
-  "tests/runtime/legacy-brand.test.ts": 22,
-  "tests/scripts/identity-map.test.js": 22,
+  "scripts/identity-map.mjs": 12,
+  "tests/manual/coexistence-smoke.mjs": 7,
+  "tests/runtime/legacy-brand.test.ts": 34,
+  "tests/scripts/identity-map.test.js": 32,
+  "CHANGELOG.md": 112,
+  "README.md": 8,
+  "NOTICE": 2,
+  "docs/registry-releases.md": 2,
 };
 // Compiled counterparts carry the same lines as their source.
 for (const [source, count] of Object.entries({ ...PINNED })) {
@@ -39,9 +47,6 @@ for (const [source, count] of Object.entries({ ...PINNED })) {
   PINNED[`dist/${compiled}`] = count;
   PINNED[`plugins/k3-codex/dist/${compiled}`] = count;
 }
-// Documents that name the upstream project, its history, or the migration.
-// docs/registry-releases.md is upstream's npm release page, kept verbatim under a fork note.
-const DOCUMENTS = new Set(["CHANGELOG.md", "README.md", "NOTICE", "docs/registry-releases.md"]);
 
 function trackedTextFiles() {
   const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
@@ -71,7 +76,6 @@ describe("upstream names", () => {
     for (const { file, text } of trackedTextFiles()) {
       const lines = text.split("\n").filter((line) => applyIdentityMap(line) !== line);
       if (lines.length === 0) continue;
-      if (DOCUMENTS.has(file)) continue;
       counts.set(file, lines.length);
       if (PINNED[file] === undefined) {
         unexpected.push(`${file}: ${lines.slice(0, 3).map((l) => l.trim()).join(" | ")}`);

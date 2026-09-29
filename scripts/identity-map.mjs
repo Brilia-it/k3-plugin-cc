@@ -23,10 +23,20 @@
 //           checkout BEFORE merging it, so upstream arrives already speaking
 //           our names and the merge conflicts only where behaviour differs.
 //   verify  applies the map to every file of an upstream ref and compares the
-//           result with HEAD. A file must come out byte for byte identical
-//           unless it is declared in DECLARED_DIVERGENT with the reason. This
-//           is what backs the claim in NOTICE that the identity changes alter
-//           no behaviour: everything else that differs is listed, with why.
+//           result with the working tree. A file must come out byte for byte
+//           identical unless it is declared in DECLARED_DIVERGENT with the
+//           reason. What that proves, and what it does not: every difference
+//           from upstream is either the map or a declared file. It does NOT
+//           prove the map right (a rule that renames too much or too little is
+//           applied the same way to both sides), and it does not look inside a
+//           declared file. tests/scripts/brand-residue.test.js covers the first
+//           gap for upstream's names; review covers the rest.
+//
+// A rule renames a TOKEN wherever it appears, so a sentence of ours that names
+// upstream's ids ("upstream keeps kimi-marketplace") comes out false. Text
+// written for this fork does not spell upstream's ids; README, CHANGELOG and
+// NOTICE, which must, are never mapped and have their lines pinned in the
+// residue test.
 //
 // Never run `apply` on this repository's own tree: the code that migrates a
 // pre-0.6 install (runtime/hooks/legacy-brand.ts, runtime/legacy-names.ts,
@@ -36,8 +46,12 @@
 // tests/runtime/legacy-brand.test.ts both fail when it does.
 //
 // Usage:
-//   node scripts/identity-map.mjs apply <file-or-dir>...
+//   node scripts/identity-map.mjs apply [--dry-run] <file-or-dir>...
 //   node scripts/identity-map.mjs verify <upstream-ref>
+//
+// `apply` treats as text only a file that decodes as strict UTF-8 without NUL
+// bytes; anything else is left byte for byte. It refuses, before writing
+// anything, when a rename would land on a path that already exists.
 //
 // Exit codes: 0 ok. 1 verify found an undeclared or stale divergence.
 //             2 usage or tool error.
@@ -56,6 +70,13 @@ export const IDENTITY_RULES = Object.freeze([
   { name: "Codex plugin data id", from: /(?<![\w-])kimi-marketplace-kimi(?![\w-])/g, to: "brilia-k3-marketplace-k3" },
   { name: "plugin id", from: /(?<![\w-])kimi@kimi-marketplace(?![\w-])/g, to: "k3@brilia-k3-marketplace" },
   { name: "marketplace", from: /(?<![\w-])kimi-marketplace(?![\w-])/g, to: "brilia-k3-marketplace" },
+  // The plugin directory inside an install path: .../<marketplace>/kimi/<version>/.
+  // Runs after the marketplace rule, so it sees the marketplace already renamed.
+  { name: "plugin directory in install paths", from: /(?<=brilia-k3-marketplace[/\\])kimi(?=[/\\])/g, to: "k3" },
+  // The same layout written with the documentation's placeholder.
+  { name: "plugin directory after <marketplace>", from: /(?<=<marketplace>[/\\])kimi(?=[/\\])/g, to: "k3" },
+  { name: "Claude data id with <marketplace>", from: /(?<![\w-])kimi-<marketplace>/g, to: "k3-<marketplace>" },
+  { name: "Codex data id with <marketplace>", from: /<marketplace>-kimi(?![\w-])/g, to: "<marketplace>-k3" },
   { name: "Codex plugin directory", from: /(?<![\w-])kimi-codex(?![\w-])/g, to: "k3-codex" },
   { name: "slash commands", from: /\/kimi:/g, to: "/k3:" },
   {
@@ -133,6 +154,7 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/runtime/job-store-busy-open.test.ts": "added (NOTICE 5)",
   "tests/helpers/hold-exclusive-lock.ts": "added (NOTICE 5)",
   "tests/helpers/open-job-store-node.mjs": "added (NOTICE 5)",
+  "tests/manual/coexistence-smoke.mjs": "added (NOTICE 3)",
   "tests/manual/enforcement-matrix.mjs": "added (NOTICE 3)",
   "tests/manual/shell-probe-discrimination.mjs": "added (NOTICE 3)",
   // Documentation written or rewritten for the fork.
@@ -154,19 +176,29 @@ const COMPILED = [
   [/^plugins\/k3-codex\/dist\/(.+)\.js$/, "runtime/$1.ts"],
 ];
 
-export function declaredReason(repoPath) {
-  if (DECLARED_DIVERGENT[repoPath]) return DECLARED_DIVERGENT[repoPath];
+export function declaredReason(repoPath, declared = DECLARED_DIVERGENT) {
+  if (declared[repoPath]) return declared[repoPath];
   for (const [re, to] of COMPILED) {
     if (re.test(repoPath)) {
       const source = repoPath.replace(re, to);
-      if (DECLARED_DIVERGENT[source]) return `${DECLARED_DIVERGENT[source]} (compiled)`;
+      if (declared[source]) return `${declared[source]} (compiled)`;
     }
   }
   return undefined;
 }
 
-function isText(buffer) {
-  return !buffer.includes(0);
+const STRICT_UTF8 = new TextDecoder("utf-8", { fatal: true });
+
+// The text of a file, or null when it is not text: a NUL byte, or bytes that
+// are not valid UTF-8 (decoding those loosely and writing them back would
+// replace them and corrupt the file).
+export function decodeText(buffer) {
+  if (buffer.includes(0)) return null;
+  try {
+    return STRICT_UTF8.decode(buffer);
+  } catch {
+    return null;
+  }
 }
 
 function git(repo, args) {
@@ -176,8 +208,9 @@ function git(repo, args) {
 // verify: returns { identical, problems } where problems lists undeclared
 // divergences, stale declarations and undeclared additions or removals. Our
 // side is the working tree (tracked and untracked, ignored files excluded), so
-// it can run before a commit.
-export function verify(repo, upstreamRef) {
+// it can run before a commit. `declared` and `removed` default to this
+// repository's lists; tests pass their own.
+export function verify(repo, upstreamRef, { declared = DECLARED_DIVERGENT, removed = DECLARED_REMOVED } = {}) {
   const upstreamFiles = git(repo, ["ls-tree", "-r", "--name-only", upstreamRef]).toString("utf8").split("\n").filter(Boolean);
   const listed = git(repo, ["ls-files", "--cached", "--others", "--exclude-standard"]).toString("utf8").split("\n").filter(Boolean);
   const headFiles = new Set(listed.filter((file) => existsSync(path.join(repo, file))));
@@ -188,14 +221,15 @@ export function verify(repo, upstreamRef) {
     const ours = applyIdentityMap(upstreamPath);
     seen.add(ours);
     if (!headFiles.has(ours)) {
-      if (!DECLARED_REMOVED[upstreamPath]) problems.push(`removed without a declaration: ${upstreamPath}`);
+      if (!removed[upstreamPath]) problems.push(`removed without a declaration: ${upstreamPath}`);
       continue;
     }
     const upstreamBytes = git(repo, ["show", `${upstreamRef}:${upstreamPath}`]);
     const headBytes = readFileSync(path.join(repo, ours));
-    const expected = isText(upstreamBytes) ? Buffer.from(applyIdentityMap(upstreamBytes.toString("utf8")), "utf8") : upstreamBytes;
+    const text = decodeText(upstreamBytes);
+    const expected = text === null ? upstreamBytes : Buffer.from(applyIdentityMap(text), "utf8");
     const same = Buffer.compare(expected, headBytes) === 0;
-    const reason = declaredReason(ours);
+    const reason = declaredReason(ours, declared);
     if (same) {
       identical += 1;
       if (reason) problems.push(`declared divergent but identical after the map (stale declaration): ${ours}`);
@@ -205,10 +239,10 @@ export function verify(repo, upstreamRef) {
   }
   for (const ours of headFiles) {
     if (seen.has(ours)) continue;
-    if (!declaredReason(ours)) problems.push(`added without a declaration: ${ours}`);
+    if (!declaredReason(ours, declared)) problems.push(`added without a declaration: ${ours}`);
   }
-  for (const declared of Object.keys(DECLARED_DIVERGENT)) {
-    if (!headFiles.has(declared)) problems.push(`declared but not in this tree (stale declaration): ${declared}`);
+  for (const file of Object.keys(declared)) {
+    if (!headFiles.has(file)) problems.push(`declared but not in this tree (stale declaration): ${file}`);
   }
   return { identical, problems };
 }
@@ -230,47 +264,74 @@ function walk(target, files, dirs, isTarget) {
 
 // apply: rewrites contents, then renames the files and directories whose name
 // the map changes, deepest first so a renamed directory never strands a child.
-export function apply(targets) {
+// Every rename is checked BEFORE anything is written: if a destination already
+// exists (on disk, or as the destination of another rename), nothing changes.
+// With `dryRun`, it only reports what it would do.
+export function apply(targets, { dryRun = false } = {}) {
   const files = [];
   const dirs = [];
   for (const target of targets) walk(target, files, dirs, true);
+
+  const depth = (p) => path.resolve(p).split(path.sep).length;
+  const renames = [];
+  for (const entry of [...files, ...dirs].sort((a, b) => depth(b) - depth(a))) {
+    const base = path.basename(entry);
+    const mapped = applyIdentityMap(base);
+    if (mapped !== base) renames.push([entry, path.join(path.dirname(entry), mapped)]);
+  }
+  // Destinations are checked as they will be when each rename runs: parents are
+  // renamed after their children, so the destination's directory is the source's.
+  const collisions = [];
+  const claimed = new Set();
+  for (const [, to] of renames) {
+    const key = process.platform === "win32" ? to.toLowerCase() : to;
+    if (existsSync(to) || claimed.has(key)) collisions.push(to);
+    claimed.add(key);
+  }
+  if (collisions.length > 0) {
+    throw new Error(`refusing to rename onto existing paths, nothing was changed: ${collisions.join(", ")}`);
+  }
+
   let rewritten = 0;
   let kept = 0;
+  let binary = 0;
   for (const file of files) {
     const slashed = path.resolve(file).replace(/\\/g, "/");
     if (KEEP_VERBATIM.some((keep) => slashed.endsWith(`/${keep}`))) {
       kept += 1;
       continue;
     }
-    const bytes = readFileSync(file);
-    if (!isText(bytes)) continue;
-    const before = bytes.toString("utf8");
+    const before = decodeText(readFileSync(file));
+    if (before === null) {
+      binary += 1;
+      continue;
+    }
     const after = applyIdentityMap(before);
     if (after !== before) {
-      writeFileSync(file, after, "utf8");
+      if (!dryRun) writeFileSync(file, after, "utf8");
       rewritten += 1;
     }
   }
-  let renamed = 0;
-  const depth = (p) => path.resolve(p).split(path.sep).length;
-  for (const entry of [...files, ...dirs].sort((a, b) => depth(b) - depth(a))) {
-    const base = path.basename(entry);
-    const mapped = applyIdentityMap(base);
-    if (mapped !== base) {
-      renameSync(entry, path.join(path.dirname(entry), mapped));
-      renamed += 1;
-    }
-  }
-  return { files: files.length, rewritten, renamed, kept };
+  if (!dryRun) for (const [from, to] of renames) renameSync(from, to);
+  return { files: files.length, rewritten, renamed: renames.length, kept, binary, dryRun, renames };
 }
 
 function main(argv) {
   const [mode, ...rest] = argv;
-  if (mode === "apply" && rest.length > 0) {
-    const result = apply(rest);
+  if (mode === "apply") {
+    const dryRun = rest[0] === "--dry-run";
+    const targets = dryRun ? rest.slice(1) : rest;
+    if (targets.length === 0 || targets.some((t) => t.startsWith("--"))) {
+      console.error("usage: node scripts/identity-map.mjs apply [--dry-run] <file-or-dir>...");
+      return 2;
+    }
+    const result = apply(targets, { dryRun });
+    if (dryRun) for (const [from, to] of result.renames) console.log(`  would rename ${from} -> ${to}`);
     console.log(
-      `identity-map apply: ${result.files} files read, ${result.rewritten} rewritten, ${result.renamed} renamed, ` +
-        `${result.kept} kept verbatim (${KEEP_VERBATIM.join(", ")}).`,
+      `identity-map apply${dryRun ? " (dry run, nothing written)" : ""}: ${result.files} files read, ` +
+        `${result.rewritten} ${dryRun ? "would be rewritten" : "rewritten"}, ${result.renamed} ` +
+        `${dryRun ? "would be renamed" : "renamed"}, ${result.binary} left as binary, ${result.kept} kept verbatim ` +
+        `(${KEEP_VERBATIM.join(", ")}).`,
     );
     return 0;
   }
@@ -286,7 +347,7 @@ function main(argv) {
     console.log("Every other difference is declared, with its reason.");
     return 0;
   }
-  console.error("usage: node scripts/identity-map.mjs apply <file-or-dir>... | verify <upstream-ref>");
+  console.error("usage: node scripts/identity-map.mjs apply [--dry-run] <file-or-dir>... | verify <upstream-ref>");
   return 2;
 }
 

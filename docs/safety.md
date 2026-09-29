@@ -305,7 +305,7 @@ The workaround is to re-run `/k3:setup` after any Node version switch. The stric
 
 ## Hook-path drift is repaired by the caller, never by the verifier (v1.9.0)
 
-Plugin install paths are version-stamped (`…/brilia-k3-marketplace/kimi/<version>/dist/hooks/approval-hook.js`), so a plugin update moves the hook script and the recorded command stops matching. That refusal is correct and fail-closed, but it is also routine, so refusals now carry a **machine-readable** classification alongside the prose reason:
+Plugin install paths are version-stamped (`…/brilia-k3-marketplace/k3/<version>/dist/hooks/approval-hook.js`), so a plugin update moves the hook script and the recorded command stops matching. That refusal is correct and fail-closed, but it is also routine, so refusals now carry a **machine-readable** classification alongside the prose reason:
 
 `HookInstallStatus.drift` = `{axis: "hook-script" | "node-bin" | "both", installedCommand, expectedCommand}`, surfaced in every refusal's `RuntimeError.details` as `drift_axis` / `retryable_after_setup`. It is populated **only** when a structurally sound block's command names different paths, and is derived **after** byte-exact equality has already failed — it can never influence the installed decision, exactly like the H4 prose classification. Refusals that re-pinning cannot fix (unresolvable command, unreadable config, invalid hook set, duplicate/orphan markers, missing script) carry no drift at all.
 
