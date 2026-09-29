@@ -8,7 +8,7 @@ import { resolveHostId, tryBuildExpectedHookCommand } from "./install-paths.js";
 import { resolveKimiHome } from "../kimi-home.js";
 
 /**
- * Verify that the kimi-plugin-cc PreToolUse hook is installed and
+ * Verify that the k3-plugin-cc PreToolUse hook is installed and
  * structurally valid in `~/.kimi-code/config.toml`, AND that its
  * `command = "..."` exactly matches the canonical shell command this
  * companion would write for the current env.
@@ -22,7 +22,7 @@ import { resolveKimiHome } from "../kimi-home.js";
  *      referencing a stale or missing hook script silently passed. The
  *      verifier now ALWAYS reconstructs the expected command from the
  *      current env (via `tryBuildExpectedHookCommand`) and equality-
- *      checks. There is no opt-out short of `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1`.
+ *      checks. There is no opt-out short of `K3_PLUGIN_CC_SKIP_HOOK_CHECK=1`.
  *
  *   2. The path check was substring (`commandPath.includes(hookPath)`),
  *      which a crafted command like `true # /path/to/approval-hook.js`
@@ -41,7 +41,7 @@ import { resolveKimiHome } from "../kimi-home.js";
  *      exists and is readable before blessing a command match as installed.
  *
  * Tests / setup probes can opt out via
- * `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` — that bypass disables hook-install
+ * `K3_PLUGIN_CC_SKIP_HOOK_CHECK=1` — that bypass disables hook-install
  * refusal gates and the review gate's enforcement check, but cannot bypass the
  * independent experimental-v2 safety refusal in cli-client (documented in
  * `docs/safety.md`).
@@ -87,12 +87,12 @@ export async function verifyHookInstalled(
   env: NodeJS.ProcessEnv,
 ): Promise<HookInstallStatus> {
   const configPath = resolveKimiCodeConfigPath(env);
-  if (env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
+  if (env.K3_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
     return { installed: true, configPath };
   }
 
   // Canonical expected shell command for the current env. If this
-  // can't be resolved (KIMI_PLUGIN_CC_NODE_BIN not absolute,
+  // can't be resolved (K3_PLUGIN_CC_NODE_BIN not absolute,
   // install-paths module can't infer plugin root, etc.) treat the hook
   // as un-verifiable — installed=false with a structured reason. The
   // caller's stderr warning surfaces the underlying error code.
@@ -192,7 +192,7 @@ export async function verifyHookInstalled(
   // byte-for-byte, yet the Node token embedded in that command fails X_OK AT
   // VERIFICATION TIME. Three reachable ways to get there:
   //
-  //   1. An absolute `KIMI_PLUGIN_CC_NODE_BIN` naming a binary that is NOT the
+  //   1. An absolute `K3_PLUGIN_CC_NODE_BIN` naming a binary that is NOT the
   //      running interpreter and is already dead — e.g. a pinned `nvm` version
   //      later `nvm uninstall`ed — reached by a direct `node dist/companion.js`
   //      that bypasses companion.sh's exec+version gate. The override is
@@ -233,7 +233,7 @@ export async function verifyHookInstalled(
       reason:
         `hook interpreter ${expected.nodeBin} is missing or not executable, so the PreToolUse hook ` +
         `cannot spawn (kimi-code reads a failed hook as ALLOW). Repair the Node install, or set ` +
-        `KIMI_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /k3:setup.`,
+        `K3_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /k3:setup.`,
       configPath,
       // Machine-readable discriminator: this is the ONE refusal whose remedy is
       // NOT "run /k3:setup" (LLM-caller discipline — an agent cannot read the
@@ -323,7 +323,7 @@ export function formatHookMissingWarning(
 ): string {
   return [
     "",
-    "WARNING: kimi-plugin-cc safety hook is NOT installed (or is invalid).",
+    "WARNING: k3-plugin-cc safety hook is NOT installed (or is invalid).",
     `  Command: ${commandLabel}`,
     `  Config:  ${status.configPath}`,
     `  Reason:  ${status.reason ?? "unknown"}`,
@@ -342,7 +342,7 @@ export function formatHookMissingWarning(
     "  verifier pins the absolute Node binary path and a switch invalidates",
     "  the previously-installed block by design. See docs/safety.md.",
     "",
-    "  KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 explicitly bypasses hook-verification",
+    "  K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 explicitly bypasses hook-verification",
     "  refusals and restores un-enforced `permission: auto` execution. It does",
     "  NOT bypass the experimental-v2 safety refusal. Reserve it for tests or",
     "  diagnostics where the hook risk is intentional.",

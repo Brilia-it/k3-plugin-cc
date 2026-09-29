@@ -178,7 +178,7 @@ export function assertNoUnsafeExperimentalSelector(
   if (!enabled) return;
   throw new RuntimeError(
     "CLI_V2_HOOK_ORDER_UNSAFE",
-    "Refusing kimi-code experimental features: the master KIMI_CODE_EXPERIMENTAL_FLAG enables unreviewed agent-core-v2 features (tower, subagent fork) that kimi-plugin-cc has not certified under its no-plan safety profile. Unset KIMI_CODE_EXPERIMENTAL_FLAG and retry.",
+    "Refusing kimi-code experimental features: the master KIMI_CODE_EXPERIMENTAL_FLAG enables unreviewed agent-core-v2 features (tower, subagent fork) that k3-plugin-cc has not certified under its no-plan safety profile. Unset KIMI_CODE_EXPERIMENTAL_FLAG and retry.",
     stage,
     {
       details: {
@@ -230,7 +230,7 @@ export async function prepareKimiExecutionPlan(
     });
   };
 
-  if (options.env.KIMI_PLUGIN_CC_SKIP_VERSION_PROBE === "1") {
+  if (options.env.K3_PLUGIN_CC_SKIP_VERSION_PROBE === "1") {
     const intendedEngine = options.intendedEngine ?? "legacy-v1";
     const safetyProfile = intendedEngine === "native-v2" ? NATIVE_V2_SAFETY_PROFILE : null;
     await runPreflight(intendedEngine);
@@ -256,7 +256,7 @@ export async function prepareKimiExecutionPlan(
   if (probe.kind !== "ok") {
     throw new RuntimeError(
       "KIMI_EXECUTION_PLAN_UNRESOLVED",
-      `Refusing to spawn kimi because the exact command/version plan could not be established: ${probe.reason}. Run Claude Code \`/k3:setup\` or Codex \`$k3-setup\` to verify the active binary, or correct KIMI_PLUGIN_CC_KIMI_BIN / KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS and retry.`,
+      `Refusing to spawn kimi because the exact command/version plan could not be established: ${probe.reason}. Run Claude Code \`/k3:setup\` or Codex \`$k3-setup\` to verify the active binary, or correct K3_PLUGIN_CC_KIMI_BIN / K3_PLUGIN_CC_KIMI_PREFIX_ARGS and retry.`,
       "kimi-engine.plan",
       {
         details: {
@@ -673,11 +673,11 @@ function assertCertifiedCapability(
     (probe.major === minimum.major && probe.minor >= minimum.minor);
   if (!probe.inTestedRange || !meetsMinimum) {
     const remedy = !probe.inTestedRange
-      ? "Update kimi-plugin-cc to a release that certifies this kimi-code minor, or point KIMI_PLUGIN_CC_KIMI_BIN at a certified binary."
+      ? "Update k3-plugin-cc to a release that certifies this kimi-code minor, or point K3_PLUGIN_CC_KIMI_BIN at a certified binary."
       : `Upgrade kimi-code to at least ${minimum.major}.${minimum.minor}.0 within a certified minor.`;
     throw new RuntimeError(
       "KIMI_CAPABILITY_NOT_CERTIFIED",
-      `Refusing ${operationKind}: kimi-code ${probe.version} is not in this operation's certified legacy-v1 range. ${remedy} KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production repair path.`,
+      `Refusing ${operationKind}: kimi-code ${probe.version} is not in this operation's certified legacy-v1 range. ${remedy} K3_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production repair path.`,
       "kimi-engine.capability",
       {
         details: {
@@ -715,9 +715,9 @@ function assertPlanCertification(
     if (plan.kimiVersion !== null) {
       throw invalidPersistedPlan("test-bypass plans must have kimi_version=null");
     }
-    if (env.KIMI_PLUGIN_CC_SKIP_VERSION_PROBE !== "1") {
+    if (env.K3_PLUGIN_CC_SKIP_VERSION_PROBE !== "1") {
       throw invalidPersistedPlan(
-        "test-bypass plans require KIMI_PLUGIN_CC_SKIP_VERSION_PROBE=1 at the final spawn boundary",
+        "test-bypass plans require K3_PLUGIN_CC_SKIP_VERSION_PROBE=1 at the final spawn boundary",
       );
     }
     return;
@@ -787,7 +787,7 @@ function nativeV2NotCertified(
   const observed = version === null ? "an unprobed version" : `kimi-code ${version}`;
   return new RuntimeError(
     "KIMI_CAPABILITY_NOT_CERTIFIED",
-    `Refusing ${operationKind} on native v2: ${observed} is not in this operation's exactly certified set [${certified.join(", ")}]. Update kimi-plugin-cc to a release that certifies this kimi-code version, or point KIMI_PLUGIN_CC_KIMI_BIN at a certified binary. KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production repair path.`,
+    `Refusing ${operationKind} on native v2: ${observed} is not in this operation's exactly certified set [${certified.join(", ")}]. Update k3-plugin-cc to a release that certifies this kimi-code version, or point K3_PLUGIN_CC_KIMI_BIN at a certified binary. K3_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production repair path.`,
     "kimi-engine.capability",
     {
       details: {
@@ -852,7 +852,7 @@ async function resolveExactExecutable(
 
   throw new RuntimeError(
     "KIMI_EXECUTION_PLAN_UNRESOLVED",
-    `Refusing to spawn kimi because executable ${JSON.stringify(command)} could not be resolved to an exact runnable path. Run Claude Code \`/k3:setup\` or Codex \`$k3-setup\` to verify the active binary, or correct KIMI_PLUGIN_CC_KIMI_BIN and retry.`,
+    `Refusing to spawn kimi because executable ${JSON.stringify(command)} could not be resolved to an exact runnable path. Run Claude Code \`/k3:setup\` or Codex \`$k3-setup\` to verify the active binary, or correct K3_PLUGIN_CC_KIMI_BIN and retry.`,
     "kimi-engine.plan",
     { details: { command, cwd } },
   );

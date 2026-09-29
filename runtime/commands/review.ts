@@ -36,7 +36,7 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //   Replaced the v0.4 wire client + initialize + prompt sequence with a
 //   single `runCliPrompt` call against `kimi -p --output-format
 //   stream-json`. The PreToolUse hook (installed via /k3:setup) reads
-//   `KIMI_PLUGIN_CC_CMD=review` (or `=challenge`) and denies anything
+//   `K3_PLUGIN_CC_CMD=review` (or `=challenge`) and denies anything
 //   but Read/Grep/Glob — so the read-only contract that v0.4 enforced
 //   via WireClient.approvalPolicy is now enforced out-of-band by the
 //   hook. The command no longer needs to wire its own approval policy.
@@ -76,7 +76,7 @@ export async function runReview(
     );
   }
 
-  if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+  if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
     await requireReadOnlyHookInstalled(context, commandType);
   }
 
@@ -224,7 +224,7 @@ async function requireReadOnlyHookInstalled(
   context: CommandContext,
   commandType: "review" | "challenge",
 ): Promise<void> {
-  if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
+  if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
     return;
   }
 
@@ -237,10 +237,10 @@ async function requireReadOnlyHookInstalled(
   throw new RuntimeError(
     `${commandType.toUpperCase()}_HOOK_NOT_INSTALLED`,
     [
-      `${commandType} refuses to run without the canonical kimi-plugin-cc PreToolUse hook.`,
+      `${commandType} refuses to run without the canonical k3-plugin-cc PreToolUse hook.`,
       `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
       "Run /k3:setup or $k3-setup to install or repair this host's managed block.",
-      "Set KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
+      "Set K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
       hookRefusalRetryProtocol(context.env),
     ].join(" "),
     `${commandType}.hook-check`,

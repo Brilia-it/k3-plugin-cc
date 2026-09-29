@@ -43,7 +43,7 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //     the session but not necessarily the goal continuation. Exposing resume
 //     before that split is reconciled upstream would be a silent-failure trap,
 //     so we capture+surface the goalId but don't offer resume yet.
-//   - Reuses the RESCUE job lineage (command_type "rescue", KIMI_PLUGIN_CC_CMD=
+//   - Reuses the RESCUE job lineage (command_type "rescue", K3_PLUGIN_CC_CMD=
 //     "rescue") so the PreToolUse hook applies the workspace write allowlist to
 //     EVERY continuation turn, and /k3:status / /k3:result / /k3:cancel
 //     work unchanged. Promoting pursue to a first-class command_type is a
@@ -254,17 +254,17 @@ async function executePursueJob(
   // Pursue is write-capable AND autonomous — refuse without the PreToolUse hook,
   // exactly like rescue. The hook gates every tool call in every goal
   // continuation turn; without it, kimi -p auto-approves destructive ops.
-  if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+  if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
     const installStatus = await verifyHookInstalled(context.env);
     if (!installStatus.installed) {
       maybeWarnHookMissing(installStatus, "rescue", context.stderr);
       const classified = new RuntimeError(
         "PURSUE_HOOK_NOT_INSTALLED",
         [
-          "/k3:pursue refuses to run without the kimi-plugin-cc PreToolUse hook.",
+          "/k3:pursue refuses to run without the k3-plugin-cc PreToolUse hook.",
           `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
           "Repair by running Claude Code /k3:setup or Codex $k3-setup, then retry.",
-          "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
+          "K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
           hookRefusalRetryProtocol(context.env),
         ].join(" "),
         "pursue.hook-check",
@@ -288,7 +288,7 @@ async function executePursueJob(
       {
         cwd: job.cwd,
         // Enable headless goal mode for THIS spawn only (per-job env block —
-        // never exported to a shell). KIMI_PLUGIN_CC_CMD=rescue is overlaid by
+        // never exported to a shell). K3_PLUGIN_CC_CMD=rescue is overlaid by
         // cli-client from commandLabel below so the write allowlist applies.
         // The env flag gates goal mode on kimi-code 0.8–0.11; 0.12.0 removed the
         // gate (PR #569) so it is now redundant there but harmless — unknown
@@ -352,7 +352,7 @@ async function executePursueJob(
       artifactPath = await writeArtifact(paths, job, rendered.rendered);
     } catch (writeError) {
       context.stderr.write(
-        `[kimi-plugin-cc] pursue artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`,
+        `[k3-plugin-cc] pursue artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`,
       );
       const classified = new RuntimeError(
         "PURSUE_ARTIFACT_WRITE_FAILED",

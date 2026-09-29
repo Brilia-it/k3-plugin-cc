@@ -1,5 +1,5 @@
 interface:
-  display_name: "Kimi Review"
+  display_name: "K3 Review"
   short_description: "Run Kimi read-only code review"
   default_prompt: "Use $k3-review to review the current working tree."
 policy:

@@ -43,7 +43,7 @@ The dispatcher in `companion.ts` exposes:
 
 Every model command verifies the current host's hook before spawning. The review gate skips visibly if enforcement is unavailable. Native-v2 sessions also pass the independent no-plan checks before spawn and at the spawn boundary.
 
-`KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook verification only. It is a test and diagnostic option, not a repair path. It does not bypass engine certification, provenance, or the native-v2 preflight.
+`K3_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook verification only. It is a test and diagnostic option, not a repair path. It does not bypass engine certification, provenance, or the native-v2 preflight.
 
 Cancellation waits for process teardown. On POSIX systems, the runtime checks descendant identities before signaling and waits for a bounded period after forced termination. Windows lacks equivalent process-tree support.
 
@@ -51,6 +51,6 @@ Commands return Kimi's prose. The review gate is the exception: it parses a JSON
 
 Model selection follows the [model and provider contract](../docs/models.md). The plugin does not enforce a per-task thinking setting. Its `thinking` field carries intent only; the parser rejects `--thinking` and `--no-thinking`.
 
-The shell wrapper accepts `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT`. Data selection uses the explicit `KIMI_PLUGIN_CC_DATA` override, verified installed-package identity, or unambiguous legacy data variables for custom launches. Conflicts refuse before store access; see [plugin data ownership](../docs/invariants.md#5-plugin-data-ownership). Logs remain under the selected parent in `kimi-plugin-cc/logs/`. See [entry points and generated surfaces](../scripts/README.md).
+The shell wrapper accepts `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT`. Data selection uses the explicit `K3_PLUGIN_CC_DATA` override, verified installed-package identity, or unambiguous legacy data variables for custom launches. Conflicts refuse before store access; see [plugin data ownership](../docs/invariants.md#5-plugin-data-ownership). Logs remain under the selected parent in `k3-plugin-cc/logs/`. See [entry points and generated surfaces](../scripts/README.md).
 
 Production runs use `dist/companion.js` on Node. Development can use `tsx`; Bun installs dependencies and runs tests. The old Python Wire transport is historical and is not used by this runtime.

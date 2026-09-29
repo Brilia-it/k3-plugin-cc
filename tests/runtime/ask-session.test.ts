@@ -36,12 +36,12 @@ function makeMockEnv(
   return {
     ...process.env,
     CLAUDE_PLUGIN_DATA: pluginDataRoot,
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: scenario,
-    KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-    KIMI_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: scenario,
+    K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+    K3_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
   };
 }
 

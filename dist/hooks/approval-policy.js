@@ -20,7 +20,7 @@
 // Fail-closed posture:
 //
 //   Unknown command labels deny anything but Read/Grep/Glob. A
-//   KIMI_PLUGIN_CC_CMD env var someone forgot to set is the "out of
+//   K3_PLUGIN_CC_CMD env var someone forgot to set is the "out of
 //   plugin context" case (treated as allow); a label we don't recognize
 //   is the "stale config / misconfigured caller" case (treated as deny
 //   by default).
@@ -48,7 +48,7 @@ export const READ_ONLY_TOOLS = new Set([
  * packages/agent-core/src/tools/builtin/collaboration/agent-swarm.ts:87,
  * `readonly name = 'AgentSwarm' as const`). The `/k3:swarm` (read-only)
  * label allowlists THIS tool so the parent agent can launch the swarm; every
- * spawned subagent inherits the same KIMI_PLUGIN_CC_CMD label and fires THIS
+ * spawned subagent inherits the same K3_PLUGIN_CC_CMD label and fires THIS
  * hook at permission policy index 0 (kimi-code
  * createPermissionDecisionPolicies puts PreToolCallHookPermissionPolicy at
  * index 0 for ALL agents — no sub-vs-main branch — so a subagent's write is
@@ -91,7 +91,7 @@ export async function decideHookOutcome(input, ctx) {
     if (PLAN_MODE_TOOLS.has(toolName)) {
         return {
             decision: "deny",
-            reason: `kimi-plugin-cc safety hook: tool "${toolName}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks; native plan mode is never armed in plugin-managed sessions.`,
+            reason: `k3-plugin-cc safety hook: tool "${toolName}" is denied for plugin-managed sessions because agent-core-v2 plan-file writes can bypass later external hooks; native plan mode is never armed in plugin-managed sessions.`,
         };
     }
     if (["GetGoal", "UpdateGoal", "CreateGoal", "SetGoalBudget"].includes(toolName)) {
@@ -111,7 +111,7 @@ export async function decideHookOutcome(input, ctx) {
         }
         return {
             decision: "deny",
-            reason: `kimi-plugin-cc safety hook: tool "${toolName}" requires a pursue run with a trusted workspace root and exact terminal goal metadata arguments; goal creation, reactivation, and budget changes are denied.`,
+            reason: `k3-plugin-cc safety hook: tool "${toolName}" requires a pursue run with a trusted workspace root and exact terminal goal metadata arguments; goal creation, reactivation, and budget changes are denied.`,
         };
     }
     switch (label) {
@@ -160,8 +160,8 @@ export async function decideHookOutcome(input, ctx) {
             // plus the read-only set; deny the singular Agent. Every write/edit/shell
             // goes through the rescue allowlist — but scoped to the TRUSTED env-provided
             // worktree root (ctx.trustedWorkspaceRoot), NOT the hook payload `cwd`.
-            // Rationale: the worktree path is exported as KIMI_PLUGIN_CC_WORKSPACE_ROOT
-            // by the same trusted plugin spawn that sets KIMI_PLUGIN_CC_CMD, so the
+            // Rationale: the worktree path is exported as K3_PLUGIN_CC_WORKSPACE_ROOT
+            // by the same trusted plugin spawn that sets K3_PLUGIN_CC_CMD, so the
             // model running inside kimi cannot forge it, and confinement does not
             // depend on how upstream derives the payload cwd for an in-process
             // subagent. Missing root ⇒ fail-closed (deny writes).
@@ -172,7 +172,7 @@ export async function decideHookOutcome(input, ctx) {
             if (workspaceRoot.length === 0) {
                 return {
                     decision: "deny",
-                    reason: `kimi-plugin-cc safety hook: swarm-write received no trusted workspace root; tool "${toolName}" denied. ` +
+                    reason: `k3-plugin-cc safety hook: swarm-write received no trusted workspace root; tool "${toolName}" denied. ` +
                         "This is a plugin misconfiguration — writes are refused rather than risk the user's working tree.",
                 };
             }
@@ -186,7 +186,7 @@ export async function decideHookOutcome(input, ctx) {
             }
             return {
                 decision: "deny",
-                reason: `kimi-plugin-cc safety hook: swarm-write evaluator not configured; tool "${toolName}" denied as a safety default.`,
+                reason: `k3-plugin-cc safety hook: swarm-write evaluator not configured; tool "${toolName}" denied as a safety default.`,
             };
         }
         case "rescue": {
@@ -196,7 +196,7 @@ export async function decideHookOutcome(input, ctx) {
                     return { decision: "allow" };
                 return {
                     decision: "deny",
-                    reason: `kimi-plugin-cc safety hook: rescue received no trusted workspace root; tool "${toolName}" denied. ` +
+                    reason: `k3-plugin-cc safety hook: rescue received no trusted workspace root; tool "${toolName}" denied. ` +
                         "This is a plugin misconfiguration — writes are refused rather than trusting hook payload cwd.",
                 };
             }
@@ -213,7 +213,7 @@ export async function decideHookOutcome(input, ctx) {
             }
             return {
                 decision: "deny",
-                reason: `kimi-plugin-cc safety hook: rescue evaluator not configured; tool "${toolName}" denied as a safety default.`,
+                reason: `k3-plugin-cc safety hook: rescue evaluator not configured; tool "${toolName}" denied as a safety default.`,
             };
         }
         default:
@@ -222,7 +222,7 @@ export async function decideHookOutcome(input, ctx) {
                 // own branch above. If you see this, add the case.
                 return {
                     decision: "deny",
-                    reason: `kimi-plugin-cc safety hook: command label "${label}" has no policy branch.`,
+                    reason: `k3-plugin-cc safety hook: command label "${label}" has no policy branch.`,
                 };
             }
             // Unknown label. Be conservative; only allow Read/Grep/Glob.
@@ -231,14 +231,14 @@ export async function decideHookOutcome(input, ctx) {
             }
             return {
                 decision: "deny",
-                reason: `kimi-plugin-cc safety hook: unrecognized command label "${label}"; tool "${toolName}" denied as a safety default.`,
+                reason: `k3-plugin-cc safety hook: unrecognized command label "${label}"; tool "${toolName}" denied as a safety default.`,
             };
     }
 }
 function denyReadOnlyMessage(label, toolName) {
     const tool = toolName.length > 0 ? toolName : "<unspecified>";
     return [
-        `kimi-plugin-cc safety hook: ${label} is read-only.`,
+        `k3-plugin-cc safety hook: ${label} is read-only.`,
         `Tool "${tool}" is denied — use Read, Grep, or Glob to inspect the workspace instead.`,
         "If you need to mutate state, the user must invoke /k3:rescue (write-capable) rather than this command.",
     ].join(" ");
@@ -246,7 +246,7 @@ function denyReadOnlyMessage(label, toolName) {
 function denySwarmMessage(toolName) {
     const tool = toolName.length > 0 ? toolName : "<unspecified>";
     return [
-        "kimi-plugin-cc safety hook: swarm is a read-only parallel review.",
+        "k3-plugin-cc safety hook: swarm is a read-only parallel review.",
         `Tool "${tool}" is denied — every subagent may use Read, Grep, or Glob to inspect the workspace,`,
         "and the coordinator may use AgentSwarm to fan out, but no write, edit, or shell operations are permitted.",
         "Consolidate the subagents' findings into a markdown report instead.",

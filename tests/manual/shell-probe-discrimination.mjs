@@ -37,7 +37,7 @@ const PAYLOAD = JSON.stringify({
   tool_call_id: "probe-1",
 });
 
-const env = { ...process.env, KIMI_PLUGIN_CC_CMD: "review", KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1" };
+const env = { ...process.env, K3_PLUGIN_CC_CMD: "review", K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1" };
 const opts = { input: PAYLOAD, encoding: "utf8", env, timeout: 20000 };
 
 const sq = (s) => `'${s.replace(/'/g, `'\\''`)}'`;

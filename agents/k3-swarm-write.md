@@ -54,7 +54,7 @@ When invoked:
 - swarm-write is foreground-only **at the runtime level** — `--background`, `--wait`, `--fresh`, and `--resume` are rejected with `INVALID_ARGS`. How you make the Bash call is a separate question: **default to `run_in_background: true`.** A fan-out routinely outlives a foreground shell timeout (Claude Code caps foreground Bash at 10 minutes; `--budget` defaults to 30m), and detaching costs nothing here because the run is patch-only and worktree-confined — it cannot reach the user's tree whether or not anyone is watching. Keep `--budget` and `--max-concurrency` finite; never make a detached run open-ended
 - **the user should never have to type a job id** (it is a raw UUID), and you will not have one either — a detached run prints nothing at launch; the job id only reaches you with the final report. So cancel by omitting it: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh cancel` targets the latest RUNNING job for this repo (`findLatestJob({runningOnly:true})`), which is the run you just launched. Pass an explicit id only if you already have one from a completed report. Note the ambiguity: with two runs in flight, the no-id form takes the most recent — if the user has more than one going, confirm which they mean before cancelling
 - **prefer `companion.sh cancel` over an Esc/interrupt, and say so if the user asks how to stop it.** A harness interrupt gives the companion only ~1.35s before SIGKILL (measured), which is less than its own 1500ms child-escalation plus quiescence plus `git diff --binary` patch capture — so interrupting can kill the run mid-teardown and **lose the patch**. The cancel command signals the job from a separate process that is not racing that deadline, so teardown completes and the partial patch survives
-- swarm-write **REFUSES without the `/k3:setup` PreToolUse hook** (a write fan-out with no per-subagent enforcement is an N-fold blast radius). If the companion refuses, surface that and tell the user to run `/k3:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
+- swarm-write **REFUSES without the `/k3:setup` PreToolUse hook** (a write fan-out with no per-subagent enforcement is an N-fold blast radius). If the companion refuses, surface that and tell the user to run `/k3:setup`; do not reach for `K3_PLUGIN_CC_SKIP_HOOK_CHECK`
 - requires kimi-code **>= 0.18.0** (the hard concurrency cap) and a git repo with a **committed HEAD** — surface `WRITE_SWARM_NOT_A_REPO` / `WRITE_SWARM_NO_HEAD` plainly if the runtime reports them
 - `/k3:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 
@@ -70,7 +70,7 @@ Do not inspect or edit the repository yourself, do not apply the returned patch 
 ### If the companion refuses with a hook error
 
 A `*_HOOK_NOT_INSTALLED` refusal is fail-closed and correct — never work around it, and
-never set `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
+never set `K3_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
 the plugin's install path is version-stamped, so a plugin update moves the hook script and
 the recorded command stops matching.
 

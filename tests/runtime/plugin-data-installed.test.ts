@@ -20,8 +20,8 @@ describe("installed data-root isolation", () => {
     test(`${host}: first shell launch accepts a symlinked home before data exists`, async () => {
       const home = path.join(scratch, `${host}-first-home`);
       const alias = path.join(scratch, `${host}-first-home-alias`);
-      const install = path.join(home, "plugins/cache/kimi-marketplace/kimi/2.0.1");
-      const dataName = host === "claude" ? "kimi-kimi-marketplace" : "kimi-marketplace-kimi";
+      const install = path.join(home, "plugins/cache/brilia-k3-marketplace/k3/2.0.1");
+      const dataName = host === "claude" ? "k3-brilia-k3-marketplace" : "brilia-k3-marketplace-k3";
       const data = path.join(home, "plugins/data", dataName);
       const aliasedData = path.join(alias, "plugins/data", dataName);
       await mkdir(install, { recursive: true });
@@ -30,27 +30,27 @@ describe("installed data-root isolation", () => {
       }
       const manifest = host === "codex" ? ".codex-plugin" : ".claude-plugin";
       await mkdir(path.join(install, manifest));
-      await writeFile(path.join(install, manifest, "plugin.json"), '{"name":"kimi"}');
+      await writeFile(path.join(install, manifest, "plugin.json"), '{"name":"k3"}');
       await symlink(home, alias);
-      const aliasedInstall = path.join(alias, "plugins/cache/kimi-marketplace/kimi/2.0.1");
+      const aliasedInstall = path.join(alias, "plugins/cache/brilia-k3-marketplace/k3/2.0.1");
       expect(existsSync(data)).toBe(false);
       const result = spawnSync(path.join(aliasedInstall, "scripts/review-gate-hook.sh"), [], {
         cwd: repo, encoding: "utf8",
-        env: { PATH: "/usr/bin:/bin", KIMI_PLUGIN_CC_NODE_BIN: node,
+        env: { PATH: "/usr/bin:/bin", K3_PLUGIN_CC_NODE_BIN: node,
           CLAUDE_PLUGIN_ROOT: aliasedInstall, PLUGIN_ROOT: aliasedInstall,
           CLAUDE_PLUGIN_DATA: aliasedData, PLUGIN_DATA: aliasedData },
         input: JSON.stringify({ hook_event_name: "Stop", cwd: repo }),
       });
       expect(result.status).toBe(0);
       expect(JSON.parse(result.stdout).systemMessage).toContain("disabled");
-      expect(existsSync(path.join(data, "kimi-plugin-cc"))).toBe(true);
-      expect(existsSync(path.join(aliasedData, "kimi-plugin-cc"))).toBe(true);
+      expect(existsSync(path.join(data, "k3-plugin-cc"))).toBe(true);
+      expect(existsSync(path.join(aliasedData, "k3-plugin-cc"))).toBe(true);
     });
 
     test(`${host}: conflict refuses writes; explicit recovery retains old jobs and settings`, async () => {
       const plugins = path.join(scratch, host, "plugins");
-      const install = path.join(plugins, "cache/kimi-marketplace/kimi/2.0.0");
-      const data = path.join(plugins, "data", host === "claude" ? "kimi-kimi-marketplace" : "kimi-marketplace-kimi");
+      const install = path.join(plugins, "cache/brilia-k3-marketplace/k3/2.0.0");
+      const data = path.join(plugins, "data", host === "claude" ? "k3-brilia-k3-marketplace" : "brilia-k3-marketplace-k3");
       const foreign = path.join(plugins, "data/other-plugin");
       const custom = path.join(scratch, `${host}-custom-data`);
       await mkdir(install, { recursive: true });
@@ -59,8 +59,8 @@ describe("installed data-root isolation", () => {
       }
       const manifest = host === "codex" ? ".codex-plugin" : ".claude-plugin";
       await mkdir(path.join(install, manifest));
-      await writeFile(path.join(install, manifest, "plugin.json"), '{"name":"kimi"}');
-      const paths = resolvePluginPaths({ KIMI_PLUGIN_CC_DATA: data });
+      await writeFile(path.join(install, manifest, "plugin.json"), '{"name":"k3"}');
+      const paths = resolvePluginPaths({ K3_PLUGIN_CC_DATA: data });
       await ensurePluginPaths(paths);
       const config = '{"reviewGateEnabled":true}\n';
       await writeFile(paths.configPath, config);
@@ -75,7 +75,7 @@ describe("installed data-root isolation", () => {
         });
       } finally { store.close(); }
       const env = {
-        PATH: "/usr/bin:/bin", KIMI_PLUGIN_CC_NODE_BIN: node,
+        PATH: "/usr/bin:/bin", K3_PLUGIN_CC_NODE_BIN: node,
         CLAUDE_PLUGIN_ROOT: install, PLUGIN_ROOT: install,
         CLAUDE_PLUGIN_DATA: foreign, PLUGIN_DATA: data,
         KIMI_CODE_HOME: path.join(scratch, `${host}-unused-kimi-home`),
@@ -87,7 +87,7 @@ describe("installed data-root isolation", () => {
       expect(refused.stderr).toContain(data);
       expect(existsSync(foreign)).toBe(false);
       expect(await readFile(paths.configPath, "utf8")).toBe(config);
-      const recovered = run({ KIMI_PLUGIN_CC_DATA: data });
+      const recovered = run({ K3_PLUGIN_CC_DATA: data });
       expect(recovered.status).toBe(0);
       expect(JSON.parse(recovered.stdout)).toMatchObject({ job_id: "existing-job", summary: "Existing history" });
       expect(existsSync(foreign)).toBe(false);
@@ -103,10 +103,10 @@ describe("installed data-root isolation", () => {
       const skipped = stop();
       expect(skipped.status).toBe(0);
       expect(JSON.parse(skipped.stdout).systemMessage).toContain("PLUGIN_DATA_CONFLICT");
-      expect(stop({ KIMI_PLUGIN_CC_DATA: data }).stdout).toContain("stop hook already active");
+      expect(stop({ K3_PLUGIN_CC_DATA: data }).stdout).toContain("stop hook already active");
       // A deliberately selected custom root remains supported without migrating it.
-      expect(stop({ KIMI_PLUGIN_CC_DATA: custom }).stdout).toContain("disabled");
-      expect(existsSync(path.join(custom, "kimi-plugin-cc"))).toBe(true);
+      expect(stop({ K3_PLUGIN_CC_DATA: custom }).stdout).toContain("disabled");
+      expect(existsSync(path.join(custom, "k3-plugin-cc"))).toBe(true);
       expect(existsSync(foreign)).toBe(false);
       expect(existsSync(env.KIMI_CODE_HOME)).toBe(false);
       expect(await readFile(paths.configPath, "utf8")).toBe(config);

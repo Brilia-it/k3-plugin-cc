@@ -7,11 +7,11 @@ import { resolveHostId, tryBuildExpectedHookCommand } from "./install-paths.js";
 import { resolveKimiHome } from "../kimi-home.js";
 export async function verifyHookInstalled(env) {
     const configPath = resolveKimiCodeConfigPath(env);
-    if (env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
+    if (env.K3_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
         return { installed: true, configPath };
     }
     // Canonical expected shell command for the current env. If this
-    // can't be resolved (KIMI_PLUGIN_CC_NODE_BIN not absolute,
+    // can't be resolved (K3_PLUGIN_CC_NODE_BIN not absolute,
     // install-paths module can't infer plugin root, etc.) treat the hook
     // as un-verifiable — installed=false with a structured reason. The
     // caller's stderr warning surfaces the underlying error code.
@@ -108,7 +108,7 @@ export async function verifyHookInstalled(env) {
     // byte-for-byte, yet the Node token embedded in that command fails X_OK AT
     // VERIFICATION TIME. Three reachable ways to get there:
     //
-    //   1. An absolute `KIMI_PLUGIN_CC_NODE_BIN` naming a binary that is NOT the
+    //   1. An absolute `K3_PLUGIN_CC_NODE_BIN` naming a binary that is NOT the
     //      running interpreter and is already dead — e.g. a pinned `nvm` version
     //      later `nvm uninstall`ed — reached by a direct `node dist/companion.js`
     //      that bypasses companion.sh's exec+version gate. The override is
@@ -149,7 +149,7 @@ export async function verifyHookInstalled(env) {
             installed: false,
             reason: `hook interpreter ${expected.nodeBin} is missing or not executable, so the PreToolUse hook ` +
                 `cannot spawn (kimi-code reads a failed hook as ALLOW). Repair the Node install, or set ` +
-                `KIMI_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /k3:setup.`,
+                `K3_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /k3:setup.`,
             configPath,
             // Machine-readable discriminator: this is the ONE refusal whose remedy is
             // NOT "run /k3:setup" (LLM-caller discipline — an agent cannot read the
@@ -228,7 +228,7 @@ export function hookRefusalDetails(status) {
 export function formatHookMissingWarning(status, commandLabel) {
     return [
         "",
-        "WARNING: kimi-plugin-cc safety hook is NOT installed (or is invalid).",
+        "WARNING: k3-plugin-cc safety hook is NOT installed (or is invalid).",
         `  Command: ${commandLabel}`,
         `  Config:  ${status.configPath}`,
         `  Reason:  ${status.reason ?? "unknown"}`,
@@ -247,7 +247,7 @@ export function formatHookMissingWarning(status, commandLabel) {
         "  verifier pins the absolute Node binary path and a switch invalidates",
         "  the previously-installed block by design. See docs/safety.md.",
         "",
-        "  KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 explicitly bypasses hook-verification",
+        "  K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 explicitly bypasses hook-verification",
         "  refusals and restores un-enforced `permission: auto` execution. It does",
         "  NOT bypass the experimental-v2 safety refusal. Reserve it for tests or",
         "  diagnostics where the hook risk is intentional.",

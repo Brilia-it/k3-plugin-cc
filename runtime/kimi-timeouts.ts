@@ -56,7 +56,7 @@ export const KIMI_SWARM_DEFAULT_BUDGET_MS = 1_800_000; // 30 minutes
  * triggers an unknown-option crash). The 8s budget assumes the user
  * has either `default_thinking = false` or `[thinking].mode = "off"`
  * in `~/.kimi-code/config.toml`, OR a non-thinking-capable model
- * selected for review-gate (via KIMI_PLUGIN_CC_REVIEW_GATE_MODEL).
+ * selected for review-gate (via K3_PLUGIN_CC_REVIEW_GATE_MODEL).
  * Under thinking-on the gate will time out — the gate is fail-open on
  * timeout by design, so the worst case is the gate becomes
  * always-allow. See docs/safety.md.

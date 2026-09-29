@@ -12,7 +12,7 @@
 // phase as tools run) can pass `onRecord` to observe records as they arrive
 // without paying for a separate event-stream API.
 //
-// Per-job env (`KIMI_PLUGIN_CC_CMD`) is set on this spawn so the
+// Per-job env (`K3_PLUGIN_CC_CMD`) is set on this spawn so the
 // PreToolUse hook can branch per command (review vs rescue vs ask). It is
 // passed via the spawn `env` option, not exported to a shell, so concurrent
 // jobs never share an env block.
@@ -69,13 +69,13 @@ const DESCENDANT_SNAPSHOT_TIMEOUT = Symbol("descendant-snapshot-timeout");
 export interface CliClientOptions {
   /** Working directory for the kimi subprocess. */
   cwd: string;
-  /** Environment block. KIMI_PLUGIN_CC_CMD is overlaid from `commandLabel`. */
+  /** Environment block. K3_PLUGIN_CC_CMD is overlaid from `commandLabel`. */
   env: NodeJS.ProcessEnv;
   /** Resolved kimi binary path (or bare name if it's on PATH). */
   command: string;
   /** Immutable, pre-spawn-certified engine/command/version plan. */
   executionPlan: KimiExecutionPlan;
-  /** Optional argv prefix (mirrors v0.4's KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS pattern). */
+  /** Optional argv prefix (mirrors v0.4's K3_PLUGIN_CC_KIMI_PREFIX_ARGS pattern). */
   prefixArgs?: string[];
   /** Required user-facing prompt text. */
   prompt: string;
@@ -87,7 +87,7 @@ export interface CliClientOptions {
   commandLabel?: string;
   /**
    * Trusted workspace root for write-capable labels, exported to the spawn as
-   * KIMI_PLUGIN_CC_WORKSPACE_ROOT. The hook confines writes to THIS path instead
+   * K3_PLUGIN_CC_WORKSPACE_ROOT. The hook confines writes to THIS path instead
    * of trusting the hook payload's `cwd`,
    * removing any dependence on upstream payload-cwd semantics: the model running
    * inside kimi cannot forge an env var on the already-spawned process. Set by
@@ -1091,10 +1091,10 @@ function buildEnv(opts: CliClientOptions): NodeJS.ProcessEnv {
   // Rescue and pursue share the write label. Only the immutable execution
   // plan can grant pursue's narrow goal-metadata access; never trust ambient
   // state inherited from another plugin job.
-  env.KIMI_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
+  env.K3_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
   env.KIMI_CODE_HOME = resolveKimiHome(opts.env, opts.cwd);
   if (opts.commandLabel !== undefined) {
-    env.KIMI_PLUGIN_CC_CMD = opts.commandLabel;
+    env.K3_PLUGIN_CC_CMD = opts.commandLabel;
   }
   if (opts.swarmMaxConcurrency !== undefined) {
     // kimi-code 0.18.0+ caps AgentSwarm's normal-phase concurrency at this
@@ -1104,7 +1104,7 @@ function buildEnv(opts: CliClientOptions): NodeJS.ProcessEnv {
   if (opts.trustedWorkspaceRoot !== undefined) {
     // Trusted allowlist root for write-capable PreToolUse cases. Forge-proof
     // (env on the spawned process; the model cannot alter it). See field doc.
-    env.KIMI_PLUGIN_CC_WORKSPACE_ROOT = opts.trustedWorkspaceRoot;
+    env.K3_PLUGIN_CC_WORKSPACE_ROOT = opts.trustedWorkspaceRoot;
   }
   return env;
 }

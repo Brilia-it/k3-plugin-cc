@@ -10,13 +10,13 @@ let root: string;
 beforeAll(async () => { root = await mkdtemp(path.join(tmpdir(), "kimi-data-resolution-")); });
 afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 
-async function install(host: "claude" | "codex", marketplace = "kimi-marketplace", version = "2.0.0") {
+async function install(host: "claude" | "codex", marketplace = "brilia-k3-marketplace", version = "2.0.0") {
   const plugins = path.join(root, host, "plugins");
-  const packageRoot = path.join(plugins, "cache", marketplace, "kimi", version);
+  const packageRoot = path.join(plugins, "cache", marketplace, "k3", version);
   const manifest = path.join(packageRoot, host === "claude" ? ".claude-plugin" : ".codex-plugin");
   await mkdir(manifest, { recursive: true });
-  await writeFile(path.join(manifest, "plugin.json"), '{"name":"kimi"}');
-  return { packageRoot, expected: path.join(plugins, "data", host === "claude" ? `kimi-${marketplace}` : `${marketplace}-kimi`) };
+  await writeFile(path.join(manifest, "plugin.json"), '{"name":"k3"}');
+  return { packageRoot, expected: path.join(plugins, "data", host === "claude" ? `k3-${marketplace}` : `${marketplace}-k3`) };
 }
 
 describe("plugin data ownership", () => {
@@ -25,7 +25,7 @@ describe("plugin data ownership", () => {
       const { packageRoot, expected } = await install(host);
       expect(resolvePluginDataRoot({}, packageRoot)).toBe(expected);
       expect(resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: expected, PLUGIN_DATA: expected }, packageRoot)).toBe(expected);
-      expect(resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: expected }, (await install(host, "kimi-marketplace", "2.1.0")).packageRoot)).toBe(expected);
+      expect(resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: expected }, (await install(host, "brilia-k3-marketplace", "2.1.0")).packageRoot)).toBe(expected);
       for (const env of [
         { CLAUDE_PLUGIN_DATA: path.join(root, "foreign") },
         { PLUGIN_DATA: path.join(root, "foreign") },
@@ -34,7 +34,7 @@ describe("plugin data ownership", () => {
         { CLAUDE_PLUGIN_DATA: path.join(root, "foreign"), PLUGIN_DATA: path.join(root, "foreign") },
       ]) {
         expect(() => resolvePluginDataRoot(env, packageRoot)).toThrow("Shared plugin data variables");
-        expect(resolvePluginDataRoot({ ...env, KIMI_PLUGIN_CC_DATA: expected }, packageRoot)).toBe(expected);
+        expect(resolvePluginDataRoot({ ...env, K3_PLUGIN_CC_DATA: expected }, packageRoot)).toBe(expected);
       }
     });
   }
@@ -58,7 +58,7 @@ describe("plugin data ownership", () => {
     const physical = path.join(root, "claude");
     const alias = path.join(root, "first-run-home-alias");
     await symlink(physical, alias);
-    const aliasedData = path.join(alias, "plugins/data/kimi-first-run-market");
+    const aliasedData = path.join(alias, "plugins/data/k3-first-run-market");
     expect(existsSync(expected)).toBe(false);
     expect(resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: aliasedData }, packageRoot)).toBe(expected);
     expect(existsSync(expected)).toBe(false);
@@ -79,20 +79,20 @@ describe("plugin data ownership", () => {
     expect(resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: root }, root)).toBe(root);
     expect(resolvePluginDataRoot({ PLUGIN_DATA: root }, root)).toBe(root);
     expect(() => resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: root, PLUGIN_DATA: path.join(root, "other") }, root)).toThrow("disagree");
-    expect(resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: root, PLUGIN_DATA: "/other", KIMI_PLUGIN_CC_DATA: path.join(root, "chosen") }, root)).toBe(path.join(root, "chosen"));
+    expect(resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: root, PLUGIN_DATA: "/other", K3_PLUGIN_CC_DATA: path.join(root, "chosen") }, root)).toBe(path.join(root, "chosen"));
   });
 
   test("invalid explicit choices fail instead of falling back", () => {
     for (const value of ["", "relative/path"]) {
-      expect(() => resolvePluginDataRoot({ KIMI_PLUGIN_CC_DATA: value, CLAUDE_PLUGIN_DATA: root }, root)).toThrow("absolute directory");
+      expect(() => resolvePluginDataRoot({ K3_PLUGIN_CC_DATA: value, CLAUDE_PLUGIN_DATA: root }, root)).toThrow("absolute directory");
     }
   });
 
   test("custom shell launches retain the existing Codex fallback; direct callers need a path", () => {
-    expect(resolvePluginDataRoot({ KIMI_PLUGIN_CC_SHELL_LAUNCH: "1", CODEX_HOME: root }, root)).toBe(path.join(root, "plugins/data/kimi-marketplace-kimi"));
-    expect(resolvePluginDataRoot({ KIMI_PLUGIN_CC_SHELL_LAUNCH: "1", HOME: root }, root)).toBe(path.join(root, ".codex/plugins/data/kimi-marketplace-kimi"));
-    expect(() => resolvePluginDataRoot({ KIMI_PLUGIN_CC_SHELL_LAUNCH: "1" }, root)).toThrow("Set KIMI_PLUGIN_CC_DATA");
-    expect(resolvePluginDataRoot({ KIMI_PLUGIN_CC_SHELL_LAUNCH: "1", KIMI_PLUGIN_CC_DATA: root }, root)).toBe(root);
-    expect(() => resolvePluginDataRoot({}, root)).toThrow("Set KIMI_PLUGIN_CC_DATA");
+    expect(resolvePluginDataRoot({ K3_PLUGIN_CC_SHELL_LAUNCH: "1", CODEX_HOME: root }, root)).toBe(path.join(root, "plugins/data/brilia-k3-marketplace-k3"));
+    expect(resolvePluginDataRoot({ K3_PLUGIN_CC_SHELL_LAUNCH: "1", HOME: root }, root)).toBe(path.join(root, ".codex/plugins/data/brilia-k3-marketplace-k3"));
+    expect(() => resolvePluginDataRoot({ K3_PLUGIN_CC_SHELL_LAUNCH: "1" }, root)).toThrow("Set K3_PLUGIN_CC_DATA");
+    expect(resolvePluginDataRoot({ K3_PLUGIN_CC_SHELL_LAUNCH: "1", K3_PLUGIN_CC_DATA: root }, root)).toBe(root);
+    expect(() => resolvePluginDataRoot({}, root)).toThrow("Set K3_PLUGIN_CC_DATA");
   });
 });

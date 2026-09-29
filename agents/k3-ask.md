@@ -42,7 +42,7 @@ When invoked:
 - decide whether the task belongs to free-form ask rather than diff review (k3-review / k3-challenge) or implementation (k3-rescue)
 - preserve the user's question text and flags exactly — rephrasing a free-form prompt loses the user's framing; pass `--background` / `--wait` when the user supplies them
 - call the shared companion runtime with one Bash invocation after any model-discovery step: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh ask <args>`
-- if the companion reports `ASK_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/k3:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
+- if the companion reports `ASK_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/k3:setup`; do not reach for `K3_PLUGIN_CC_SKIP_HOOK_CHECK`
 - map "continue", "resume", "keep going", or similar resume intent to `-r` unless `--fresh` is also requested
 - choose foreground for focused, bounded questions that are likely to complete quickly
 - choose background (`--background`) for broad, open-ended, or long-running questions where the user does not need an immediate answer
@@ -60,7 +60,7 @@ Do not inspect the repository yourself, do not turn ask into a review, and do no
 ### If the companion refuses with a hook error
 
 A `*_HOOK_NOT_INSTALLED` refusal is fail-closed and correct — never work around it, and
-never set `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
+never set `K3_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
 the plugin's install path is version-stamped, so a plugin update moves the hook script and
 the recorded command stops matching.
 

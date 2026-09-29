@@ -1,6 +1,9 @@
-# K3 plugin for Claude Code, built for Windows
+# K3 plugin for Claude Code, built on Windows 11
 
 Use Kimi K3 from inside Claude Code for code reviews or to delegate tasks to K3.
+
+**Developed and verified on Windows 11. Runs on macOS and Linux as well.** What was verified on each
+platform, and how, is under [Platform support](#platform-support).
 
 This plugin is for Claude Code users who already pay for a Kimi Code subscription and want to reach
 it from the workflow they already have.
@@ -38,7 +41,8 @@ described under [Known limits](#known-limits-stated-plainly).
 >
 > **Not the original project either.** This is a fork of
 > **[linxule/kimi-plugin-cc](https://github.com/linxule/kimi-plugin-cc)** (Apache-2.0) by Xule Lin,
-> who wrote everything that makes this work. Our changes are three Windows fixes and one reliability fix, listed below.
+> who wrote everything that makes this work. Our changes are three Windows fixes, one reliability
+> fix, and our own names throughout, so the two plugins never step on each other: listed below.
 >
 > Maintained by [BRILIA](https://brilia.it) on a best-effort basis. If something breaks, open an
 > issue **here**, not with Moonshot AI and not with the upstream author.
@@ -127,28 +131,45 @@ Verify it is actually enforcing, not just installed:
 **This fork is not on npm.** Upstream also ships as the `kimi-plugin-cc` package on npm; that
 package is upstream's code, without the Windows fixes. Install this fork from the marketplace above.
 
+### Upgrading from 0.5.x
+
+Since 0.6.0 this plugin uses its own names everywhere a person or a program can see them. After
+updating, run `/k3:setup` once: until you do, every command refuses, because the hook installed by
+the old version no longer protects K3 sessions. Setup then does the rest, and says what it did:
+
+| What | Up to 0.5.x | From 0.6.0 | What setup does |
+|---|---|---|---|
+| Marker of the hook block in `~/.kimi-code/config.toml` | `kimi-plugin-cc-managed` | `k3-plugin-cc-managed` | Removes the old block, **only if its hook is this fork's**, and writes the new one. A block written by the upstream plugin is left byte for byte. |
+| Data directory (jobs, logs, results, settings) | `kimi-plugin-cc/` | `k3-plugin-cc/` | Moves it when no job is running, and updates the paths stored for past jobs. Until then the old one stays in use, so nothing is lost. |
+| Environment variables | `KIMI_PLUGIN_CC_*` | `K3_PLUGIN_CC_*` | Lists any old ones still set. They are **not** read: rename yours (for example `KIMI_PLUGIN_CC_KIMI_BIN` becomes `K3_PLUGIN_CC_KIMI_BIN`). |
+
+The old variables are not honoured on purpose: they are the names the upstream plugin reads, and a
+value set for it, including the switch that skips the hook check, must not steer this one.
+
 ### Coexistence with the upstream plugin
 
-**Partial, and worth understanding before you try it.** The slash commands and the agents no longer
-collide: ours are `/k3:*` and `k3-*`, upstream's are `/kimi:*` and `kimi-*`.
+**Since 0.6.0 the two plugins can be installed side by side.** They share nothing a user or a program
+can see: commands (`/k3:*` and `/kimi:*`), agents, the marker of the hook block each writes into
+`~/.kimi-code/config.toml`, the environment variables, the data directory.
 
-The safety hook still does. Both plugins write a managed block into the same
-`~/.kimi-code/config.toml`, keyed by a host id that answers "which editor is driving kimi-code",
-not "which plugin". Installed under `~/.claude/`, both answer `claude-code`, so they own the same
-block: whichever ran `setup` last holds it, and the other refuses to run until you re-run its setup,
-which flips it back. That refusal is correct fail-closed behaviour, but two legitimately installed
-plugins should not force it on each other.
+Both hooks run on every tool call, and each governs only its own sessions: a K3 session is labelled
+through `K3_PLUGIN_CC_CMD`, which only this plugin's hook reads, and the upstream hook allows what it
+does not recognise as its own; the reverse holds for upstream's sessions. Setup never removes the
+other plugin's block, marked or not. Up to 0.5.x both plugins wrote the same block, so whichever ran
+setup last disabled the other until its own setup ran again.
 
-Until that is fixed, **use one at a time**. Nothing is unsafe about having both installed; the one
-that does not own the block simply will not run.
+Two things to know. This holds by construction and is covered by tests; we have not yet run both
+plugins installed together on one machine. And each plugin serialises its own writes to
+`config.toml` with its own lock, so do not run both setups in the same instant: if one write were
+lost, that plugin's commands would refuse until its setup ran again.
 
 ## Platform support
 
 | Platform | Status |
 |---|---|
-| Windows 11 | **Tested, and the reason this fork exists.** Upstream does not support Windows. See [Which versions this is](#which-versions-this-is) for what was verified and how |
-| macOS | **Supported, not tested by us.** How the hook command is written, quoted and launched is gated behind `process.platform === "win32"`, so on POSIX it is upstream v2.0.7's, which upstream certifies against `kimi-code` 0.42.0/0.43.x/2.0.x/2.1.0/2.1.1 (native v2) and 0.1-0.41.x (legacy). Not byte-for-byte, though: see [What this fork changes](#what-this-fork-changes) |
-| Linux | Same as macOS |
+| Windows 11 | **Developed and verified here, and the reason this fork exists.** Upstream does not support Windows. See [Which versions this is](#which-versions-this-is) for what was verified and how |
+| macOS | **Supported, not tested by us yet.** How the hook command is written, quoted and launched is gated behind `process.platform === "win32"`, so on POSIX it is upstream v2.0.7's, which upstream certifies against `kimi-code` 0.42.0/0.43.x/2.0.x/2.1.0/2.1.1 (native v2) and 0.1-0.41.x (legacy). Not byte-for-byte, though: see [What this fork changes](#what-this-fork-changes) |
+| Linux | **Supported. The full test suite runs on Linux in CI**, and must pass on every attempt before `main` moves. Not yet run by us against a real `kimi-code` session on Linux |
 
 If you are the first to run this on macOS or Linux, we would like to hear about it either way.
 
@@ -214,7 +235,7 @@ minor:
 
 That last row is the one to know about, because **kimi-code can update itself**. On the next
 kimi-code release after 2.1.1, the plugin will refuse until upstream certifies it. Pin
-`KIMI_PLUGIN_CC_KIMI_BIN` to a known binary if you need continuity.
+`K3_PLUGIN_CC_KIMI_BIN` to a known binary if you need continuity.
 
 The opposite can happen too. On our machine kimi-code sat on 0.30.0 for four days after 2.1.1 was
 out: its updater logged the new version as eligible on every run and never installed it, and we
@@ -251,12 +272,12 @@ after the merge with upstream v2.0.7):
 
 ## What this fork changes
 
-Three Windows fixes and one reliability fix. How the hook command is written, quoted and launched
-changes on Windows only. Three things differ on every platform, so this is not upstream
-byte-for-byte on macOS or Linux either: the parser that recognises this plugin's own hook command
-also accepts the double-quoted form there, so a hand-written double-quoted hook under an upstream
-install path would be treated as ours; setup's messages and the managed block carry this fork's
-names and version; and the job store fix below applies everywhere.
+Three Windows fixes, one reliability fix, and our own names. How the hook command is written,
+quoted and launched changes on Windows only. Four things differ on every platform, so this is not
+upstream byte-for-byte on macOS or Linux either: the parser that recognises this plugin's own hook
+command also accepts the double-quoted form there, so a hand-written double-quoted hook under this
+fork's install path would be treated as ours; the names (change 5); the migration from 0.5.x; and
+the job store fix below.
 
 1. **The hook command is double-quoted.** It was quoted POSIX-style with single quotes, which
    `cmd.exe` does not recognise, so once the hook path was set by hand (see 2) the hook never
@@ -285,12 +306,23 @@ names and version; and the job store fix below applies everywhere.
    proves the open started while locked and finished only after the release, under both
    `bun:sqlite` and the compiled runtime on Node's `node:sqlite`; on the old order both fail with
    `JOB_STORE_BUSY`. Upstream v2.0.7 has the same order.
+5. **Our own names, everywhere a person or a program can see them** (0.6.0): commands `/k3:*`,
+   agents and Codex skills `k3-*`, plugin `k3@brilia-k3-marketplace`, variables `K3_PLUGIN_CC_*`,
+   the hook block marker `k3-plugin-cc-managed`, the data directory `k3-plugin-cc/`, the messages.
+   Beyond branding this has two effects. The plugin now recognises its own install tree: up to
+   0.5.x its self-recognition still looked for upstream's names, so it never matched this fork's
+   install and quietly fell back to less strict paths (no data-directory ownership check; old hook
+   blocks of its own never cleaned up). And the two plugins stop sharing a hook block (see
+   [Coexistence](#coexistence-with-the-upstream-plugin)). What keeps its name is Moonshot's: the
+   `kimi` and `kimi-code` CLI and its `KIMI_CODE_*` settings.
 
-These have **not** been proposed upstream yet, so the upstream project is not aware of them and
-is not responsible for them. We intend to open them as pull requests against
-[linxule/kimi-plugin-cc](https://github.com/linxule/kimi-plugin-cc). If they land there, use the
-upstream plugin instead of this fork: it is the same code with one fewer maintainer between you
-and it.
+   The renaming is mechanical and has a single definition, `scripts/identity-map.mjs`. Every update
+   from upstream goes through it: the map is applied to upstream's code **before** it is merged, so
+   upstream arrives already speaking our names, and `tests/scripts/brand-residue.test.js` fails in CI
+   if one of upstream's names reappears anywhere it is not pinned on purpose.
+
+This fork is maintained independently: these changes are not proposed upstream, so the upstream
+project is not aware of them and is not responsible for them.
 
 ## Uninstall
 

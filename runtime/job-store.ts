@@ -1,7 +1,9 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
-// One change, on every platform: the constructor sets `busy_timeout` before
+// Two changes, on every platform: the constructor sets `busy_timeout` before
 // `journal_mode = WAL`, so opening the store while another process holds the
-// database waits instead of failing with SQLITE_BUSY. See NOTICE and README.md.
+// database waits instead of failing with SQLITE_BUSY; and two methods,
+// `countRunningJobs` and `rebaseStoredPaths`, used only by setup when it moves
+// the pre-0.6 data directory to its new name. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { createRequire } from "node:module";
 
@@ -346,6 +348,29 @@ export class JobStore {
     return rows.map(hydrateRow);
   }
 
+  // BRILIA fork (0.6.0): the two operations the data-directory rename needs
+  // (runtime/legacy-names.ts). Every job still marked running, with or without
+  // a process hint: a job not yet spawned is running too.
+  countRunningJobs(): number {
+    const row = this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM jobs WHERE status = 'running'`);
+    return Number(row?.n ?? 0);
+  }
+
+  // Rewrites the stored absolute paths that start with `fromPrefix` so they
+  // start with `toPrefix` instead. Both prefixes end with a path separator, so a
+  // sibling directory whose name merely begins the same way is never touched.
+  // SQLite's substr counts characters, so the length is in code points.
+  rebaseStoredPaths(fromPrefix: string, toPrefix: string): void {
+    const len = [...fromPrefix].length;
+    for (const column of ["final_output_path", "stream_log_path"] as const) {
+      this.db.run(
+        `UPDATE jobs SET ${column} = @to || substr(${column}, @len + 1)
+          WHERE ${column} IS NOT NULL AND substr(${column}, 1, @len) = @from`,
+        { from: fromPrefix, to: toPrefix, len },
+      );
+    }
+  }
+
   findRescueJobBySession(repoId: string, sessionId: string): JobRecord | null {
     const row = this.db.get<DbRow>(
       `
@@ -639,7 +664,7 @@ function createSqliteAdapter(filename: string): SqliteAdapter {
   } catch (error) {
     throw new RuntimeError(
       "JOB_STORE_UNSUPPORTED_RUNTIME",
-      "kimi-plugin-cc requires Node >= 22.5 for its built-in node:sqlite module. Upgrade Node, or set KIMI_PLUGIN_CC_NODE_BIN to a qualifying binary.",
+      "k3-plugin-cc requires Node >= 22.5 for its built-in node:sqlite module. Upgrade Node, or set K3_PLUGIN_CC_NODE_BIN to a qualifying binary.",
       "job-store",
       error instanceof Error ? { cause: error } : undefined,
     );

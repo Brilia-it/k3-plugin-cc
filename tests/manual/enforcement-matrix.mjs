@@ -90,7 +90,7 @@ function opts() {
   return {
     input: PAYLOAD,
     encoding: "utf8",
-    env: { ...process.env, KIMI_PLUGIN_CC_CMD: ENV_LABEL },
+    env: { ...process.env, K3_PLUGIN_CC_CMD: ENV_LABEL },
   };
 }
 

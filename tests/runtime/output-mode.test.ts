@@ -76,11 +76,11 @@ describe("command output mode enforcement", () => {
       const result = await runCompanion(["review"], {
         ...process.env,
         CLAUDE_PLUGIN_DATA: pluginDataRoot,
-        KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-        KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-        KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-success",
-        KIMI_PLUGIN_CC_WORKSPACE_CWD: repoRoot,
-        KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+        K3_PLUGIN_CC_KIMI_BIN: "bun",
+        K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+        K3_PLUGIN_CC_MOCK_SCENARIO: "review-success",
+        K3_PLUGIN_CC_WORKSPACE_CWD: repoRoot,
+        K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
       });
 
       expect(result.exitCode).toBe(0);
@@ -99,11 +99,11 @@ describe("command output mode enforcement", () => {
       const result = await runCompanion(["task", "challenge"], {
         ...process.env,
         CLAUDE_PLUGIN_DATA: pluginDataRoot,
-        KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-        KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-        KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-success",
-        KIMI_PLUGIN_CC_WORKSPACE_CWD: repoRoot,
-        KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+        K3_PLUGIN_CC_KIMI_BIN: "bun",
+        K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+        K3_PLUGIN_CC_MOCK_SCENARIO: "review-success",
+        K3_PLUGIN_CC_WORKSPACE_CWD: repoRoot,
+        K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
       });
 
       expect(result.exitCode).toBe(0);

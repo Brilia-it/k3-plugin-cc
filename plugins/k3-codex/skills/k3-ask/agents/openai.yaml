@@ -1,5 +1,5 @@
 interface:
-  display_name: "Kimi Ask"
+  display_name: "K3 Ask"
   short_description: "Ask Kimi a read-only repo question"
   default_prompt: "Use $k3-ask to explain the current repository flow."
 policy:

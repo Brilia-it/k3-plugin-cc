@@ -44,9 +44,9 @@ describe("kimi execution plan", () => {
         cwd,
         env: {
           ...process.env,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_VERSION: "0.39.0",
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_VERSION: "0.39.0",
         },
         intendedEngine: "legacy-v1",
       });
@@ -77,8 +77,8 @@ describe("kimi execution plan", () => {
     const kimiHome = path.join(cwd, "kimi-home");
     const env = {
       ...process.env,
-      KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-      KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+      K3_PLUGIN_CC_KIMI_BIN: "bun",
+      K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
       KIMI_CODE_HOME: kimiHome,
       KIMI_CODE_EXPERIMENTAL_FLAG: "",
       KIMI_CODE_EXPERIMENTAL_TOWER: "",
@@ -88,7 +88,7 @@ describe("kimi execution plan", () => {
       const plan = await prepareKimiExecutionPlan({
         operationKind: "swarm-write",
         cwd,
-        env: { ...env, KIMI_PLUGIN_CC_MOCK_VERSION: "0.42.0" },
+        env: { ...env, K3_PLUGIN_CC_MOCK_VERSION: "0.42.0" },
         intendedEngine: "native-v2",
       });
       expect(plan).toMatchObject({
@@ -106,7 +106,7 @@ describe("kimi execution plan", () => {
         prepareKimiExecutionPlan({
           operationKind: "ask",
           cwd,
-          env: { ...env, KIMI_PLUGIN_CC_MOCK_VERSION: "v0.42.0" },
+          env: { ...env, K3_PLUGIN_CC_MOCK_VERSION: "v0.42.0" },
           intendedEngine: "native-v2",
         }),
       ).resolves.toMatchObject({ intendedEngine: "native-v2", kimiVersion: "0.42.0" });
@@ -116,7 +116,7 @@ describe("kimi execution plan", () => {
           const majorTwo = await prepareKimiExecutionPlan({
             operationKind,
             cwd,
-            env: { ...env, KIMI_PLUGIN_CC_MOCK_VERSION: version },
+            env: { ...env, K3_PLUGIN_CC_MOCK_VERSION: version },
           });
           expect(majorTwo).toMatchObject({
             operationKind, intendedEngine: "native-v2", kimiVersion: version,
@@ -131,7 +131,7 @@ describe("kimi execution plan", () => {
           prepareKimiExecutionPlan({
             operationKind: "review",
             cwd,
-            env: { ...env, KIMI_PLUGIN_CC_MOCK_VERSION: version },
+            env: { ...env, K3_PLUGIN_CC_MOCK_VERSION: version },
             intendedEngine: "native-v2",
           }),
         ).rejects.toMatchObject({
@@ -161,9 +161,9 @@ describe("kimi execution plan", () => {
           cwd,
           env: {
             ...process.env,
-            KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-            KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-            KIMI_PLUGIN_CC_MOCK_VERSION: "0.42.0",
+            K3_PLUGIN_CC_KIMI_BIN: "bun",
+            K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+            K3_PLUGIN_CC_MOCK_VERSION: "0.42.0",
             KIMI_CODE_HOME: kimiHome,
           },
           intendedEngine: "native-v2",
@@ -202,9 +202,9 @@ describe("kimi execution plan", () => {
     const kimiHome = path.join(cwd, "kimi-home");
     const env = {
       ...process.env,
-      KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-      KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-      KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+      K3_PLUGIN_CC_KIMI_BIN: "bun",
+      K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+      K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
       KIMI_CODE_HOME: kimiHome,
     };
     try {
@@ -267,7 +267,7 @@ describe("kimi execution plan", () => {
         env: {
           ...process.env,
           KIMI_CODE_EXPERIMENTAL_FLAG: " yes ",
-          KIMI_PLUGIN_CC_KIMI_BIN: "/does/not/exist",
+          K3_PLUGIN_CC_KIMI_BIN: "/does/not/exist",
         },
         intendedEngine: "legacy-v1",
       }),
@@ -282,15 +282,15 @@ describe("kimi execution plan", () => {
     const cwd = await createTestPluginDataRoot("kimi-engine-range");
     const baseEnv = {
       ...process.env,
-      KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-      KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+      K3_PLUGIN_CC_KIMI_BIN: "bun",
+      K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
     };
     try {
       await expect(
         prepareKimiExecutionPlan({
           operationKind: "review",
           cwd,
-          env: { ...baseEnv, KIMI_PLUGIN_CC_MOCK_VERSION: NEXT_UNTESTED_VERSION },
+          env: { ...baseEnv, K3_PLUGIN_CC_MOCK_VERSION: NEXT_UNTESTED_VERSION },
         }),
       ).rejects.toMatchObject({ code: "KIMI_CAPABILITY_NOT_CERTIFIED" });
 
@@ -298,7 +298,7 @@ describe("kimi execution plan", () => {
         prepareKimiExecutionPlan({
           operationKind: "swarm-write",
           cwd,
-          env: { ...baseEnv, KIMI_PLUGIN_CC_MOCK_VERSION: "0.12.0" },
+          env: { ...baseEnv, K3_PLUGIN_CC_MOCK_VERSION: "0.12.0" },
         }),
       ).rejects.toMatchObject({
         code: "KIMI_CAPABILITY_NOT_CERTIFIED",
@@ -315,9 +315,9 @@ describe("kimi execution plan", () => {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-        KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-        KIMI_PLUGIN_CC_MOCK_VERSION: "0.39.0",
+        K3_PLUGIN_CC_KIMI_BIN: "bun",
+        K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+        K3_PLUGIN_CC_MOCK_VERSION: "0.39.0",
       },
     });
     expect(() => assertExecutionPlanMatchesSpawn(plan, plan.command, ["run", "/other.ts"]))
@@ -431,7 +431,7 @@ describe("kimi execution plan", () => {
     ).toThrowError(expect.objectContaining({ code: "KIMI_EXECUTION_PLAN_INVALID" }));
     expect(() =>
       assertExecutionPlanMatchesSpawn(validBypass, process.execPath, [], {
-        KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
       }),
     ).not.toThrow();
   });

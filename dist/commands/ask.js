@@ -22,7 +22,7 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 //
 //   The v0.4 wire client/initialize/prompt sequence is replaced with a
 //   single `runCliPrompt` against `kimi -p --output-format stream-json`.
-//   The PreToolUse hook reads `KIMI_PLUGIN_CC_CMD=ask` and applies the
+//   The PreToolUse hook reads `K3_PLUGIN_CC_CMD=ask` and applies the
 //   same read-only tool policy as review/challenge/review_gate.
 //
 // Session id handling differs from v0.4:
@@ -46,7 +46,7 @@ const ASK_PROMPT_PREFIX = [
 ].join("\n");
 export async function runAsk(argv, context) {
     const parsed = parseAskArgs(argv);
-    if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+    if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
         await requireAskHookInstalled(context);
     }
     const paths = resolvePluginPaths(context.env);
@@ -105,8 +105,8 @@ export async function runAsk(argv, context) {
             return startBackgroundJob(job, askPrompt, context, paths, {
                 workerKind: "ask",
                 wait: parsed.wait,
-                promptEnvVar: "KIMI_PLUGIN_CC_ASK_PROMPT_B64",
-                reusedSessionEnvVar: "KIMI_PLUGIN_CC_ASK_REUSED_SESSION",
+                promptEnvVar: "K3_PLUGIN_CC_ASK_PROMPT_B64",
+                reusedSessionEnvVar: "K3_PLUGIN_CC_ASK_REUSED_SESSION",
                 reusedSession: sessionResolution.reusedSession,
                 failedSummary: askConfig.cancellation.failedSummary,
                 missingResultErrorCode: "ASK_RESULT_MISSING",
@@ -142,7 +142,7 @@ export async function executeAskJob(jobId, prompt, context, options) {
     try {
         // Re-verify in the worker so a background job cannot outlive or bypass
         // enforcement drift between the user invocation and the actual Kimi spawn.
-        if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+        if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
             await requireAskHookInstalled(context);
         }
         handlers = createCliCancellationHandlers();
@@ -237,7 +237,7 @@ export async function executeAskJob(jobId, prompt, context, options) {
     }
 }
 async function requireAskHookInstalled(context) {
-    if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
+    if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
         return;
     }
     const installStatus = await verifyHookInstalled(context.env);
@@ -246,10 +246,10 @@ async function requireAskHookInstalled(context) {
     }
     maybeWarnHookMissing(installStatus, "ask", context.stderr);
     throw new RuntimeError("ASK_HOOK_NOT_INSTALLED", [
-        "ask refuses to run without the canonical kimi-plugin-cc PreToolUse hook.",
+        "ask refuses to run without the canonical k3-plugin-cc PreToolUse hook.",
         `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
         "Run /k3:setup or $k3-setup to install or repair this host's managed block.",
-        "Set KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
+        "Set K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
         hookRefusalRetryProtocol(context.env),
     ].join(" "), "ask.hook-check", { details: hookRefusalDetails(installStatus) });
 }

@@ -1,5 +1,5 @@
 interface:
-  display_name: "Kimi Rescue"
+  display_name: "K3 Rescue"
   short_description: "Delegate a bounded Kimi fix"
   default_prompt: "Use $k3-rescue to delegate this bounded implementation task."
 policy:

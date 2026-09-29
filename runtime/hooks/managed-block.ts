@@ -1,4 +1,4 @@
-// Shared parser for the kimi-plugin-cc managed block in
+// Shared parser for the k3-plugin-cc managed block in
 // ~/.kimi-code/config.toml.
 //
 // Why a separate module:
@@ -7,7 +7,7 @@
 //   pre-call gate. PR 4 added `runtime/commands/setup.ts` as the
 //   installer. PR 4 reviewers found that the two were validating
 //   different shapes — the verifier was a substring check (could be
-//   bypassed by stray comments containing `kimi-plugin-cc-managed`),
+//   bypassed by stray comments containing `k3-plugin-cc-managed`),
 //   and `setup --check` only confirmed `blockText.includes(hookPath)`
 //   without checking for matcher/event/command exactness. A block with
 //   `matcher = "*"` (which throws inside kimi-code and silently
@@ -34,13 +34,13 @@
 //
 // What a valid managed block looks like (line-by-line, post-trim):
 //
-//   # === BEGIN kimi-plugin-cc-managed:<host-id> (vX.Y.Z) ===
+//   # === BEGIN k3-plugin-cc-managed:<host-id> (vX.Y.Z) ===
 //   ... optional comment lines (any number, any content) ...
 //   [[hooks]]
 //   event = "PreToolUse"
 //   command = "node 'absolute/path/to/approval-hook.js'"  (or process.execPath form)
 //   timeout = <integer>
-//   # === END kimi-plugin-cc-managed:<host-id> ===
+//   # === END k3-plugin-cc-managed:<host-id> ===
 //
 // Critical rules:
 //
@@ -95,19 +95,19 @@ export interface ManagedBlockEntry {
   invalidReason?: string;
 }
 
-const MARKER_TAG = "kimi-plugin-cc-managed";
+const MARKER_TAG = "k3-plugin-cc-managed";
 
 /**
- * Strict BEGIN matcher. Accepts `# === BEGIN kimi-plugin-cc-managed`
+ * Strict BEGIN matcher. Accepts `# === BEGIN k3-plugin-cc-managed`
  * with an optional `:<host-id>` suffix, an optional ` (vX.Y.Z)` suffix,
  * and trailing ` ===`. Group 1 captures the host id (undefined = legacy).
  * Anything else (random comment containing the tag, mid-line embedded
  * marker) is not a managed-block marker.
  */
 const BEGIN_LINE_RE =
-  /^#\s*===\s*BEGIN\s+kimi-plugin-cc-managed(?::([A-Za-z0-9._-]+))?(?:\s+\([^)]+\))?\s*===\s*$/;
+  /^#\s*===\s*BEGIN\s+k3-plugin-cc-managed(?::([A-Za-z0-9._-]+))?(?:\s+\([^)]+\))?\s*===\s*$/;
 const END_LINE_RE =
-  /^#\s*===\s*END\s+kimi-plugin-cc-managed(?::([A-Za-z0-9._-]+))?\s*===\s*$/;
+  /^#\s*===\s*END\s+k3-plugin-cc-managed(?::([A-Za-z0-9._-]+))?\s*===\s*$/;
 
 /** TOML basic string for `command = "..."`. Captures the inner value. */
 const COMMAND_LINE_RE = /^command\s*=\s*"((?:[^"\\]|\\.)*)"\s*$/;
@@ -823,7 +823,7 @@ export function findBareApprovalHookTables(contents: string): BareHookTable[] {
 /**
  * Find orphaned, marker-less `[[hooks]]` tables that are unambiguously THIS
  * plugin's approval hook (canonical `'<node>' '<...>/approval-hook.js'` command
- * under a kimi-marketplace / kimi-plugin-cc tree) and live OUTSIDE any managed
+ * under a brilia-k3-marketplace / k3-plugin-cc tree) and live OUTSIDE any managed
  * BEGIN/END block. These arise when a kimi-code config rewrite strips the
  * marker comments off a live block (kimi-code's TOML stringifier drops all
  * comments), or from pre-v1.7.0 installs / host-path churn.
@@ -846,7 +846,7 @@ export function findUnmanagedApprovalHookBlocks(
     // unambiguously this host's own (marker-stripped) hook — the tightest
     // possible ownership signal, stronger than any path derivation. Match it
     // regardless of `ownedBy`, so the install re-adorn works even when a
-    // `KIMI_PLUGIN_CC_HOST_ID` override disagrees with the path-derived host
+    // `K3_PLUGIN_CC_HOST_ID` override disagrees with the path-derived host
     // (`hostIdFromHookCommand`) — otherwise setup would append a duplicate
     // block beside the identical bare table (Kimi review F4). Never widens the
     // prune: another host's table and a hand-rolled hook carry different

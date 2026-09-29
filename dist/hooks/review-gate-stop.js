@@ -5,7 +5,7 @@ async function main() {
     const raw = readFileSync(0, "utf8");
     const input = JSON.parse(raw);
     const context = {
-        cwd: process.env.KIMI_PLUGIN_CC_WORKSPACE_CWD || process.cwd(),
+        cwd: process.env.K3_PLUGIN_CC_WORKSPACE_CWD || process.cwd(),
         env: process.env,
         stdout: process.stdout,
         stderr: process.stderr,

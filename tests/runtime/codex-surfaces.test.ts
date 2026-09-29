@@ -18,7 +18,7 @@ import {
   CODEX_SKILLS,
   PLUGIN_VERSION,
 } from "../../scripts/surface-registry.js";
-import { KIMI_PLUGIN_CC_VERSION } from "../../runtime/version.js";
+import { K3_PLUGIN_CC_VERSION } from "../../runtime/version.js";
 import { resolvePluginPaths } from "../../runtime/paths.js";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
@@ -137,11 +137,11 @@ describe("Codex/Claude surface separation", () => {
 });
 
 describe("version single-sourcing", () => {
-  test("PLUGIN_VERSION === KIMI_PLUGIN_CC_VERSION === package.json version", async () => {
+  test("PLUGIN_VERSION === K3_PLUGIN_CC_VERSION === package.json version", async () => {
     const pkg = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8")) as {
       version: string;
     };
-    expect(PLUGIN_VERSION).toBe(KIMI_PLUGIN_CC_VERSION);
+    expect(PLUGIN_VERSION).toBe(K3_PLUGIN_CC_VERSION);
     expect(PLUGIN_VERSION).toBe(pkg.version);
   });
 
@@ -149,7 +149,7 @@ describe("version single-sourcing", () => {
     const manifest = JSON.parse(
       await readFile(path.join(repoRoot, CODEX_PLUGIN_SUBDIR, ".codex-plugin/plugin.json"), "utf8"),
     ) as { version: string };
-    expect(manifest.version).toBe(KIMI_PLUGIN_CC_VERSION);
+    expect(manifest.version).toBe(K3_PLUGIN_CC_VERSION);
   });
 });
 
@@ -160,7 +160,7 @@ describe("plugin data dir precedence (Claude vs Codex env aliases)", () => {
       PLUGIN_DATA: "/tmp/codex-data",
     };
     expect(() => resolvePluginPaths(env)).toThrow("disagree");
-    const resolved = resolvePluginPaths({ ...env, KIMI_PLUGIN_CC_DATA: "/tmp/selected-kimi-data" });
+    const resolved = resolvePluginPaths({ ...env, K3_PLUGIN_CC_DATA: "/tmp/selected-kimi-data" });
     expect(resolved.claudePluginData).toBe("/tmp/selected-kimi-data");
   });
 

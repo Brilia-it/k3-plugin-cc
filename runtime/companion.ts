@@ -18,7 +18,7 @@ import type { CommandContext } from "./types.js";
 
 async function main(argv: string[]): Promise<void> {
   const [command, ...rest] = argv as [string | undefined, ...string[]];
-  const cwd = process.env.KIMI_PLUGIN_CC_WORKSPACE_CWD || process.cwd();
+  const cwd = process.env.K3_PLUGIN_CC_WORKSPACE_CWD || process.cwd();
   const context: CommandContext = {
     cwd,
     env: {

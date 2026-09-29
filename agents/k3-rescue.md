@@ -63,7 +63,7 @@ Do not do repository discovery before forwarding, do not implement your own poll
 ### If the companion refuses with a hook error
 
 A `*_HOOK_NOT_INSTALLED` refusal is fail-closed and correct — never work around it, and
-never set `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
+never set `K3_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
 the plugin's install path is version-stamped, so a plugin update moves the hook script and
 the recorded command stops matching.
 

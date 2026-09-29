@@ -16,7 +16,7 @@ import { formatError, RuntimeError } from "./errors.js";
 import { resolveKimiHome } from "./kimi-home.js";
 async function main(argv) {
     const [command, ...rest] = argv;
-    const cwd = process.env.KIMI_PLUGIN_CC_WORKSPACE_CWD || process.cwd();
+    const cwd = process.env.K3_PLUGIN_CC_WORKSPACE_CWD || process.cwd();
     const context = {
         cwd,
         env: {

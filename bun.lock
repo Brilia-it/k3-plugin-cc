@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "kimi-plugin-cc",
+      "name": "k3-plugin-cc",
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "@types/node": "^26.5.1",

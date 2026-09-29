@@ -42,8 +42,8 @@ try {
     mkdirSync(kimiHome, { recursive: true });
     const env = { PATH: process.env.PATH, HOME: home, KIMI_CODE_HOME: kimiHome,
       CLAUDE_PLUGIN_ROOT: plugin, PLUGIN_ROOT: plugin,
-      KIMI_PLUGIN_CC_DATA: path.join(home, 'data'),
-      KIMI_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: '1' };
+      K3_PLUGIN_CC_DATA: path.join(home, 'data'),
+      K3_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: '1' };
     for (const args of [['setup'], ['setup', '--check']]) {
       const result = spawnSync(path.join(plugin, 'scripts/companion.sh'), args, { cwd: scratch, env, encoding: 'utf8' });
       assert.equal(result.status, 0, `${host}: ${result.stdout}\n${result.stderr}`);
@@ -56,7 +56,7 @@ try {
     const fake = path.join(home, 'fake-kimi');
     writeFileSync(fake, '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "99.0.0"; exit 0; fi\necho UNEXPECTED_MODEL_CALL >&2\nexit 99\n', { mode: 0o755 });
     const result = spawnSync(path.join(plugin, 'scripts/companion.sh'), ['ask', 'packaging probe'], {
-      cwd: scratch, env: { ...env, KIMI_PLUGIN_CC_KIMI_BIN: fake }, encoding: 'utf8', timeout: 15000,
+      cwd: scratch, env: { ...env, K3_PLUGIN_CC_KIMI_BIN: fake }, encoding: 'utf8', timeout: 15000,
     });
     assert.notEqual(result.status, 0, result.stdout);
     assert(!`${result.stdout}${result.stderr}`.includes('UNEXPECTED_MODEL_CALL'));

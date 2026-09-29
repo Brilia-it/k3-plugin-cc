@@ -2,9 +2,11 @@
 // Changes are made for Windows. How the hook command is written, quoted and
 // launched changes only when `process.platform === "win32"`; the parser that
 // recognises this plugin's own hook command also accepts the double-quoted form
-// on every platform. See NOTICE and README.md. Section 4(b) of the License
-// requires this notice.
-// Shared canonical-path helpers for the kimi-plugin-cc PreToolUse hook.
+// on every platform. Since 0.6.0 that parser recognises this fork's install
+// tree (`/brilia-k3-marketplace/`, `/k3-plugin-cc/`) and no longer upstream's,
+// so setup never prunes the upstream plugin's hook. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
+// Shared canonical-path helpers for the k3-plugin-cc PreToolUse hook.
 //
 // Why a separate module:
 //
@@ -86,17 +88,17 @@ export function preferStableNodePath(execPath, argv0 = process.argv0, realpath =
  * bare `node` would rely on the shell's PATH at execution time, which
  * fails under GUI/LaunchAgent launches with sanitized PATH. Require an
  * absolute path — either a stable alias of the in-process interpreter
- * (see `preferStableNodePath`) or an explicit `KIMI_PLUGIN_CC_NODE_BIN`
+ * (see `preferStableNodePath`) or an explicit `K3_PLUGIN_CC_NODE_BIN`
  * override.
  */
 export function resolveNodeBinary(env) {
-    const override = env.KIMI_PLUGIN_CC_NODE_BIN;
+    const override = env.K3_PLUGIN_CC_NODE_BIN;
     if (override === undefined || override.length === 0) {
         return preferStableNodePath(process.execPath);
     }
     if (!path.isAbsolute(override)) {
         throw new RuntimeError("SETUP_NODE_BIN_NOT_ABSOLUTE", [
-            `KIMI_PLUGIN_CC_NODE_BIN must be an absolute path; got ${JSON.stringify(override)}.`,
+            `K3_PLUGIN_CC_NODE_BIN must be an absolute path; got ${JSON.stringify(override)}.`,
             `kimi-code spawns hooks via /bin/sh -c, where a bare command relies on the shell's PATH at hook execution time.`,
             `Use an absolute path so the hook keeps firing under sanitized-PATH launches.`,
         ].join(" "), "setup.node-bin", { details: { override } });
@@ -161,13 +163,13 @@ export function shellSingleQuote(value) {
 export function shellDoubleQuote(value) {
     const offending = CMD_UNSAFE_CHARS.filter((ch) => value.includes(ch));
     if (offending.length > 0) {
-        throw new Error(`kimi-plugin-cc: refusing to build a hook command from a path containing ${offending
+        throw new Error(`k3-plugin-cc: refusing to build a hook command from a path containing ${offending
             .map((ch) => JSON.stringify(ch))
             .join(", ")}: ${JSON.stringify(value)}. ` +
             "Double quotes do not neutralize these in cmd.exe, so the resulting command would be " +
             "ambiguous, and an ambiguous hook command degrades to fail-open (any exit code other " +
             "than 2 is treated as ALLOW). Move the plugin to a path without these characters, or " +
-            "set KIMI_PLUGIN_CC_HOOK_SCRIPT to one.");
+            "set K3_PLUGIN_CC_HOOK_SCRIPT to one.");
     }
     return `"${value}"`;
 }
@@ -193,14 +195,14 @@ const CMD_UNSAFE_CHARS = ['"', "%", "!"];
  *
  * Resolution order:
  *
- *   1. `KIMI_PLUGIN_CC_HOOK_SCRIPT` override — tests / advanced users.
+ *   1. `K3_PLUGIN_CC_HOOK_SCRIPT` override — tests / advanced users.
  *   2. Sibling resolution from this file's URL. This module lives at
  *      `<root>/{runtime,dist}/hooks/install-paths.{ts,js}`. The hook
  *      artifact lives at `<root>/dist/hooks/approval-hook.js`. Walk up
  *      to `<root>` and append the canonical hook artifact path.
  */
 export function resolveHookScriptPath(env) {
-    const override = env.KIMI_PLUGIN_CC_HOOK_SCRIPT;
+    const override = env.K3_PLUGIN_CC_HOOK_SCRIPT;
     if (override !== undefined && override.length > 0) {
         if (!path.isAbsolute(override)) {
             // kimi-code spawns hooks via `/bin/sh -c "<command>"` with a
@@ -212,7 +214,7 @@ export function resolveHookScriptPath(env) {
             // contract by requiring an absolute override. Audit re-review
             // (report 34 Codex MEDIUM) flagged this.
             throw new RuntimeError("SETUP_HOOK_SCRIPT_NOT_ABSOLUTE", [
-                `KIMI_PLUGIN_CC_HOOK_SCRIPT must be an absolute path; got ${JSON.stringify(override)}.`,
+                `K3_PLUGIN_CC_HOOK_SCRIPT must be an absolute path; got ${JSON.stringify(override)}.`,
                 `kimi-code spawns hooks via /bin/sh -c with a cwd that may differ from the companion's.`,
                 `Use an absolute path so the verifier and the runtime spawn refer to the same file.`,
             ].join(" "), "setup.hook-script-path", { details: { override } });
@@ -248,7 +250,7 @@ export function resolveHookScriptPath(env) {
  * `resolveHookScriptPath` derives the path from CLAUDE_PLUGIN_ROOT, so on
  * Windows it comes back with backslashes, and `assertHookPathTomlSafe` rejects
  * backslashes outright (SETUP_HOOK_PATH_UNSAFE). Every Windows user therefore
- * had to set KIMI_PLUGIN_CC_HOOK_SCRIPT by hand to a forward-slash path — a
+ * had to set K3_PLUGIN_CC_HOOK_SCRIPT by hand to a forward-slash path — a
  * machine-specific workaround that cannot ship.
  *
  * Why normalize rather than relax the validator: the backslash is TOML's escape
@@ -270,7 +272,7 @@ export function normalizeHookPathSeparators(hookScriptPath) {
     return hookScriptPath.replace(/\\/g, "/");
 }
 function resolveHookFailure(here) {
-    return new RuntimeError("SETUP_RESOLVE_HOOK_FAILED", `Could not infer plugin root from install-paths module path ${here}. Set KIMI_PLUGIN_CC_HOOK_SCRIPT to the absolute path of dist/hooks/approval-hook.js.`, "setup.resolve-hook", { details: { here } });
+    return new RuntimeError("SETUP_RESOLVE_HOOK_FAILED", `Could not infer plugin root from install-paths module path ${here}. Set K3_PLUGIN_CC_HOOK_SCRIPT to the absolute path of dist/hooks/approval-hook.js.`, "setup.resolve-hook", { details: { here } });
 }
 /**
  * Parse a hook shell command of the canonical `'<nodeBin>' '<hookScript>'`
@@ -521,8 +523,8 @@ export function tryBuildExpectedHookCommand(env) {
 // Claude Code and Codex install this plugin to DIFFERENT, version-stamped,
 // host-specific paths but SHARE one `~/.kimi-code/config.toml`:
 //
-//   Claude: ~/.claude/plugins/cache/kimi-marketplace/kimi/<ver>/dist/hooks/approval-hook.js
-//   Codex:  ~/.codex/plugins/cache/kimi-marketplace/kimi/<ver>/dist/hooks/approval-hook.js
+//   Claude: ~/.claude/plugins/cache/brilia-k3-marketplace/k3/<ver>/dist/hooks/approval-hook.js
+//   Codex:  ~/.codex/plugins/cache/brilia-k3-marketplace/k3/<ver>/dist/hooks/approval-hook.js
 //
 // The managed block is host-scoped (marker suffix `:<host-id>`) so each host
 // owns and verifies its OWN PreToolUse block without clobbering the other's.
@@ -531,13 +533,13 @@ export function tryBuildExpectedHookCommand(env) {
 /**
  * Resolve a stable, version-independent host id for the managed-block marker.
  *
- * Order: an explicit `KIMI_PLUGIN_CC_HOST_ID` override (slugified) wins — used
+ * Order: an explicit `K3_PLUGIN_CC_HOST_ID` override (slugified) wins — used
  * by tests and the live-repair path. Otherwise derive from the resolved hook
  * script path. Pass the already-resolved `hookScriptPath` when you have it
  * (the verifier + setup do) so we don't re-resolve and risk a second throw.
  */
 export function resolveHostId(env, hookScriptPath) {
-    const override = env.KIMI_PLUGIN_CC_HOST_ID;
+    const override = env.K3_PLUGIN_CC_HOST_ID;
     if (override !== undefined && override.trim().length > 0) {
         return slugifyHostId(override);
     }
@@ -580,7 +582,7 @@ export function slugifyHostId(value) {
 /**
  * True when a (decoded) hook `command` string is unambiguously THIS plugin's
  * approval hook — a canonical two-single-quoted-token command whose script is
- * `approval-hook.js` living under a `kimi-plugin-cc` / `kimi-marketplace`
+ * `approval-hook.js` living under a `k3-plugin-cc` / `brilia-k3-marketplace`
  * install tree. Used to prune orphaned, marker-less `[[hooks]]` entries left by
  * older installs. Deliberately strict: a hand-rolled or non-canonical command
  * returns false, so we never remove a user's own hook.
@@ -609,7 +611,7 @@ export function isOurApprovalHookCommand(decodedCommand) {
         return false;
     const normalized = parsed.hookScript.replace(/\\/g, "/");
     // Require a real path SEGMENT, not an arbitrary substring — otherwise a
-    // user hook at `/opt/acme/kimi-plugin-cc-wrapper/approval-hook.js` would be
+    // user hook at `/opt/acme/k3-plugin-cc-wrapper/approval-hook.js` would be
     // misclassified as ours and pruned. (Codex review.)
-    return normalized.includes("/kimi-plugin-cc/") || normalized.includes("/kimi-marketplace/");
+    return normalized.includes("/k3-plugin-cc/") || normalized.includes("/brilia-k3-marketplace/");
 }

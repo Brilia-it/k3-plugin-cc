@@ -2,7 +2,7 @@ name: CI
 
 # Base CI: build, generated surfaces, types, tests, and distribution drift. Runs on every
 # push to main and every PR. NO secrets, NO kimi binary, NO model tokens — the
-# real-binary smokes auto-skip without KIMI_PLUGIN_CC_SMOKE=1. This is the
+# real-binary smokes auto-skip without K3_PLUGIN_CC_SMOKE=1. This is the
 # per-push safety net the repo previously only had locally via `bun run check`.
 #
 # BRILIA fork: also runs on `staging/**`. The `main` ruleset requires a green `check`

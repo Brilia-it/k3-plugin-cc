@@ -28,7 +28,7 @@ These sections record earlier upgrades. Old tags, paths, and installation comman
 
 ## Migrating from v0.4 to v1.0
 
-v1.0 of kimi-plugin-cc targets the **kimi-code** Node.js binary (Moonshot's successor to Kimi CLI). The v0.4.x line targeted the Python **Kimi CLI** over its Wire JSON-RPC transport. kimi-code dropped the Wire transport from its first release, so v1.0 is a hard cut rather than a backwards-compatible upgrade.
+v1.0 of k3-plugin-cc targets the **kimi-code** Node.js binary (Moonshot's successor to Kimi CLI). The v0.4.x line targeted the Python **Kimi CLI** over its Wire JSON-RPC transport. kimi-code dropped the Wire transport from its first release, so v1.0 is a hard cut rather than a backwards-compatible upgrade.
 
 If you're already running v0.4.x with the Python Kimi CLI, you have a choice:
 
@@ -45,7 +45,7 @@ If you're already running v0.4.x with the Python Kimi CLI, you have a choice:
 | Session id | Client-assigned UUID, passed via `--session` | Server-minted, captured from kimi's stream-json `session.resume_hint` record (stderr announce fallback) |
 | Web UI integration | `kimi web` + PATCH `/api/sessions/{id}` for pre-run human-readable titles | Shared Desktop/Web session store, repaired prompt previews and replaceable fallback titles for native-v2 sessions |
 | Replay log format | Wire JSON-RPC events (`{direction, message}`) | cli-client NDJSON (`{event, record}`) |
-| Marketplace name | `kimi-marketplace` (plugin: `kimi`) — unchanged | same `kimi-marketplace` / `kimi` (v1 upgrades in place) |
+| Marketplace name | `brilia-k3-marketplace` (plugin: `kimi`) — unchanged | same `brilia-k3-marketplace` / `kimi` (v1 upgrades in place) |
 | Rescue allowlist | In-band approval policy on the Wire client | Out-of-band via the PreToolUse hook (same allowlist code) |
 
 The marketplace + plugin IDs are unchanged from v0.4, so an existing install can update in place — but only after kimi-code is installed locally. Without kimi-code the new transport has nothing to spawn, so the order matters: install kimi-code first, then update the plugin.
@@ -61,18 +61,18 @@ kimi --version
 kimi -p "Reply READY"
 ```
 
-### 2. Audit your kimi-plugin-cc env block
+### 2. Audit your k3-plugin-cc env block
 
 If you set any of these env vars for v0.4, review them before continuing — v1.0 reads the same vars but with different effective semantics:
 
 | Env var | Notes |
 |---|---|
-| `KIMI_PLUGIN_CC_KIMI_BIN` | Path to the kimi binary. Was the Python `kimi` in v0.4; should now point at the kimi-code binary (typically `~/.kimi-code/bin/kimi`). Unset to use the kimi-code on `PATH`. |
-| `KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` | JSON array of args prepended to every kimi spawn. Was a Wire-mode flag carrier in v0.4; in v1 it's still honored but the v0.4 contents (`--wire`, `--session`, `--agent-file`) are gone. Unset unless you have a specific override reason. |
-| `KIMI_PLUGIN_CC_NODE_BIN` | Absolute path to the Node binary used to run the companion AND the hook script. v1 setup hard-requires absolute. |
-| `KIMI_PLUGIN_CC_HOOK_SCRIPT` | Override for the hook script path written into `~/.kimi-code/config.toml`. Tests / advanced users only. |
+| `K3_PLUGIN_CC_KIMI_BIN` | Path to the kimi binary. Was the Python `kimi` in v0.4; should now point at the kimi-code binary (typically `~/.kimi-code/bin/kimi`). Unset to use the kimi-code on `PATH`. |
+| `K3_PLUGIN_CC_KIMI_PREFIX_ARGS` | JSON array of args prepended to every kimi spawn. Was a Wire-mode flag carrier in v0.4; in v1 it's still honored but the v0.4 contents (`--wire`, `--session`, `--agent-file`) are gone. Unset unless you have a specific override reason. |
+| `K3_PLUGIN_CC_NODE_BIN` | Absolute path to the Node binary used to run the companion AND the hook script. v1 setup hard-requires absolute. |
+| `K3_PLUGIN_CC_HOOK_SCRIPT` | Override for the hook script path written into `~/.kimi-code/config.toml`. Tests / advanced users only. |
 | `KIMI_CODE_HOME` | Override for the kimi-code config directory (default `~/.kimi-code`). New in v1.0 — recognized by setup, install verifier, and the hook itself. |
-| `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK` | Bypasses every hook-verification refusal gate (and the review-gate skip), restoring un-enforced `permission: auto` execution. Only set for tests or deliberate diagnostics. |
+| `K3_PLUGIN_CC_SKIP_HOOK_CHECK` | Bypasses every hook-verification refusal gate (and the review-gate skip), restoring un-enforced `permission: auto` execution. Only set for tests or deliberate diagnostics. |
 | `CLAUDE_PLUGIN_DATA` | Plugin data root. Unchanged from v0.4. |
 
 ### 3. Update the plugin in place
@@ -88,7 +88,7 @@ Or fresh install on a machine that doesn't have v0.4:
 
 ```
 /plugin marketplace add linxule/kimi-plugin-cc
-/plugin install kimi@kimi-marketplace
+/plugin install k3@brilia-k3-marketplace
 ```
 
 (v0.4 ALPHA NOTE: v1.0.0-alpha.1 was briefly tagged with renamed IDs `kimi-v1` / `kimi-marketplace-v1`. The rename was rolled back in v1.0.0-alpha.2. If you happened to install alpha.1 by those names, uninstall first: `/plugin uninstall kimi-v1`, `/plugin marketplace remove kimi-marketplace-v1`, then follow the procedure above.)
@@ -101,10 +101,10 @@ Or fresh install on a machine that doesn't have v0.4:
 
 This writes the PreToolUse hook to `~/.kimi-code/config.toml` and runs a two-layer probe (direct + via `/bin/sh -c`) to verify the hook fires and denies as expected. If setup fails, look at the `Probe:` line in the output. Common failure codes (the runtime emits these as `SETUP_*` errors):
 
-- **Bad `KIMI_PLUGIN_CC_NODE_BIN` override** — v1 setup requires the override to be an absolute path; relative paths (`node`) are rejected with `SETUP_NODE_BIN_NOT_ABSOLUTE`.
+- **Bad `K3_PLUGIN_CC_NODE_BIN` override** — v1 setup requires the override to be an absolute path; relative paths (`node`) are rejected with `SETUP_NODE_BIN_NOT_ABSOLUTE`.
 - **Orphan markers in `~/.kimi-code/config.toml`** from a manual edit or aborted earlier setup. Run `/k3:setup --uninstall` to clean up, then `/k3:setup` again. Code: `SETUP_ORPHAN_MARKERS`.
 - **Duplicate managed blocks** from two setup runs racing. Same fix: `/k3:setup --uninstall` + `/k3:setup`. Code: `SETUP_DUPLICATE_BLOCKS`.
-- **Hook script path contains characters TOML can't represent** (quotes, control chars). Reinstall to a path without these, or set `KIMI_PLUGIN_CC_HOOK_SCRIPT` to a safe path. Code: `SETUP_HOOK_PATH_UNSAFE`.
+- **Hook script path contains characters TOML can't represent** (quotes, control chars). Reinstall to a path without these, or set `K3_PLUGIN_CC_HOOK_SCRIPT` to a safe path. Code: `SETUP_HOOK_PATH_UNSAFE`.
 - **Probe timed out** (5s budget). Usually means kimi-code or the Node binary is wedged on cold start. Re-run; if persistent, file an issue with `/k3:setup --check` output.
 - **Hook script not found** — `dist/hooks/approval-hook.js` is missing. Reinstall the plugin or run `bun run build` if you're on a local clone. Code: `SETUP_HOOK_SCRIPT_MISSING`.
 
@@ -118,10 +118,10 @@ Reports the install state without writing. Run `/k3:review` against a small diff
 
 ### Local-clone install upgrade
 
-If you're running the plugin via `claude --plugin-dir ~/kimi-plugin-cc` rather than the marketplace:
+If you're running the plugin via `claude --plugin-dir ~/k3-plugin-cc` rather than the marketplace:
 
 ```bash
-cd ~/kimi-plugin-cc
+cd ~/k3-plugin-cc
 git fetch --tags origin
 git checkout v1.0.0-alpha.2
 # Verify dist/ is in sync; if you previously deleted it locally, rebuild:
@@ -135,7 +135,7 @@ Then run `/k3:setup` in your Claude Code session. The local clone uses the same 
 
 Claude Code and Codex install the plugin to **different, version-stamped paths**
 but share one `~/.kimi-code/config.toml`. As of **v1.7.0** each host manages its
-**own** host-scoped PreToolUse block (`# === BEGIN kimi-plugin-cc-managed:claude-code …`
+**own** host-scoped PreToolUse block (`# === BEGIN k3-plugin-cc-managed:claude-code …`
 vs `:codex`), so:
 
 - Run **`/k3:setup` in Claude Code AND `$k3-setup` in Codex** — once each.
@@ -160,9 +160,9 @@ vs `:codex`), so:
 
 ## Data and session continuity
 
-- **SQLite job rows** from v0.4 remain in `${CLAUDE_PLUGIN_DATA}/kimi-plugin-cc/state.db`. They're still visible to `/k3:status` and `/k3:result`, but `/k3:replay` will report `REPLAY_LOG_UNREADABLE` on the v0.4 wire logs — v1.0's replay parser doesn't understand the Wire JSON-RPC shape. Archive or delete the database if you don't need v0.4 history.
+- **SQLite job rows** from v0.4 remain in `${CLAUDE_PLUGIN_DATA}/k3-plugin-cc/state.db`. They're still visible to `/k3:status` and `/k3:result`, but `/k3:replay` will report `REPLAY_LOG_UNREADABLE` on the v0.4 wire logs — v1.0's replay parser doesn't understand the Wire JSON-RPC shape. Archive or delete the database if you don't need v0.4 history.
 - **Kimi CLI sessions** under `~/.kimi/sessions/` are independent of kimi-code's `~/.kimi-code/sessions/`. v1.0's `--resume` will not see v0.4 sessions.
-- **Plugin config** (`${CLAUDE_PLUGIN_DATA}/kimi-plugin-cc/config.json` — only `reviewGateEnabled` lives here) carries over unchanged.
+- **Plugin config** (`${CLAUDE_PLUGIN_DATA}/k3-plugin-cc/config.json` — only `reviewGateEnabled` lives here) carries over unchanged.
 
 ## Rollback
 
@@ -171,12 +171,12 @@ If something is wrong, the v0.4 install is one step away:
 ```
 /k3:setup --uninstall            # removes the v1.0 PreToolUse hook
 /plugin uninstall kimi
-/plugin marketplace remove kimi-marketplace
+/plugin marketplace remove brilia-k3-marketplace
 # If the v0.4-maintenance branch is published:
 /plugin marketplace add linxule/kimi-plugin-cc@v0.4-maintenance
 # Otherwise, pin to the v0.4.0 tag:
 /plugin marketplace add linxule/kimi-plugin-cc@v0.4.0
-/plugin install kimi@kimi-marketplace
+/plugin install k3@brilia-k3-marketplace
 ```
 
 Claude Code's marketplace tooling uses `@ref` to pin a GitHub shorthand to a branch or tag. Your Python Kimi CLI install is untouched — v1.0 only edits `~/.kimi-code/config.toml`, never `~/.kimi/*`.
@@ -186,12 +186,12 @@ Claude Code's marketplace tooling uses `@ref` to pin a GitHub shorthand to a bra
 - The `--wire`, `--session`, and `--agent-file` invocation shape. v1.0 uses `kimi -p` only.
 - The YAML agent profiles in `runtime/agents/`. The plugin doesn't ship Kimi-side profiles in v1.0; per-command safety is enforced exclusively by the PreToolUse hook.
 - The Wire-protocol replay path. The runtime no longer parses JSON-RPC turn events.
-- The v0.4 pre-run `Kimi Task: ...` title assignment path through Kimi CLI / `kimi web`. v1 uses `kimi -p`, whose session id is minted only after the run, so the plugin cannot name the session before spawn. Instead, after Kimi announces the session id and the run settles, the runtime syncs a fallback title such as `Kimi Ask: ...`, repairs missing native-v2 prompt previews, and notifies the Desktop/Web index. Native-v2 fallback titles remain eligible for native generation; manual and already-generated titles are preserved. Internal `review_gate` Stop-hook sessions are intentionally excluded. See [session visibility and native titles](session-visibility.md) for generation limits and repair of older plugin sessions.
+- The v0.4 pre-run `Kimi Task: ...` title assignment path through Kimi CLI / `kimi web`. v1 uses `kimi -p`, whose session id is minted only after the run, so the plugin cannot name the session before spawn. Instead, after Kimi announces the session id and the run settles, the runtime syncs a fallback title such as `K3 Ask: ...`, repairs missing native-v2 prompt previews, and notifies the Desktop/Web index. Native-v2 fallback titles remain eligible for native generation; manual and already-generated titles are preserved. Internal `review_gate` Stop-hook sessions are intentionally excluded. See [session visibility and native titles](session-visibility.md) for generation limits and repair of older plugin sessions.
 
 ## What's new
 
 - A two-layer setup probe that catches `node`-not-on-PATH failure modes before they become silent fail-opens.
-- Workspace-bound rescue safety enforced by a hook that the plugin sets `KIMI_PLUGIN_CC_CMD=rescue` for. The hook only enforces the allowlist when that env var is set — kimi-code invocations from outside the plugin (e.g., direct user `kimi -p` calls) keep kimi-code's default permission posture, unrestricted by the plugin. The allowlist's job is to scope plugin-driven rescue, not to police all uses of kimi-code on the system.
+- Workspace-bound rescue safety enforced by a hook that the plugin sets `K3_PLUGIN_CC_CMD=rescue` for. The hook only enforces the allowlist when that env var is set — kimi-code invocations from outside the plugin (e.g., direct user `kimi -p` calls) keep kimi-code's default permission posture, unrestricted by the plugin. The allowlist's job is to scope plugin-driven rescue, not to police all uses of kimi-code on the system.
 - `/k3:setup --check` and `/k3:setup --uninstall` for state inspection and cleanup.
 - Stream-json logs are easier to grep than Wire JSON-RPC dumps when you need to debug a job after the fact.
 
@@ -201,10 +201,10 @@ If you hit problems, file an issue with the output of `/k3:setup --check` and th
 
 This release changes behaviour that earlier 1.x users may depend on. Strictly by semver it is a major; it ships as 1.10.0 because the plugin is upgraded in place through the marketplace and its 1.x line has always advanced compat by minor releases.
 
-- **Certification is now per EXACT kimi-code version, not per minor.** Native v2 is certified at `0.42.0` only (v1.10.0; v1.10.3 adds `0.43.0` and `0.43.1`). When kimi-code publishes a newer version, every model-spawning command refuses with `KIMI_CAPABILITY_NOT_CERTIFIED` until a plugin release certifies it — before 1.10, a patch release inside a tested minor kept working. kimi-code self-upgrades in the background, so expect this on the next upstream patch; pin `KIMI_PLUGIN_CC_KIMI_BIN` to a certified binary if you need continuity, and watch for the next plugin release.
+- **Certification is now per EXACT kimi-code version, not per minor.** Native v2 is certified at `0.42.0` only (v1.10.0; v1.10.3 adds `0.43.0` and `0.43.1`). When kimi-code publishes a newer version, every model-spawning command refuses with `KIMI_CAPABILITY_NOT_CERTIFIED` until a plugin release certifies it — before 1.10, a patch release inside a tested minor kept working. kimi-code self-upgrades in the background, so expect this on the next upstream patch; pin `K3_PLUGIN_CC_KIMI_BIN` to a certified binary if you need continuity, and watch for the next plugin release.
 - **Sessions created before 1.10 cannot be resumed on 0.42.0.** `ask --resume`, `ask -r`, `rescue --resume` and rescue's implicit latest-session reuse refuse (`KIMI_SESSION_LINEAGE_UNKNOWN` / `KIMI_SESSION_ENGINE_MISMATCH`) — the v1 engine no longer exists in the binary, so nothing could replay those sessions. Nothing is deleted; `/k3:status`, `/k3:result` and `/k3:replay` still work on the old jobs. Start fresh sessions.
 - **`default_plan_mode = true` (any spelling) in `~/.kimi-code/config.toml` now blocks every command** (`CLI_V2_PLAN_MODE_CONFIGURED`). On the old forced-v1 path that setting was harmless; on native v2 it would arm the one code path that bypasses the safety hook. Set it to `false` or remove it. `/k3:setup` cannot fix this one.
-- **`KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` may no longer contain kimi flags** (`-r`, `-c`/`-C`, `-S`, `-p`, `-m`, `--plan`, `--yolo`, `--agent`, `--add-dir`, …) — `INVALID_ENV`. The prefix is a launcher shim only (e.g. `["--import","tsx",…]`).
+- **`K3_PLUGIN_CC_KIMI_PREFIX_ARGS` may no longer contain kimi flags** (`-r`, `-c`/`-C`, `-S`, `-p`, `-m`, `--plan`, `--yolo`, `--agent`, `--add-dir`, …) — `INVALID_ENV`. The prefix is a launcher shim only (e.g. `["--import","tsx",…]`).
 - **`[experimental] tower` / `subagent_fork` and `KIMI_CODE_EXPERIMENTAL_FLAG` refuse before spawn** (`CLI_V2_EXPERIMENTAL_UNSAFE` / `CLI_V2_HOOK_ORDER_UNSAFE`). Unset them for plugin-managed runs.
 - **Still on kimi-code ≤ 0.41.x?** Nothing changes for you: those versions route to the legacy-v1 engine exactly as before. But the plugin certifies them only for an explicitly pinned binary — kimi-code's auto-update will move you to 0.42.x, at which point the notes above apply.
 

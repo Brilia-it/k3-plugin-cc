@@ -37,7 +37,7 @@ pass-through alias, so upstream can resolve it or report an error.
 
 Omitting `-m` uses the default for a **fresh** session. A resumed session keeps
 its previous model unless you supply `-m`. The optional review gate also uses
-the default unless `KIMI_PLUGIN_CC_REVIEW_GATE_MODEL` explicitly selects an alias.
+the default unless `K3_PLUGIN_CC_REVIEW_GATE_MODEL` explicitly selects an alias.
 Swarm `-m` selects the coordinator; upstream `[secondary_model]` settings can
 select different models for its children.
 

@@ -83,28 +83,28 @@ export function summarizeKimiAvailabilityWarning(
   }
 
   if (classification.kind === "auth_unavailable") {
-    return `Kimi ${formatCommandLabel(commandType).toLowerCase()} is not configured for model access; allowing stop.`;
+    return `K3 ${formatCommandLabel(commandType).toLowerCase()} is not configured for model access; allowing stop.`;
   }
 
   if (classification.kind === "binary_unavailable") {
-    return `Kimi ${formatCommandLabel(commandType).toLowerCase()} could not find the Kimi CLI; allowing stop.`;
+    return `K3 ${formatCommandLabel(commandType).toLowerCase()} could not find the Kimi CLI; allowing stop.`;
   }
 
   if (classification.kind === "startup_failed") {
-    return `Kimi ${formatCommandLabel(commandType).toLowerCase()} could not start a usable Kimi subprocess; allowing stop.`;
+    return `K3 ${formatCommandLabel(commandType).toLowerCase()} could not start a usable Kimi subprocess; allowing stop.`;
   }
 
   switch (classification.kind) {
     case "startup_timeout":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} did not respond during startup; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} did not respond during startup; allowing stop.`;
     case "initialize_timeout":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} did not complete session initialization; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} did not complete session initialization; allowing stop.`;
     case "response_timeout":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} did not return a final response; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} did not return a final response; allowing stop.`;
     case "max_steps_reached":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} exhausted its step budget; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} exhausted its step budget; allowing stop.`;
     case "timeout":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} timed out; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} timed out; allowing stop.`;
   }
 }
 

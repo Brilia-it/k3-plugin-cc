@@ -4,7 +4,7 @@
 // review_gate. Rescue (PR 3) still uses the v0.4 mock until rescue is ported.
 //
 // Scenario surface mirrors mock-kimi-cli.ts so test files migrate by
-// pointing `KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` at this file instead.
+// pointing `K3_PLUGIN_CC_KIMI_PREFIX_ARGS` at this file instead.
 // Scenarios that don't map cleanly (e.g. rescue-approval flows) are
 // stubbed with a clear error so we catch test drift loudly.
 //
@@ -16,27 +16,27 @@
 // The mock honors the same scenario env vars as the v0.4 mock so tests
 // can switch transports by changing one path:
 //
-//   KIMI_PLUGIN_CC_MOCK_SCENARIO      ask-success / review-success / review-gate-* / etc.
-//   KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH  optional path where argv is logged
-//   KIMI_PLUGIN_CC_MOCK_DELAY_MS      delay before emitting records (cancellation tests)
-//   KIMI_PLUGIN_CC_MOCK_SESSION_ID    override session id announced in stderr
+//   K3_PLUGIN_CC_MOCK_SCENARIO      ask-success / review-success / review-gate-* / etc.
+//   K3_PLUGIN_CC_MOCK_INVOCATION_PATH  optional path where argv is logged
+//   K3_PLUGIN_CC_MOCK_DELAY_MS      delay before emitting records (cancellation tests)
+//   K3_PLUGIN_CC_MOCK_SESSION_ID    override session id announced in stderr
 
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 
-const scenario = process.env.KIMI_PLUGIN_CC_MOCK_SCENARIO ?? "ask-success";
-const invocationPath = process.env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH;
-const delayMs = Number(process.env.KIMI_PLUGIN_CC_MOCK_DELAY_MS ?? "0");
+const scenario = process.env.K3_PLUGIN_CC_MOCK_SCENARIO ?? "ask-success";
+const invocationPath = process.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH;
+const delayMs = Number(process.env.K3_PLUGIN_CC_MOCK_DELAY_MS ?? "0");
 
 // Session id resolution mirrors kimi-code: if the caller passes `-r <id>`,
 // echo that id back (the resume target persists across the call). Otherwise
 // mint a fresh uuid per invocation so concurrent fresh runs don't collide.
-// KIMI_PLUGIN_CC_MOCK_SESSION_ID can override the fresh path for tests that
+// K3_PLUGIN_CC_MOCK_SESSION_ID can override the fresh path for tests that
 // need predictable ids without piping through -r.
 const sessionId = resolveAnnouncedSessionId();
 
 function resolveAnnouncedSessionId(): string {
-  const override = process.env.KIMI_PLUGIN_CC_MOCK_SESSION_ID;
+  const override = process.env.K3_PLUGIN_CC_MOCK_SESSION_ID;
   if (override) return override;
   const argv = process.argv.slice(2);
   const dashR = argv.indexOf("-r");
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   // job. Keep this branch side-effect free so invocation assertions still
   // describe the real prompt spawn rather than the probe.
   if (process.argv.slice(2).includes("--version")) {
-    process.stdout.write(`${process.env.KIMI_PLUGIN_CC_MOCK_VERSION ?? "0.39.0"}\n`);
+    process.stdout.write(`${process.env.K3_PLUGIN_CC_MOCK_VERSION ?? "0.39.0"}\n`);
     process.exit(0);
   }
 
@@ -69,9 +69,9 @@ async function main(): Promise<void> {
         argv: process.argv.slice(2),
         scenario,
         env: {
-          KIMI_PLUGIN_CC_CMD: process.env.KIMI_PLUGIN_CC_CMD ?? null,
-          KIMI_PLUGIN_CC_WORKSPACE_ROOT:
-            process.env.KIMI_PLUGIN_CC_WORKSPACE_ROOT ?? null,
+          K3_PLUGIN_CC_CMD: process.env.K3_PLUGIN_CC_CMD ?? null,
+          K3_PLUGIN_CC_WORKSPACE_ROOT:
+            process.env.K3_PLUGIN_CC_WORKSPACE_ROOT ?? null,
           KIMI_CODE_HOME: process.env.KIMI_CODE_HOME ?? null,
         },
       })}\n`,
@@ -237,7 +237,7 @@ function recordsForScenario(name: string): AssistantContentRecord[] {
 
     case "rescue-cancel":
       // Long-form rescue prose used by cancel tests. The delay env var
-      // (KIMI_PLUGIN_CC_MOCK_DELAY_MS) decides whether the mock finishes
+      // (K3_PLUGIN_CC_MOCK_DELAY_MS) decides whether the mock finishes
       // before SIGTERM lands. Without a delay the call completes
       // normally, which doubles as a positive smoke test.
       return [

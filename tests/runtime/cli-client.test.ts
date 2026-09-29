@@ -496,7 +496,7 @@ describe("runCliPrompt", () => {
     }
   });
 
-  test("propagates KIMI_PLUGIN_CC_CMD label to the subprocess env", async () => {
+  test("propagates K3_PLUGIN_CC_CMD label to the subprocess env", async () => {
     const root = await createTestPluginDataRoot("cli-client-label");
     try {
       // The mock doesn't read this var, but it shouldn't error from the
@@ -532,12 +532,12 @@ describe("runCliPrompt", () => {
       try {
         const opts = mockOptions({ cwd: root, records: [], commandLabel: operationKind === "pursue" ? "rescue" : operationKind });
         opts.executionPlan = { ...opts.executionPlan, operationKind };
-        opts.env.KIMI_PLUGIN_CC_OPERATION = operationKind === "pursue" ? "review" : "pursue";
-        opts.env.KIMI_MOCK_ECHO_ENV = "KIMI_PLUGIN_CC_OPERATION";
+        opts.env.K3_PLUGIN_CC_OPERATION = operationKind === "pursue" ? "review" : "pursue";
+        opts.env.KIMI_MOCK_ECHO_ENV = "K3_PLUGIN_CC_OPERATION";
         for (const resumeSessionId of [undefined, "session_existing_operation"]) {
           const result = await runCliPrompt({ ...opts, resumeSessionId, trustedWorkspaceRoot: root });
           expect(result.exitCode).toBe(0);
-          expect(result.records).toContainEqual({ role: "assistant", content: `KIMI_PLUGIN_CC_OPERATION=${operationKind}` });
+          expect(result.records).toContainEqual({ role: "assistant", content: `K3_PLUGIN_CC_OPERATION=${operationKind}` });
         }
       } finally {
         await cleanupTestPath(root);
@@ -938,12 +938,12 @@ describe("runCliPrompt", () => {
     }
   });
 
-  test("KIMI_PLUGIN_CC_SKIP_HOOK_CHECK cannot bypass the independent v2 refusal", async () => {
+  test("K3_PLUGIN_CC_SKIP_HOOK_CHECK cannot bypass the independent v2 refusal", async () => {
     const root = await createTestPluginDataRoot("cli-client-v2-skip-hook-check");
     try {
       const opts = mockOptions({ cwd: root, records: [] });
       opts.env.KIMI_CODE_EXPERIMENTAL_FLAG = "1";
-      opts.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK = "1";
+      opts.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK = "1";
       await expect(runCliPrompt(opts)).rejects.toMatchObject({
         code: "CLI_V2_HOOK_ORDER_UNSAFE",
         details: { refusal_kind: "v2-hook-order-unsafe" },
@@ -1422,7 +1422,7 @@ describe("native-v2 provenance", () => {
       });
       const result = await runCliPrompt({
         ...opts,
-        env: { ...opts.env, KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1" },
+        env: { ...opts.env, K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1" },
         executionPlan: { ...opts.executionPlan, kimiVersion: null, certification: "test-bypass" },
       });
       expect(result.observedEngine).toBe("native-v2");

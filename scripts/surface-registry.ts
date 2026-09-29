@@ -1,11 +1,11 @@
-import { KIMI_PLUGIN_CC_VERSION } from "../runtime/version.js";
+import { K3_PLUGIN_CC_VERSION } from "../runtime/version.js";
 
 export const PLUGIN_NAME = "k3";
 export const MARKETPLACE_NAME = "brilia-k3-marketplace";
 // Single source of truth: the Codex manifest/marketplace version derives from the
 // runtime version, so a release bump in runtime/version.ts propagates here without
 // a second edit. The codex-surfaces test asserts PLUGIN_VERSION === package.json.
-export const PLUGIN_VERSION = KIMI_PLUGIN_CC_VERSION;
+export const PLUGIN_VERSION = K3_PLUGIN_CC_VERSION;
 
 // The Codex plugin is a SELF-CONTAINED subfolder so its root has no overlap with the
 // Claude Code plugin root (the repo root). Claude Code auto-discovers a top-level
@@ -34,8 +34,8 @@ export interface CodexSkillSpec {
 }
 
 export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
-  { path: ".claude-plugin/plugin.json", sha256: "ba4d8d36108fba80e8295943544477d7ddeaacd4016a3eb3b6339df0badb3a57" },
-  { path: ".claude-plugin/marketplace.json", sha256: "f9f9d1b8e7624bc4911b8055a632071933f276bda2502ab1456258eda23ec5b6" },
+  { path: ".claude-plugin/plugin.json", sha256: "ef5ae57196d27d976d144cbde2ded35991f280f8d83f11c8251bb7d5cfc16e0c" },
+  { path: ".claude-plugin/marketplace.json", sha256: "548e4f93b18f018b546c53151199c0374efb705508abe88fefb8e0abd80ac886" },
   { path: "commands/README.md", sha256: "f6928fbefd8fd615fe1a450717c2c144f5a019b0c4c249d8abcc20f119cf3b84" },
   { path: "commands/ask.md", sha256: "b9f9440f9e12b65ee01611e1540cbdbcc5c7704303e83219ac3a3b91ce52d35a" },
   { path: "commands/cancel.md", sha256: "4d1c1e9d0534fac113fea18e2c8993d99f3ada1335186f66cd995a45f1057db4" },
@@ -48,22 +48,22 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: "commands/setup.md", sha256: "ede6fb64d0a8b9876a2405b3685483d4db5ce9505dd724ad903cdf1b048abc44" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
   { path: "commands/swarm.md", sha256: "1b553e246993c6a35d91233ec3d642371164812a92fb24363ebd596ca1d42acd" },
-  { path: "agents/k3-ask.md", sha256: "db3999d167aa6e7f2b4ed9dacaca801dcc66262c8212bf3dbf613e4105d05435" },
-  { path: "agents/k3-challenge.md", sha256: "dc88bf70f2b6e7181e883b8005122afb2c4b2f40dce3ac39d173a4c89b8cf8ea" },
-  { path: "agents/k3-pursue.md", sha256: "996076e79d97df1fe4643176286ae7622359f8d74f0dfccfa7cc53682685aa46" },
-  { path: "agents/k3-rescue.md", sha256: "4abdcdf6460e1a4ca12780fb042a28844bacb5db872a801151f36646c561c105" },
-  { path: "agents/k3-review.md", sha256: "909884c9e69b9663451feb8dbcfb142d29a713a3459f6a0053b3f15b9715db8e" },
-  { path: "agents/k3-swarm-write.md", sha256: "2fc04996dda638616572041a3a84cf41ae166cb9c2cdd0b9c7de81f239f5578d" },
-  { path: "agents/k3-swarm.md", sha256: "cddd0403fd68da875a4033d15e1fc4292ac1d2fefaf589e0585b1627c49920c3" },
+  { path: "agents/k3-ask.md", sha256: "24bf18e6f43f0667f7180449b95d53b8fc4009edf1482cb6261cdb2b8404e57f" },
+  { path: "agents/k3-challenge.md", sha256: "c59c21117851bb326da0842c5df203cb3550386d6776df7dfce7d52d82db2d14" },
+  { path: "agents/k3-pursue.md", sha256: "7f75c90062c830a6e064232caecb7f3a76ec4e1eae1417597f30c88b7db0e7c6" },
+  { path: "agents/k3-rescue.md", sha256: "213da4da57a9a64324b9f18dacfe8fde1f1ed7e1659a0cf068d9c86f60a39200" },
+  { path: "agents/k3-review.md", sha256: "57a9fbd37901469a9472d00a1338f0ea551e3a82bd1f1bacce3378b9880c6e53" },
+  { path: "agents/k3-swarm-write.md", sha256: "87b362d44057ba31ec7f17f9056609562a3260684d8f6d13682ab4c3708f5f66" },
+  { path: "agents/k3-swarm.md", sha256: "762dcb29d33add210bf6cab9478fd956959d977af965666b54fc77a0f5d8dd65" },
 ];
 
 export const CODEX_PLUGIN_MANIFEST = {
   name: PLUGIN_NAME,
   version: PLUGIN_VERSION,
   description:
-    "Codex plugin that delegates review, challenge, ask, rescue, pursue, and swarm workflows to the local kimi-code CLI through the kimi-plugin-cc companion runtime.",
+    "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc, developed and verified on Windows 11, running on macOS and Linux as well. Delegates review, challenge, ask, rescue, pursue, and swarm workflows to the local kimi-code CLI through the k3-plugin-cc companion runtime. Not affiliated with Moonshot AI.",
   author: {
-    name: "linxule",
+    name: "BRILIA",
   },
   homepage: "https://github.com/Brilia-it/k3-plugin-cc",
   repository: "https://github.com/Brilia-it/k3-plugin-cc",
@@ -74,8 +74,8 @@ export const CODEX_PLUGIN_MANIFEST = {
     displayName: "K3",
     shortDescription: "Delegate repo work to local kimi-code",
     longDescription:
-      "Shell-only Codex packaging for kimi-plugin-cc. It exposes Codex skills that call the existing companion runtime and local kimi-code subprocess, while preserving the Claude Code plugin surface.",
-    developerName: "linxule",
+      "Shell-only Codex packaging for k3-plugin-cc. It exposes Codex skills that call the existing companion runtime and local kimi-code subprocess, while preserving the Claude Code plugin surface.",
+    developerName: "BRILIA",
     category: "Developer Tools",
     capabilities: ["Code Review", "Local Shell", "Write"],
     websiteURL: "https://github.com/Brilia-it/k3-plugin-cc",
@@ -119,8 +119,8 @@ const MODEL_SELECTION_GUIDANCE = [
 export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
   {
     name: "k3-ask",
-    title: "Kimi Ask",
-    displayName: "Kimi Ask",
+    title: "K3 Ask",
+    displayName: "K3 Ask",
     shortDescription: "Ask Kimi a read-only repo question",
     defaultPrompt: "Use $k3-ask to explain the current repository flow.",
     implicit: true,
@@ -138,8 +138,8 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
   },
   {
     name: "k3-review",
-    title: "Kimi Review",
-    displayName: "Kimi Review",
+    title: "K3 Review",
+    displayName: "K3 Review",
     shortDescription: "Run Kimi read-only code review",
     defaultPrompt: "Use $k3-review to review the current working tree.",
     implicit: true,
@@ -157,8 +157,8 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
   },
   {
     name: "k3-challenge",
-    title: "Kimi Challenge",
-    displayName: "Kimi Challenge",
+    title: "K3 Challenge",
+    displayName: "K3 Challenge",
     shortDescription: "Challenge a design or approach",
     defaultPrompt: "Use $k3-challenge to stress-test this approach.",
     implicit: true,
@@ -176,8 +176,8 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
   },
   {
     name: "k3-rescue",
-    title: "Kimi Rescue",
-    displayName: "Kimi Rescue",
+    title: "K3 Rescue",
+    displayName: "K3 Rescue",
     shortDescription: "Delegate a bounded Kimi fix",
     defaultPrompt: "Use $k3-rescue to delegate this bounded implementation task.",
     implicit: false,
@@ -194,8 +194,8 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
   },
   {
     name: "k3-pursue",
-    title: "Kimi Pursue",
-    displayName: "Kimi Pursue",
+    title: "K3 Pursue",
+    displayName: "K3 Pursue",
     shortDescription: "Run autonomous Kimi goal mode",
     defaultPrompt: "Use $k3-pursue to let Kimi pursue this objective with a budget.",
     implicit: false,
@@ -212,8 +212,8 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
   },
   {
     name: "k3-swarm",
-    title: "Kimi Swarm",
-    displayName: "Kimi Swarm",
+    title: "K3 Swarm",
+    displayName: "K3 Swarm",
     shortDescription: "Fan out Kimi read-only review",
     defaultPrompt: "Use $k3-swarm to fan out a read-only review across these targets.",
     implicit: false,
@@ -231,8 +231,8 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
   },
   {
     name: "k3-swarm-write",
-    title: "Kimi Swarm Write",
-    displayName: "Kimi Swarm Write",
+    title: "K3 Swarm Write",
+    displayName: "K3 Swarm Write",
     shortDescription: "Fan out patch-only Kimi edits",
     defaultPrompt: "Use $k3-swarm-write to fan out these disjoint edits into a patch.",
     implicit: false,

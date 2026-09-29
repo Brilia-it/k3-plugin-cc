@@ -192,7 +192,7 @@ export async function inspectExperimentalSelectors(kimiHome, env) {
     return {
         kind: "refuse",
         selectors,
-        reason: `Refusing v2-only experimental feature(s) not certified by kimi-plugin-cc: ${selectors.join(", ")}.`,
+        reason: `Refusing v2-only experimental feature(s) not certified by k3-plugin-cc: ${selectors.join(", ")}.`,
     };
 }
 async function boundedReaddir(dirPath, cap) {

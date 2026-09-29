@@ -8,7 +8,7 @@ import { extractValue } from "../vendor/smol-toml/extract.js";
 import { parse as parseToml } from "../vendor/smol-toml/parse.js";
 import { parseKey } from "../vendor/smol-toml/struct.js";
 import { skipVoid } from "../vendor/smol-toml/util.js";
-const LOCK_SUFFIX = ".kimi-plugin-cc.lock";
+const LOCK_SUFFIX = ".k3-plugin-cc.lock";
 const DEFAULT_LOCK_WAIT_MS = 10_000;
 const DEFAULT_LOCK_STALE_MS = 2_000;
 const DEFAULT_LOCK_RETRY_MS = 25;
@@ -489,7 +489,7 @@ export async function validateKimiHookSetForEnvironment(contents, env) {
         return inspection.validation;
     }
     const probe = await probeKimiVersion({
-        kimiBin: env.KIMI_PLUGIN_CC_KIMI_BIN || undefined,
+        kimiBin: env.K3_PLUGIN_CC_KIMI_BIN || undefined,
         env,
     });
     const first = inspection.versionSensitiveEvents[0];

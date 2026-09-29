@@ -12,7 +12,7 @@
 // phase as tools run) can pass `onRecord` to observe records as they arrive
 // without paying for a separate event-stream API.
 //
-// Per-job env (`KIMI_PLUGIN_CC_CMD`) is set on this spawn so the
+// Per-job env (`K3_PLUGIN_CC_CMD`) is set on this spawn so the
 // PreToolUse hook can branch per command (review vs rescue vs ask). It is
 // passed via the spawn `env` option, not exported to a shell, so concurrent
 // jobs never share an env block.
@@ -786,10 +786,10 @@ function buildEnv(opts) {
     // Rescue and pursue share the write label. Only the immutable execution
     // plan can grant pursue's narrow goal-metadata access; never trust ambient
     // state inherited from another plugin job.
-    env.KIMI_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
+    env.K3_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
     env.KIMI_CODE_HOME = resolveKimiHome(opts.env, opts.cwd);
     if (opts.commandLabel !== undefined) {
-        env.KIMI_PLUGIN_CC_CMD = opts.commandLabel;
+        env.K3_PLUGIN_CC_CMD = opts.commandLabel;
     }
     if (opts.swarmMaxConcurrency !== undefined) {
         // kimi-code 0.18.0+ caps AgentSwarm's normal-phase concurrency at this
@@ -799,7 +799,7 @@ function buildEnv(opts) {
     if (opts.trustedWorkspaceRoot !== undefined) {
         // Trusted allowlist root for write-capable PreToolUse cases. Forge-proof
         // (env on the spawned process; the model cannot alter it). See field doc.
-        env.KIMI_PLUGIN_CC_WORKSPACE_ROOT = opts.trustedWorkspaceRoot;
+        env.K3_PLUGIN_CC_WORKSPACE_ROOT = opts.trustedWorkspaceRoot;
     }
     return env;
 }

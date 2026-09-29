@@ -1,5 +1,5 @@
 interface:
-  display_name: "Kimi Pursue"
+  display_name: "K3 Pursue"
   short_description: "Run autonomous Kimi goal mode"
   default_prompt: "Use $k3-pursue to let Kimi pursue this objective with a budget."
 policy:

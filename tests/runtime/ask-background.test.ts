@@ -43,12 +43,12 @@ function makeMockEnv(
   return {
     ...process.env,
     CLAUDE_PLUGIN_DATA: pluginDataRoot,
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: scenario,
-    KIMI_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
-    KIMI_PLUGIN_CC_NODE_BIN: "node",
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: scenario,
+    K3_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
+    K3_PLUGIN_CC_NODE_BIN: "node",
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
   };
 }
 
@@ -59,7 +59,7 @@ function makeMockEnv(
  * execPath is the bun binary. Spawning a background worker with bun fails —
  * background-spawn passes `--import tsx`, which bun does not accept. That
  * mistake produced a confusing "Cannot find module './cjs/index.cjs'" from the
- * child, which is why the rest of this file hardcodes KIMI_PLUGIN_CC_NODE_BIN
+ * child, which is why the rest of this file hardcodes K3_PLUGIN_CC_NODE_BIN
  * to "node". Tests that need to spawn node *through a symlink* need the
  * resolved path rather than a bare name.
  */
@@ -106,7 +106,7 @@ describe("ask background", () => {
     const env = {
       ...makeMockEnv(foreign, "ask-success"),
       PLUGIN_DATA: path.join(root, "other-host"),
-      KIMI_PLUGIN_CC_DATA: chosen,
+      K3_PLUGIN_CC_DATA: chosen,
       KIMI_CODE_HOME: path.join(root, "test-kimi-home"),
     };
     try {
@@ -115,7 +115,7 @@ describe("ask background", () => {
       const status = JSON.parse(await runStatus(["--type", "ask"], makeContext(repoRoot, env)));
       expect(status.status).toBe("completed");
       expect(await runResult([status.job_id], makeContext(repoRoot, env))).toContain("Ask answer from mock Kimi.");
-      expect(existsSync(path.join(chosen, "kimi-plugin-cc", "state.db"))).toBe(true);
+      expect(existsSync(path.join(chosen, "k3-plugin-cc", "state.db"))).toBe(true);
       expect(existsSync(foreign)).toBe(false);
       expect(existsSync(env.PLUGIN_DATA)).toBe(false);
     } finally {
@@ -129,9 +129,9 @@ describe("ask background", () => {
     const repoRoot = await createGitRepoFixture("ask-background-worker-hook-repo");
     const invocationPath = path.join(pluginDataRoot, "kimi-invocation.json");
     const env = makeMockEnv(pluginDataRoot, "ask-success");
-    delete env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK;
+    delete env.K3_PLUGIN_CC_SKIP_HOOK_CHECK;
     env.KIMI_CODE_HOME = path.join(pluginDataRoot, "missing-kimi-home");
-    env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH = invocationPath;
+    env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH = invocationPath;
     const paths = resolvePluginPaths(env);
     const jobId = randomUUID();
 
@@ -291,7 +291,7 @@ describe("ask background", () => {
   });
 
   // STRUCTURAL GAP CLOSER (v1.9.0 post-release review). Every other background
-  // test sets KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1, and the one worker-refusal test
+  // test sets K3_PLUGIN_CC_SKIP_HOOK_CHECK=1, and the one worker-refusal test
   // above calls executeAskJob IN-PROCESS. So no test had ever run a REAL
   // detached worker with enforcement enabled — which is exactly why the v1.9.0
   // `spawn(process.execPath)` regression reached pre-release review instead of
@@ -304,7 +304,7 @@ describe("ask background", () => {
   // verifyHookInstalled must agree — or the job lands failed with
   // ASK_HOOK_NOT_INSTALLED instead of completed.
   //
-  // LIMIT: because it sets KIMI_PLUGIN_CC_NODE_BIN, spawner and verifier agree
+  // LIMIT: because it sets K3_PLUGIN_CC_NODE_BIN, spawner and verifier agree
   // BY CONSTRUCTION (the buggy code honored the override too), so it cannot
   // catch the v1.9.0 regression itself. Reproducing that needs the no-override
   // path with a real node parent, which is impossible under `bun test` — see
@@ -327,10 +327,10 @@ describe("ask background", () => {
       const hookScript = path.join(process.cwd(), "dist", "hooks", "approval-hook.js");
 
       const env = makeMockEnv(pluginDataRoot, "ask-success");
-      delete env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK; // <- the whole point
+      delete env.K3_PLUGIN_CC_SKIP_HOOK_CHECK; // <- the whole point
       env.KIMI_CODE_HOME = kimiHome;
-      env.KIMI_PLUGIN_CC_HOOK_SCRIPT = hookScript;
-      env.KIMI_PLUGIN_CC_NODE_BIN = nodeSymlink;
+      env.K3_PLUGIN_CC_HOOK_SCRIPT = hookScript;
+      env.K3_PLUGIN_CC_NODE_BIN = nodeSymlink;
 
       await writeFile(
         path.join(kimiHome, "config.toml"),
@@ -382,10 +382,10 @@ describe("ask background", () => {
       const hookScript = path.join(process.cwd(), "dist", "hooks", "approval-hook.js");
 
       const env = makeMockEnv(pluginDataRoot, "ask-success");
-      delete env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK;
+      delete env.K3_PLUGIN_CC_SKIP_HOOK_CHECK;
       env.KIMI_CODE_HOME = kimiHome;
-      env.KIMI_PLUGIN_CC_HOOK_SCRIPT = hookScript;
-      env.KIMI_PLUGIN_CC_NODE_BIN = nodeSymlink;
+      env.K3_PLUGIN_CC_HOOK_SCRIPT = hookScript;
+      env.K3_PLUGIN_CC_NODE_BIN = nodeSymlink;
 
       // Pin a hook script path this companion does not use — the version-stamped
       // install-dir drift that started this whole investigation.
@@ -456,11 +456,11 @@ describe("ask background", () => {
     }
   });
 
-  test("background ask with invalid KIMI_PLUGIN_CC_NODE_BIN path marks job failed with ASK_NODE_BIN_INVALID", async () => {
+  test("background ask with invalid K3_PLUGIN_CC_NODE_BIN path marks job failed with ASK_NODE_BIN_INVALID", async () => {
     const pluginDataRoot = await createTestPluginDataRoot("ask-node-bin-invalid");
     const repoRoot = await createGitRepoFixture("ask-node-bin-invalid-repo");
     const env = makeMockEnv(pluginDataRoot, "ask-success");
-    env.KIMI_PLUGIN_CC_NODE_BIN = `/tmp/kimi-plugin-cc-missing-node-${randomUUID()}`;
+    env.K3_PLUGIN_CC_NODE_BIN = `/tmp/k3-plugin-cc-missing-node-${randomUUID()}`;
 
     try {
       await expect(
@@ -496,7 +496,7 @@ describe("ask background", () => {
     // launcher. The parent records worker-spawned and its close listener owns
     // the early-exit classification.
     const env = makeMockEnv(pluginDataRoot, "ask-success");
-    env.KIMI_PLUGIN_CC_NODE_BIN = "/usr/bin/false";
+    env.K3_PLUGIN_CC_NODE_BIN = "/usr/bin/false";
 
     try {
       const startOutput = await runAsk(

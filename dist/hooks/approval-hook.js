@@ -54,12 +54,12 @@ async function main() {
         return;
     }
     const decision = await decideHookOutcome(input, {
-        commandLabel: process.env.KIMI_PLUGIN_CC_CMD,
-        operationKind: process.env.KIMI_PLUGIN_CC_OPERATION,
+        commandLabel: process.env.K3_PLUGIN_CC_CMD,
+        operationKind: process.env.K3_PLUGIN_CC_OPERATION,
         rescueEvaluator: evaluateRescueHookRequest,
         // Trusted root for rescue/pursue/swarm-write. Set by the plugin spawn; the
         // model inside kimi cannot forge it and hook payload cwd is not trusted.
-        trustedWorkspaceRoot: process.env.KIMI_PLUGIN_CC_WORKSPACE_ROOT,
+        trustedWorkspaceRoot: process.env.K3_PLUGIN_CC_WORKSPACE_ROOT,
     });
     if (decision.decision === "deny") {
         // stderr.trim() in runner.ts:118 becomes the model-visible reason.
@@ -70,7 +70,7 @@ async function main() {
     process.exit(0);
 }
 function failClosed(reason) {
-    process.stderr.write(`kimi-plugin-cc safety hook misconfigured: ${reason}\n`);
+    process.stderr.write(`k3-plugin-cc safety hook misconfigured: ${reason}\n`);
     process.exit(2);
 }
 function formatErr(err) {

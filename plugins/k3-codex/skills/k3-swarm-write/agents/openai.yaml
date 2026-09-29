@@ -1,5 +1,5 @@
 interface:
-  display_name: "Kimi Swarm Write"
+  display_name: "K3 Swarm Write"
   short_description: "Fan out patch-only Kimi edits"
   default_prompt: "Use $k3-swarm-write to fan out these disjoint edits into a patch."
 policy:

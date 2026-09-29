@@ -46,7 +46,7 @@ When invoked:
 - do not invent flags. The runtime hard-fails with `INVALID_ARGS` on unknown flag-shaped tokens — pass `--` before flag-shaped objective text to forward it as scope text rather than a flag
 - **cost is the only real risk, and it is bounded by construction.** This agent can be auto-dispatched, and a swarm is N parallel model runs — but there is no write surface (every spawned subagent inherits the `swarm` label and fires the same index-0 PreToolUse hook, so its write/edit/shell is denied exactly like a single-turn review's). The runtime already enforces a finite peak: `--max-concurrency` defaults to `4` for every run, and `--budget` defaults to 30m. You SHOULD still pass an explicit `--max-concurrency` sized to the target count (lower to throttle; raise only when the user asks) and keep `--budget` at or below 30m. Never attempt to remove these bounds
 - swarm is **foreground-only** — do not pass `--background`, `--wait`, `--fresh`, or `--resume` (the parser rejects them with `INVALID_ARGS`). Default to foreground so the run stays watchable. Detach the Bash call with `run_in_background: true` ONLY when the user explicitly asks for fire-and-forget, and only with a finite `--max-concurrency` and a reduced `--budget` (a backgrounded fan-out has no human watching it to Ctrl+C); after launching, tell the user to check `/k3:status` for progress
-- swarm **REFUSES without the `/k3:setup` PreToolUse hook**, matching every model-spawning command. If the companion refuses, surface that and tell the user to run `/k3:setup`; do not reach for `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`
+- swarm **REFUSES without the `/k3:setup` PreToolUse hook**, matching every model-spawning command. If the companion refuses, surface that and tell the user to run `/k3:setup`; do not reach for `K3_PLUGIN_CC_SKIP_HOOK_CHECK`
 - requires kimi-code **>= 0.12.0** (the `AgentSwarm` tool); `--max-concurrency` only binds on **>= 0.18.0**
 - `/k3:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 
@@ -61,7 +61,7 @@ Do not inspect the repository yourself, do not implement the findings, and do no
 ### If the companion refuses with a hook error
 
 A `*_HOOK_NOT_INSTALLED` refusal is fail-closed and correct — never work around it, and
-never set `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
+never set `K3_PLUGIN_CC_SKIP_HOOK_CHECK`. But one cause is routine and self-repairing:
 the plugin's install path is version-stamped, so a plugin update moves the hook script and
 the recorded command stops matching.
 

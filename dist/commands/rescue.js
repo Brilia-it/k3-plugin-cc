@@ -26,7 +26,7 @@ export { describeMissingResult } from "../background-spawn.js";
 //   which called back into our runtime on every kimi-side approval
 //   request. v1.0 moves that enforcement into the PreToolUse hook
 //   (`runtime/hooks/approval-hook.ts`), which spawns under kimi-code
-//   and calls `evaluateRescueHookRequest` for `KIMI_PLUGIN_CC_CMD=rescue`
+//   and calls `evaluateRescueHookRequest` for `K3_PLUGIN_CC_CMD=rescue`
 //   tool calls. The runtime side now just sets the env var and lets
 //   the hook gate everything.
 //
@@ -97,8 +97,8 @@ export async function runRescue(argv, context) {
             return startBackgroundJob(job, prompt, context, paths, {
                 workerKind: "rescue",
                 wait: parsed.wait,
-                promptEnvVar: "KIMI_PLUGIN_CC_RESCUE_PROMPT_B64",
-                reusedSessionEnvVar: "KIMI_PLUGIN_CC_RESCUE_REUSED_SESSION",
+                promptEnvVar: "K3_PLUGIN_CC_RESCUE_PROMPT_B64",
+                reusedSessionEnvVar: "K3_PLUGIN_CC_RESCUE_REUSED_SESSION",
                 reusedSession: sessionResolution.reusedSession,
                 failedSummary: rescueConfig.cancellation.failedSummary,
                 missingResultErrorCode: "RESCUE_RESULT_MISSING",
@@ -136,16 +136,16 @@ export async function executeRescueJob(jobId, prompt, context, options) {
     //
     // The hook check happens BEFORE `createCliCancellationHandlers()` so
     // an early return doesn't leak SIGTERM/SIGINT listeners. Tests /
-    // setup probes / intentional bypass: KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1.
-    if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+    // setup probes / intentional bypass: K3_PLUGIN_CC_SKIP_HOOK_CHECK=1.
+    if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
         const installStatus = await verifyHookInstalled(context.env);
         if (!installStatus.installed) {
             maybeWarnHookMissing(installStatus, "rescue", context.stderr);
             const classified = new RuntimeError("RESCUE_HOOK_NOT_INSTALLED", [
-                "rescue refuses to run without the kimi-plugin-cc PreToolUse hook.",
+                "rescue refuses to run without the k3-plugin-cc PreToolUse hook.",
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
                 "Repair by running Claude Code /k3:setup or Codex $k3-setup, then retry.",
-                "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
+                "K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 is only for deliberate tests or diagnostics.",
                 hookRefusalRetryProtocol(context.env),
             ].join(" "), "rescue.hook-check", { details: hookRefusalDetails(installStatus) });
             try {
@@ -213,7 +213,7 @@ export async function executeRescueJob(jobId, prompt, context, options) {
         const rendered = renderManagedJobOutput(job, finalText);
         let artifactPath;
         try {
-            if (context.env.KIMI_PLUGIN_CC_TEST_FAIL_WRITE_ARTIFACT === "1") {
+            if (context.env.K3_PLUGIN_CC_TEST_FAIL_WRITE_ARTIFACT === "1") {
                 throw new Error("Simulated artifact write failure (test seam).");
             }
             artifactPath = await writeArtifact(paths, job, rendered.rendered);
@@ -224,7 +224,7 @@ export async function executeRescueJob(jobId, prompt, context, options) {
             // the raw text in the RuntimeError details — surfaces via
             // /k3:status / /k3:result --json — and emit only a short
             // human-facing line on stderr.
-            context.stderr.write(`[kimi-plugin-cc] rescue artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`);
+            context.stderr.write(`[k3-plugin-cc] rescue artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`);
             const classified = new RuntimeError("RESCUE_ARTIFACT_WRITE_FAILED", `Failed to write rescue artifact: ${writeError.message ?? String(writeError)}`, "rescue.artifact", {
                 ...(writeError instanceof Error ? { cause: writeError } : {}),
                 details: { rawOutput: finalText },

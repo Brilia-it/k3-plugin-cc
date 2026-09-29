@@ -223,7 +223,7 @@ describe("summarizeKimiAvailabilityWarning", () => {
   test.each([
     {
       error: new Error("LLM is not set"),
-      expected: "Kimi review gate is not configured for model access; allowing stop.",
+      expected: "K3 review gate is not configured for model access; allowing stop.",
     },
     {
       error: new RuntimeError(
@@ -231,35 +231,35 @@ describe("summarizeKimiAvailabilityWarning", () => {
         'kimi subprocess exited with code 1:\nerror: failed to run prompt: auth.login_required: OAuth provider "managed:kimi-code" requires login before it can be used.',
         "review_gate.runtime",
       ),
-      expected: "Kimi review gate is not configured for model access; allowing stop.",
+      expected: "K3 review gate is not configured for model access; allowing stop.",
     },
     {
       error: new RuntimeError("CLI_SPAWN_FAILED", "Failed to spawn kimi.", "cli-client.spawn"),
-      expected: "Kimi review gate could not find the Kimi CLI; allowing stop.",
+      expected: "K3 review gate could not find the Kimi CLI; allowing stop.",
     },
     {
       error: new RuntimeError("CLI_NONZERO_EXIT", "exited", "cli-client.process"),
-      expected: "Kimi review gate could not start a usable Kimi subprocess; allowing stop.",
+      expected: "K3 review gate could not start a usable Kimi subprocess; allowing stop.",
     },
     {
       error: new RuntimeError("STARTUP_TIMEOUT", "startup timed out", "cli-client.spawn"),
-      expected: "Kimi review gate did not respond during startup; allowing stop.",
+      expected: "K3 review gate did not respond during startup; allowing stop.",
     },
     {
       error: new RuntimeError("INITIALIZE_TIMEOUT", "initialize timed out", "cli-client.initialize"),
-      expected: "Kimi review gate did not complete session initialization; allowing stop.",
+      expected: "K3 review gate did not complete session initialization; allowing stop.",
     },
     {
       error: new RuntimeError("RESPONSE_TIMEOUT", "prompt timed out", "wire.prompt"),
-      expected: "Kimi review gate did not return a final response; allowing stop.",
+      expected: "K3 review gate did not return a final response; allowing stop.",
     },
     {
       error: new RuntimeError("MAX_STEPS_REACHED", "max steps", "wire.prompt"),
-      expected: "Kimi review gate exhausted its step budget; allowing stop.",
+      expected: "K3 review gate exhausted its step budget; allowing stop.",
     },
     {
       error: new Error("operation timed out"),
-      expected: "Kimi review gate timed out; allowing stop.",
+      expected: "K3 review gate timed out; allowing stop.",
     },
   ])("returns an explicit warning for $expected", ({ error, expected }) => {
     expect(summarizeKimiAvailabilityWarning(error, "review_gate")).toBe(expected);

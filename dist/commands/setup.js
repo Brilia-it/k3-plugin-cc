@@ -1,8 +1,12 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Changes are made for Windows: hook path normalisation and a shell probe that
 // really runs, gated behind `process.platform === "win32"`. User-facing command
-// names read `/k3:` on every platform. See NOTICE and README.md. Section 4(b) of
-// the License requires this notice.
+// names read `/k3:` on every platform. Since 0.6.0, on every platform, setup
+// also migrates what a pre-0.6 install left under upstream's names: it removes
+// this fork's own hook blocks marked `kimi-plugin-cc-managed` (never another
+// plugin's), moves the data directory to its new name, and reports
+// KIMI_PLUGIN_CC_* variables it no longer reads. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 // Managed-block installer for the kimi-code PreToolUse hook.
 //
 // Replaces the v0.4 Wire-based setup probe. In v1.0 the load-bearing
@@ -52,12 +56,14 @@ import { RuntimeError } from "../errors.js";
 import { normalizeTopLevelInlineHooks, validateKimiHookSetForEnvironment, withKimiConfigLock, } from "../hooks/config-safety.js";
 import { buildHookShellCommand, hostIdFromHookCommand, resolveHookScriptPath, resolveHostId, resolveNodeBinary, } from "../hooks/install-paths.js";
 import { decodeManagedCommandLine, effectiveHost, evaluateInstalled, findUnmanagedApprovalHookBlocks, MARKERS, parseManagedBlock, } from "../hooks/managed-block.js";
+import { describeLegacyBrandBlocks, stripLegacyBrandBlocks } from "../hooks/legacy-brand.js";
+import { collectLegacyEnvWarnings, describeDataDirMigration, describeLegacyDataDirInUse, migrateLegacyDataDir, } from "../legacy-names.js";
 import { formatVersionOutOfRangeWarning, probeKimiVersion, } from "../kimi-version-probe.js";
 import { isNativeV2CertifiedVersion } from "../kimi-engine.js";
 import { resolveKimiHome } from "../kimi-home.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
-import { KIMI_PLUGIN_CC_VERSION } from "../version.js";
-const BEGIN_MARKER_PREFIX = "# === BEGIN kimi-plugin-cc-managed";
+import { K3_PLUGIN_CC_VERSION } from "../version.js";
+const BEGIN_MARKER_PREFIX = "# === BEGIN k3-plugin-cc-managed";
 const DEFAULT_HOOK_TIMEOUT_S = 15;
 // Probe timing. The direct script probe is local and fast; allow 5s for
 // node startup on cold CI runners. The shell probe adds /bin/sh fork
@@ -69,7 +75,7 @@ const PROBE_TIMEOUT_MS = 5_000;
 // fragile quoting. The realistic install location lives under
 // `${plugin_root}/dist/hooks/approval-hook.js` and never legitimately
 // contains these — anyone hitting this hard error has either a hostile
-// `KIMI_PLUGIN_CC_HOOK_SCRIPT` override or an unusual install layout.
+// `K3_PLUGIN_CC_HOOK_SCRIPT` override or an unusual install layout.
 const PATH_FORBIDDEN_RE = /[\x00-\x1f"\\\n\r\t]/;
 export async function runSetup(argv, context) {
     const parsed = parseArgs(argv);
@@ -158,20 +164,27 @@ async function runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled,
             }
             warnings.push(`Converted the top-level inline hooks array (${inlineHooks.entryCount} entr${inlineHooks.entryCount === 1 ? "y" : "ies"}) to canonical [[hooks]] tables before installing. Surrounding config bytes were preserved; formatting and comments inside that hooks assignment were normalized.`);
         }
+        // BRILIA fork (0.6.0): remove THIS HOST's pre-0.6 blocks, written by this
+        // fork under upstream's marker, BEFORE the orphan prune below. The prune
+        // would otherwise cut their [[hooks]] table (it is ours, and outside any
+        // current-marker block) and leave the old marker lines dangling. Blocks
+        // under the old marker that are not ours are kept byte for byte.
+        const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
+        const legacyBrand = stripLegacyBrandBlocks(inlineHooks.contents, lineEnding, hostId, expectedCommand);
+        warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "removed"));
         // Prune THIS HOST's orphaned, marker-less approval-hook [[hooks]] entries
         // BEFORE resolving the managed block, so line numbers used for splicing are
         // computed against the cleaned text. Host-scoped (v1.8.2): after a
         // kimi-code config rewrite strips marker comments, ANOTHER host's
         // marker-less table is that host's LIVE hook — pruning it here was the
         // pre-v1.8.2 seesaw where each host's setup disarmed the other.
-        const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
-        const { pruned, count: prunedCount, commands: prunedCommands } = pruneOrphanApprovalHooks(inlineHooks.contents, lineEnding, hostId, expectedCommand);
+        const { pruned, count: prunedCount, commands: prunedCommands } = pruneOrphanApprovalHooks(legacyBrand.stripped, lineEnding, hostId, expectedCommand);
         const existing = pruned;
         if (prunedCount > 0) {
             const readorned = prunedCommands.includes(expectedCommand);
             warnings.push(readorned
                 ? `Re-adorned this host's managed-block markers: kimi-code rewrites its config on login/settings changes and strips all comments (markers included), leaving the hook enforcing but unmarked. Replaced the bare hook table with a freshly marked block (${prunedCount} table(s) refreshed). Enforcement was never interrupted.`
-                : `Pruned ${prunedCount} stale marker-less kimi-plugin-cc hook block(s) left by this host's earlier installs. This is a cleanup — your active hook is unaffected.`);
+                : `Pruned ${prunedCount} stale marker-less k3-plugin-cc hook block(s) left by this host's earlier installs. This is a cleanup — your active hook is unaffected.`);
         }
         const { state, blocks } = parseManagedBlock(existing, hostId);
         if (state.kind === "orphan") {
@@ -182,7 +195,7 @@ async function runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled,
         }
         if (state.kind === "duplicate") {
             throw new RuntimeError("SETUP_DUPLICATE_BLOCKS", [
-                `kimi-code config at ${configPath} contains ${state.beginLines.length} kimi-plugin-cc managed blocks for host ${hostId} (lines ${state.beginLines
+                `kimi-code config at ${configPath} contains ${state.beginLines.length} k3-plugin-cc managed blocks for host ${hostId} (lines ${state.beginLines
                     .map((line) => line + 1)
                     .join(", ")}).`,
                 "This usually means two /k3:setup runs raced. Run `/k3:setup --uninstall` to clear them, then `/k3:setup` again.",
@@ -208,14 +221,20 @@ async function runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled,
         return { blockWritten, next };
     });
     const { blockWritten, next } = mutation;
+    // BRILIA fork (0.6.0): the rest of the pre-0.6 names. Neither step can fail
+    // the install: the data directory in use stays usable whatever happens.
+    const dataDirNote = describeDataDirMigration(await migrateLegacyDataDir(context.env));
+    if (dataDirNote !== null)
+        warnings.push(dataDirNote);
+    collectLegacyEnvWarnings(context.env, warnings);
     collectPermissionRuleWarnings(next, warnings);
     await collectKimiVersionWarnings(context.env, warnings);
     await collectInstalledKimiPluginsNotice(context.env, warnings);
     const probe = await probeHook(hookScriptPath, context.env);
     const summary = probe.ok
         ? blockWritten
-            ? `Installed kimi-plugin-cc PreToolUse hook in ${configPath}.`
-            : `kimi-plugin-cc PreToolUse hook already up to date in ${configPath}.`
+            ? `Installed k3-plugin-cc PreToolUse hook in ${configPath}.`
+            : `k3-plugin-cc PreToolUse hook already up to date in ${configPath}.`
         : `Wrote managed block to ${configPath} but the hook script probe failed.`;
     return {
         action: "install",
@@ -276,6 +295,16 @@ async function runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, w
         hostId,
         nodeExists: (binPath) => existsSync(binPath),
     });
+    // BRILIA fork (0.6.0): what a pre-0.6 install left under upstream's names.
+    // Reported, never a failure of the check: those blocks no longer protect K3
+    // sessions, and this host's block (checked above) is the one that does.
+    const checkLineEnding = detectLineEnding(existing);
+    const legacyBrand = stripLegacyBrandBlocks(existing, checkLineEnding, hostId, expectedCommand);
+    warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "found"));
+    const legacyDataNote = describeLegacyDataDirInUse(context.env);
+    if (legacyDataNote !== null)
+        warnings.push(legacyDataNote);
+    collectLegacyEnvWarnings(context.env, warnings);
     // Non-blocking coexistence + cruft notices.
     const { blocks: allBlocks } = parseManagedBlock(existing, hostId);
     const otherHosts = [
@@ -290,12 +319,14 @@ async function runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, w
     // by the installedCheck note below, not "cruft"); ours-with-a-stale-command
     // is prunable by this host's setup; another host's is THEIR live hook —
     // report it informationally and leave it strictly alone.
-    const bareTables = findUnmanagedApprovalHookBlocks(existing);
+    // Our pre-0.6 blocks (any host) are reported above; their [[hooks]] table
+    // would otherwise be counted again here as a marker-less stale table.
+    const bareTables = findUnmanagedApprovalHookBlocks(stripLegacyBrandBlocks(existing, checkLineEnding, undefined, expectedCommand).stripped);
     const ownStale = bareTables.filter((t) => hostIdFromHookCommand(t.command) === hostId && t.command !== expectedCommand);
     const foreignHosts = [
         ...new Set(bareTables
             // Exclude any table whose command byte-equals what THIS host writes —
-            // it is unambiguously ours even if a `KIMI_PLUGIN_CC_HOST_ID` override
+            // it is unambiguously ours even if a `K3_PLUGIN_CC_HOST_ID` override
             // makes its path-derived host differ from `hostId` (Opus review NIT:
             // otherwise runCheck would mislabel the host's own table as foreign).
             .filter((t) => t.command !== expectedCommand)
@@ -303,11 +334,11 @@ async function runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, w
             .filter((h) => h !== null && h !== hostId)),
     ];
     if (ownStale.length > 0) {
-        warnings.push(`Found ${ownStale.length} stale marker-less kimi-plugin-cc hook block(s) from this host's earlier installs. ` +
+        warnings.push(`Found ${ownStale.length} stale marker-less k3-plugin-cc hook block(s) from this host's earlier installs. ` +
             `Run /k3:setup to refresh, or /k3:setup --uninstall --all to clear everything.`);
     }
     for (const host of foreignHosts) {
-        warnings.push(`Host "${host}" has a marker-less kimi-plugin-cc hook block (kimi-code config rewrites strip comments). ` +
+        warnings.push(`Host "${host}" has a marker-less k3-plugin-cc hook block (kimi-code config rewrites strip comments). ` +
             `It still enforces and is left untouched; run that host's setup to re-adorn its markers.`);
     }
     if (installedCheck.installed && installedCheck.note !== undefined) {
@@ -317,8 +348,8 @@ async function runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, w
         return {
             action: "check",
             summary: installedCheck.state.kind === "absent"
-                ? `kimi-plugin-cc managed block is NOT installed in ${configPath}.`
-                : `kimi-plugin-cc managed block is present but invalid: ${installedCheck.reason}.`,
+                ? `k3-plugin-cc managed block is NOT installed in ${configPath}.`
+                : `k3-plugin-cc managed block is present but invalid: ${installedCheck.reason}.`,
             configPath,
             hookScriptPath,
             blockWritten: false,
@@ -374,7 +405,7 @@ async function runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, w
     return {
         action: "check",
         summary: probe.ok
-            ? `kimi-plugin-cc PreToolUse hook is installed and probe passed.`
+            ? `k3-plugin-cc PreToolUse hook is installed and probe passed.`
             : `Managed block is installed but probe failed (${probe.reason}).`,
         configPath,
         hookScriptPath,
@@ -436,15 +467,25 @@ async function runUninstallLocked(configPath, hookScriptPath, hostId, removeAllH
     // hook after a kimi-code comment strip — v1.8.2 host scoping). `--all`:
     // remove EVERY host's managed block and every one of our hook tables (the
     // full nuke).
-    const { stripped: strippedMarkers, removedBlocks, orphansLeft } = stripManagedBlocks(existing, hostId, removeAllHosts);
+    const { stripped: strippedCurrent, removedBlocks: currentRemoved, orphansLeft } = stripManagedBlocks(existing, hostId, removeAllHosts);
     const lineEnding = detectLineEnding(existing);
+    const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
+    // BRILIA fork (0.6.0): this fork's pre-0.6 blocks under upstream's marker go
+    // too (this host's, or every host's with --all). Another plugin's are kept.
+    // After the current-marker strip, so the orphan line numbers above refer to
+    // the file as the user sees it.
+    const legacyBrand = stripLegacyBrandBlocks(strippedCurrent, lineEnding, removeAllHosts ? undefined : hostId, expectedCommand);
+    if (legacyBrand.removed.length > 0) {
+        warnings.push(`Also removed ${legacyBrand.removed.length} block(s) written by k3-plugin-cc before 0.6.0 under the old marker \`kimi-plugin-cc-managed\`.`);
+    }
+    const strippedMarkers = legacyBrand.stripped;
+    const removedBlocks = currentRemoved + legacyBrand.removed.length;
     // Pass `expectedCommand` as `alsoMatchCommand` (both scoped and --all) so
     // uninstall removes THIS host's own current hook table by byte-exact command
-    // even when a `KIMI_PLUGIN_CC_HOST_ID` override disagrees with the command's
+    // even when a `K3_PLUGIN_CC_HOST_ID` override disagrees with the command's
     // path-derived host, or when the hook lives under a non-standard (dev) path
     // that `isOurApprovalHookCommand` wouldn't recognize — the install path
     // already does this; uninstall now matches it (Codex P2 / Opus A / Kimi F4).
-    const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
     const { pruned: stripped, count: prunedCount } = pruneOrphanApprovalHooks(strippedMarkers, lineEnding, removeAllHosts ? undefined : hostId, expectedCommand);
     const changed = stripped !== existing;
     if (changed) {
@@ -456,7 +497,7 @@ async function runUninstallLocked(configPath, hookScriptPath, hostId, removeAllH
             .join(", ")}. Removed the marker line(s) but preserved surrounding user content — verify the config visually.`);
     }
     if (prunedCount > 0) {
-        warnings.push(`Pruned ${prunedCount} orphaned kimi-plugin-cc hook block(s) with no managed marker.`);
+        warnings.push(`Pruned ${prunedCount} orphaned k3-plugin-cc hook block(s) with no managed marker.`);
     }
     const { blocks: remainingBlocks } = parseManagedBlock(stripped, hostId);
     const remainingHosts = [
@@ -470,7 +511,7 @@ async function runUninstallLocked(configPath, hookScriptPath, hostId, removeAllH
         action: "uninstall",
         summary: changed
             ? `Removed ${removedBlocks} managed block(s)${prunedCount > 0 ? ` + ${prunedCount} orphan hook block(s)` : ""} from ${configPath}.`
-            : `No kimi-plugin-cc managed block to remove from ${configPath}.`,
+            : `No k3-plugin-cc managed block to remove from ${configPath}.`,
         configPath,
         hookScriptPath,
         blockWritten: false,
@@ -519,7 +560,7 @@ async function writeConfigAtomic(configPath, contents) {
     // 0o600.
     await mkdir(path.dirname(configPath), { recursive: true });
     const suffix = randomBytes(8).toString("hex");
-    const tmpPath = `${configPath}.kimi-plugin-cc.${process.pid}.${suffix}.tmp`;
+    const tmpPath = `${configPath}.k3-plugin-cc.${process.pid}.${suffix}.tmp`;
     const openFlags = fsConstants.O_WRONLY |
         fsConstants.O_CREAT |
         fsConstants.O_EXCL |
@@ -755,7 +796,7 @@ function buildManagedBlock(hookScriptPath, env, lineEnding = "\n", hostId = "") 
     const commandLine = `command = ${tomlBasicString(shellCommand)}`;
     const suffix = hostId.length > 0 ? `:${hostId}` : "";
     return [
-        `${BEGIN_MARKER_PREFIX}${suffix} (v${KIMI_PLUGIN_CC_VERSION}) ===`,
+        `${BEGIN_MARKER_PREFIX}${suffix} (v${K3_PLUGIN_CC_VERSION}) ===`,
         `# DO NOT EDIT — managed by /k3:setup. Run /k3:setup --uninstall to remove.`,
         `# Host: ${hostId.length > 0 ? hostId : "(legacy)"} — Claude Code and Codex each own a`,
         `#   separate block in this shared ~/.kimi-code/config.toml; setup in one host`,
@@ -777,7 +818,7 @@ function buildManagedBlock(hookScriptPath, env, lineEnding = "\n", hostId = "") 
         `event = "PreToolUse"`,
         commandLine,
         `timeout = ${DEFAULT_HOOK_TIMEOUT_S}`,
-        `# === END kimi-plugin-cc-managed${suffix} ===`,
+        `# === END k3-plugin-cc-managed${suffix} ===`,
     ].join(lineEnding);
 }
 /**
@@ -804,7 +845,7 @@ function assertHookPathTomlSafe(hookScriptPath) {
     throw new RuntimeError("SETUP_HOOK_PATH_UNSAFE", [
         `Hook script path ${JSON.stringify(hookScriptPath)} contains characters`,
         `(control chars, quotes, backslashes, or newlines) that cannot be safely`,
-        `written into kimi-code's TOML config. Set KIMI_PLUGIN_CC_HOOK_SCRIPT`,
+        `written into kimi-code's TOML config. Set K3_PLUGIN_CC_HOOK_SCRIPT`,
         `to an unambiguous absolute path or reinstall the plugin to a location`,
         `without these characters.`,
     ].join(" "), "setup.hook-path", { details: { hookScriptPath } });
@@ -894,7 +935,7 @@ function spawnProbe(command, args, env, label,
 spawnOptions = {}) {
     const payload = JSON.stringify({
         hook_event_name: "PreToolUse",
-        session_id: "kimi-plugin-cc-setup-probe",
+        session_id: "k3-plugin-cc-setup-probe",
         cwd: process.cwd(),
         tool_name: "Bash",
         tool_input: { command: "echo probe" },
@@ -906,8 +947,8 @@ spawnOptions = {}) {
             child = spawn(command, args, {
                 env: {
                     ...env,
-                    KIMI_PLUGIN_CC_CMD: "review",
-                    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+                    K3_PLUGIN_CC_CMD: "review",
+                    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
                 },
                 stdio: ["pipe", "pipe", "pipe"],
                 ...spawnOptions,
@@ -1015,7 +1056,7 @@ function classifyProbeExit(code) {
  */
 /**
  * Probe kimi-code's version and append a warning to `warnings` if the
- * installed kimi is outside the range kimi-plugin-cc was tested
+ * installed kimi is outside the range k3-plugin-cc was tested
  * against (H6, Codex post-hotfix audit Area 8).
  *
  * Setup soft-fail policy: if the probe itself fails (kimi not on PATH, spawn
@@ -1024,15 +1065,15 @@ function classifyProbeExit(code) {
  * the version is **demonstrably** out of range. Setup may still complete,
  * but the model execution-plan gate will refuse that binary before spawn.
  *
- * Override: `KIMI_PLUGIN_CC_SKIP_VERSION_PROBE=1` skips the probe
+ * Override: `K3_PLUGIN_CC_SKIP_VERSION_PROBE=1` skips the probe
  * entirely for tests and CI environments without kimi installed. It is not a
  * production compatibility override; model jobs persist it as test-bypass.
  */
 async function collectKimiVersionWarnings(env, warnings) {
-    if (env.KIMI_PLUGIN_CC_SKIP_VERSION_PROBE === "1")
+    if (env.K3_PLUGIN_CC_SKIP_VERSION_PROBE === "1")
         return;
     const probe = await probeKimiVersion({
-        kimiBin: env.KIMI_PLUGIN_CC_KIMI_BIN || undefined,
+        kimiBin: env.K3_PLUGIN_CC_KIMI_BIN || undefined,
         env,
     });
     if (probe.kind === "failed") {
@@ -1047,14 +1088,14 @@ async function collectKimiVersionWarnings(env, warnings) {
     // v2-certified binary would wrongly warn "not certified, commands will refuse".
     if (probe.inTestedRange || isNativeV2CertifiedVersion(probe.version))
         return;
-    warnings.push(formatVersionOutOfRangeWarning(probe, KIMI_PLUGIN_CC_VERSION));
+    warnings.push(formatVersionOutOfRangeWarning(probe, K3_PLUGIN_CC_VERSION));
 }
 /**
  * H8 — non-blocking notice listing kimi-code's OWN installed plugins (the
  * user-global plugin system kimi-code 0.4.0+ added; manifest at
  * `~/.kimi-code/plugins/installed.json`, shape verified through 0.12.0:
  * `{ plugins: [{ id, enabled, ... }] }`). kimi-code registers their tools
- * (incl. MCP) on every session. Under kimi-plugin-cc's read-only commands the
+ * (incl. MCP) on every session. Under k3-plugin-cc's read-only commands the
  * PreToolUse hook denies any tool outside Read/Grep/Glob, so calls to these
  * plugins' tools are blocked — safe, but they silently burn model turns. We
  * surface that expectation at setup time so a confused "kimi did nothing" report
@@ -1092,7 +1133,7 @@ async function collectInstalledKimiPluginsNotice(env, warnings) {
         return;
     warnings.push([
         `NOTE: ${enabledIds.length} kimi-code plugin(s) installed and enabled: ${enabledIds.join(", ")}.`,
-        "  kimi-code registers their tools (including MCP) on every session. Under kimi-plugin-cc's",
+        "  kimi-code registers their tools (including MCP) on every session. Under k3-plugin-cc's",
         "  read-only commands (/k3:review, /k3:challenge, /k3:ask, and the review gate) the",
         "  PreToolUse hook denies any tool outside Read/Grep/Glob, so calls to these plugins' tools",
         "  are blocked — safe, but they can waste model turns. This is expected; no action needed.",
@@ -1158,7 +1199,7 @@ function collectPermissionRuleWarnings(contents, warnings) {
 function buildDetails(args) {
     const details = [
         `Companion runtime: Node ${process.version}`,
-        `Plugin version:   ${KIMI_PLUGIN_CC_VERSION}`,
+        `Plugin version:   ${K3_PLUGIN_CC_VERSION}`,
         ...(args.hostId ? [`Host id:          ${args.hostId}`] : []),
         `Config file:      ${args.configPath}`,
         `Hook script:      ${args.hookScriptPath}`,

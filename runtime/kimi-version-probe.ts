@@ -1,5 +1,5 @@
 // Probe the installed kimi-code CLI version and check it against the
-// range kimi-plugin-cc has been tested against.
+// range k3-plugin-cc has been tested against.
 //
 // Why this exists (H6, Codex post-hotfix audit Area 8):
 //
@@ -43,7 +43,7 @@ import { spawn } from "node:child_process";
 const KIMI_VERSION_PROBE_TIMEOUT_MS = 5_000;
 
 /**
- * The range of kimi-code package versions kimi-plugin-cc has been
+ * The range of kimi-code package versions k3-plugin-cc has been
  * actively tested against. Bump these when a new kimi-code release is
  * verified to work end-to-end (production smoke + full test suite).
  *
@@ -94,7 +94,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   // + an independent cross-model (codex) adversarial pass certified compat
   // through @moonshot-ai/kimi-code@0.9.0, backed by a GREEN real-binary
   // smoke (`bun run smoke:real`) against BOTH the installed 0.8.0 binary
-  // and a temp-installed 0.9.0 binary (KIMI_PLUGIN_CC_KIMI_BIN override) —
+  // and a temp-installed 0.9.0 binary (K3_PLUGIN_CC_KIMI_BIN override) —
   // "tested" is earned end-to-end on 0.9.0, not source-reading-only. This
   // was a 3-minor catch-up (61 commits). The safety chain is intact:
   // PreToolCallHookPermissionPolicy is still index 0 (auto-approve index 4);
@@ -756,7 +756,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   // is still startBtw()-only (subagent-host.ts, inside startBtw(), never the
   // swarm spawn path), and installHeadlessHandlers + the v1 default persist. The
   // complete exact-0.26.0 v1 `bun run smoke:real` (temp-installed 0.26.0 binary
-  // via the KIMI_PLUGIN_CC_KIMI_BIN override) was GREEN: 9 pass / 0 fail, 39
+  // via the K3_PLUGIN_CC_KIMI_BIN override) was GREEN: 9 pass / 0 fail, 39
   // assertions in 376.06s. Read-only labels denied writes; pursue wrote no file
   // through its full budget (aborted at the ceiling); read swarm denied a
   // subagent write; write-swarm stayed confined (patchBytes=278,
@@ -790,7 +790,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   // subagents on the standard permission stack (deny-all unshift remains
   // startBtw()-only), and KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY as the hard
   // concurrent-subagent ceiling. The complete exact-0.27.0 `bun run smoke:real`
-  // (temp-installed 0.27.0 binary via KIMI_PLUGIN_CC_KIMI_BIN) was GREEN: 10
+  // (temp-installed 0.27.0 binary via K3_PLUGIN_CC_KIMI_BIN) was GREEN: 10
   // pass / 0 fail, 43 assertions in 587.74s — read-only labels denied writes,
   // the v2 lane (KIMI_CODE_EXPERIMENTAL_FLAG=1) denied AND emitted the modeled
   // system-version signal, pursue wrote no file through its full budget, read
@@ -825,7 +825,7 @@ export const KIMI_TESTED_MINORS: ReadonlyArray<{ major: number; minor: number }>
   // `-p` auto + headless handlers + resume-hint emission, plugin slash-command
   // activation still RPC/host-initiated and absent from the `-p` path). The
   // complete exact-0.28.1 `bun run smoke:real` (temp-installed 0.28.1 binary via
-  // KIMI_PLUGIN_CC_KIMI_BIN) was GREEN: 10 pass / 0 fail, 43 assertions in
+  // K3_PLUGIN_CC_KIMI_BIN) was GREEN: 10 pass / 0 fail, 43 assertions in
   // 626.72s — same full matrix as 0.27.0 including the v2 denial lane, pursue
   // budget abort, read-swarm subagent denial, write-swarm confinement
   // (patchBytes=278, userTreeClean=true, worktreeCleaned=true), and the
@@ -1435,7 +1435,7 @@ export function formatVersionOutOfRangeWarning(probe: KimiVersionProbeOk, plugin
   const aboveMax =
     probe.major > max.major || (probe.major === max.major && probe.minor > max.minor);
   const lines = [
-    `WARNING: kimi-code version ${probe.version} is outside the range kimi-plugin-cc ${pluginVersion} was tested against (${tested}).`,
+    `WARNING: kimi-code version ${probe.version} is outside the range k3-plugin-cc ${pluginVersion} was tested against (${tested}).`,
   ];
   if (aboveMax) {
     // H9: the known-good upper bound. Above it = a release newer than our last
@@ -1447,8 +1447,8 @@ export function formatVersionOutOfRangeWarning(probe: KimiVersionProbeOk, plugin
   }
   lines.push(
     `  Setup can complete, but model-spawning commands will refuse before Kimi starts rather than run an unreviewed engine/version route.`,
-    `  Update kimi-plugin-cc to a release that certifies this minor, or point KIMI_PLUGIN_CC_KIMI_BIN at a certified kimi-code binary and retry setup.`,
-    `  KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production compatibility override.`,
+    `  Update k3-plugin-cc to a release that certifies this minor, or point K3_PLUGIN_CC_KIMI_BIN at a certified kimi-code binary and retry setup.`,
+    `  K3_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production compatibility override.`,
   );
   return lines.join("\n");
 }

@@ -168,15 +168,15 @@ describe("runSwarm hook gate", () => {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
           KIMI_CODE_HOME: kimiHome,
-          KIMI_PLUGIN_CC_KIMI_BIN: kimiBin,
-          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+          K3_PLUGIN_CC_KIMI_BIN: kimiBin,
+          K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
         }),
       );
 
       expect(output).toContain("SWARM_HOOK_NOT_INSTALLED");
       expect(output).toContain("Claude Code /k3:setup");
       expect(output).toContain("Codex $k3-setup");
-      expect(output).not.toContain("KIMI_PLUGIN_CC_SKIP_HOOK_CHECK");
+      expect(output).not.toContain("K3_PLUGIN_CC_SKIP_HOOK_CHECK");
     } finally {
       await cleanupTestPath(pluginDataRoot);
       await cleanupTestPath(workspace);
@@ -188,7 +188,7 @@ describe("runSwarm hook gate", () => {
 describe("runSwarm certified execution-plan gate", () => {
   // A nonexistent absolute path cannot become an exact command/version plan.
   // Both read and write modes now fail closed at the common provenance gate;
-  // KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is neutralized so the gate genuinely runs.
+  // K3_PLUGIN_CC_SKIP_VERSION_PROBE is neutralized so the gate genuinely runs.
   const BROKEN_KIMI = "/definitely/does/not/exist/kimi-binary-xyz";
 
   test("--write refuses when the exact binary cannot be resolved", async () => {
@@ -204,8 +204,8 @@ describe("runSwarm certified execution-plan gate", () => {
             ...process.env,
             CLAUDE_PLUGIN_DATA: pluginDataRoot,
             KIMI_CODE_HOME: kimiHome,
-            KIMI_PLUGIN_CC_KIMI_BIN: BROKEN_KIMI,
-            KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "",
+            K3_PLUGIN_CC_KIMI_BIN: BROKEN_KIMI,
+            K3_PLUGIN_CC_SKIP_VERSION_PROBE: "",
           }),
         );
       } catch (error) {
@@ -235,8 +235,8 @@ describe("runSwarm certified execution-plan gate", () => {
             ...process.env,
             CLAUDE_PLUGIN_DATA: pluginDataRoot,
             KIMI_CODE_HOME: kimiHome,
-            KIMI_PLUGIN_CC_KIMI_BIN: BROKEN_KIMI,
-            KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "",
+            K3_PLUGIN_CC_KIMI_BIN: BROKEN_KIMI,
+            K3_PLUGIN_CC_SKIP_VERSION_PROBE: "",
           }),
         ),
       ).rejects.toMatchObject({ code: "KIMI_EXECUTION_PLAN_UNRESOLVED" });

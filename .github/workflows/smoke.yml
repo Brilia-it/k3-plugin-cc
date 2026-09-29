@@ -82,7 +82,7 @@ jobs:
           fi
 
       # Temp-binary technique (docs/upstream-compat-audit.md): install the pinned
-      # kimi-code into a throwaway dir and point KIMI_PLUGIN_CC_KIMI_BIN at it —
+      # kimi-code into a throwaway dir and point K3_PLUGIN_CC_KIMI_BIN at it —
       # never touches a system install.
       - name: Install pinned kimi-code
         if: steps.auth.outputs.configured == 'true'
@@ -93,16 +93,16 @@ jobs:
           echo '{"name":"kimi-smoke","private":true}' > package.json
           bun add "@moonshot-ai/kimi-code@${{ inputs.kimi_version }}"
           BIN="$D/node_modules/.bin/kimi"
-          echo "KIMI_PLUGIN_CC_KIMI_BIN=$BIN" >> "$GITHUB_ENV"
+          echo "K3_PLUGIN_CC_KIMI_BIN=$BIN" >> "$GITHUB_ENV"
           "$BIN" --version
 
       - name: Run real-binary smokes (read-only + goal mode)
         if: steps.auth.outputs.configured == 'true'
         env:
-          KIMI_PLUGIN_CC_SMOKE: "1"
+          K3_PLUGIN_CC_SMOKE: "1"
           KIMI_MODEL_API_KEY: ${{ secrets.KIMI_MODEL_API_KEY }}
           KIMI_MODEL_NAME: ${{ secrets.KIMI_MODEL_NAME }}
           KIMI_MODEL_PROVIDER_TYPE: ${{ vars.KIMI_MODEL_PROVIDER_TYPE || 'kimi' }}
           KIMI_MODEL_BASE_URL: ${{ vars.KIMI_MODEL_BASE_URL }}
-          KIMI_PLUGIN_CC_SMOKE_GOAL_BUDGET_MS: ${{ inputs.goal_budget_ms }}
+          K3_PLUGIN_CC_SMOKE_GOAL_BUDGET_MS: ${{ inputs.goal_budget_ms }}
         run: bun test tests/runtime/real-binary-smoke.test.ts

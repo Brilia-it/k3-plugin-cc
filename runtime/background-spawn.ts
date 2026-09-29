@@ -65,7 +65,7 @@ export async function startBackgroundJob(
   // constraint — a bare name is resolved by spawn() via PATH — so the override
   // is honored verbatim here. Only the no-override default needs to change:
   // it must match what the verifier computes, hence `preferStableNodePath`.
-  const override = context.env.KIMI_PLUGIN_CC_NODE_BIN;
+  const override = context.env.K3_PLUGIN_CC_NODE_BIN;
   const nodeBinary =
     override !== undefined && override.length > 0
       ? override
@@ -83,7 +83,7 @@ export async function startBackgroundJob(
       if (code === "ENOENT" || code === "EACCES" || code === "EPERM") {
         const classified = new RuntimeError(
           options.nodeBinInvalidErrorCode,
-          `Configured Node binary is not executable: ${nodeBinary}. Set KIMI_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and retry.`,
+          `Configured Node binary is not executable: ${nodeBinary}. Set K3_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and retry.`,
           options.spawnStage,
           accessError instanceof Error ? { cause: accessError } : undefined,
         );
@@ -105,12 +105,12 @@ export async function startBackgroundJob(
     stdio: "ignore",
     env: {
       ...context.env,
-      KIMI_PLUGIN_CC_WORKSPACE_CWD: context.cwd,
+      K3_PLUGIN_CC_WORKSPACE_CWD: context.cwd,
       [options.promptEnvVar]: b64,
       [options.reusedSessionEnvVar]: options.reusedSession ? "1" : "0",
       ...(options.extraEnv ?? {}),
       // A worker must reopen the exact store its parent selected, regardless of cwd.
-      KIMI_PLUGIN_CC_DATA: path.resolve(paths.claudePluginData),
+      K3_PLUGIN_CC_DATA: path.resolve(paths.claudePluginData),
     },
   });
 
@@ -282,7 +282,7 @@ async function appendStuckJobTelemetry(
     );
   } catch (appendError) {
     process.stderr.write(
-      `[kimi-plugin-cc] failed to append stuck job telemetry at ${stuckPath}: ${formatError(appendError)}\n`,
+      `[k3-plugin-cc] failed to append stuck job telemetry at ${stuckPath}: ${formatError(appendError)}\n`,
     );
   }
 }

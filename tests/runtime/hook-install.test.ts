@@ -59,7 +59,7 @@ describe("verifyHookInstalled", () => {
 
   test("reports missing when a stray comment mentions the marker but no real block exists", async () => {
     // PR 4 hardening: the old substring-based verifier returned installed
-    // here because the raw text included both `kimi-plugin-cc-managed`
+    // here because the raw text included both `k3-plugin-cc-managed`
     // and `approval-hook.js`. The shared grammar parser now requires a
     // proper BEGIN/END block with a `[[hooks]]` table inside.
     const home = await createTestPluginDataRoot("hook-install-stray-comment");
@@ -67,7 +67,7 @@ describe("verifyHookInstalled", () => {
       await mkdir(home, { recursive: true });
       await writeFile(
         path.join(home, "config.toml"),
-        "# notes: don't reinstall kimi-plugin-cc-managed approval-hook.js by hand\n",
+        "# notes: don't reinstall k3-plugin-cc-managed approval-hook.js by hand\n",
         "utf8",
       );
       const status = await verifyHookInstalled({ KIMI_CODE_HOME: home });
@@ -110,19 +110,19 @@ describe("verifyHookInstalled", () => {
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v1.0.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v1.0.0) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           `command = ${JSON.stringify(canonical)}`,
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
-        KIMI_PLUGIN_CC_KIMI_BIN: "/definitely/not-needed-for-baseline-events",
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_KIMI_BIN: "/definitely/not-needed-for-baseline-events",
       });
       expect(status.installed).toBe(true);
       expect(status.reason).toBeUndefined();
@@ -152,12 +152,12 @@ describe("verifyHookInstalled", () => {
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v1.0.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v1.0.0) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           `command = ${JSON.stringify(canonical)}`,
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
@@ -165,7 +165,7 @@ describe("verifyHookInstalled", () => {
       // Sanity: the same setup passes as installed while the script exists.
       const beforeDelete = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
       });
       expect(beforeDelete.installed).toBe(true);
 
@@ -174,7 +174,7 @@ describe("verifyHookInstalled", () => {
 
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
       });
       expect(status.installed).toBe(false);
       expect(status.reason).toContain(hookPath);
@@ -188,7 +188,7 @@ describe("verifyHookInstalled", () => {
   test("reports missing when the pinned node symlink is retargeted to nothing (command bytes unchanged)", async () => {
     // The v1.9.0 residual risk, NARROWED (not closed — see install.ts for the
     // honest scope). This constructs the one shape the X_OK probe actually
-    // catches: an explicit KIMI_PLUGIN_CC_NODE_BIN override naming a binary
+    // catches: an explicit K3_PLUGIN_CC_NODE_BIN override naming a binary
     // that is NOT the running interpreter and has since gone away — e.g. a
     // pinned nvm version later `nvm uninstall`ed.
     //
@@ -217,19 +217,19 @@ describe("verifyHookInstalled", () => {
 
       const env = {
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
-        KIMI_PLUGIN_CC_NODE_BIN: nodeSymlink,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_NODE_BIN: nodeSymlink,
       };
       const canonical = buildHookShellCommand(hookPath, env);
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v1.0.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v1.0.0) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           `command = ${JSON.stringify(canonical)}`,
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
@@ -283,8 +283,8 @@ describe("verifyHookInstalled", () => {
 
       const env = {
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
-        KIMI_PLUGIN_CC_NODE_BIN: fakeNode,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_NODE_BIN: fakeNode,
       };
       await writeFile(
         path.join(home, "config.toml"),
@@ -320,12 +320,12 @@ describe("verifyHookInstalled", () => {
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v1.7.2) ===",
+          "# === BEGIN k3-plugin-cc-managed (v1.7.2) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           `command = ${JSON.stringify(canonical)}`,
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
           "",
           "[[hooks]]",
           'event = "PreToolUse"',
@@ -336,7 +336,7 @@ describe("verifyHookInstalled", () => {
       );
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
       });
       expect(status.installed).toBe(false);
       expect(status.reason).toContain('unknown field "env"');
@@ -359,12 +359,12 @@ describe("verifyHookInstalled", () => {
         await writeFile(
           path.join(home, "config.toml"),
           [
-            "# === BEGIN kimi-plugin-cc-managed (v1.7.2) ===",
+            "# === BEGIN k3-plugin-cc-managed (v1.7.2) ===",
             "[[hooks]]",
             'event = "PreToolUse"',
             `command = ${JSON.stringify(canonical)}`,
             "timeout = 15",
-            "# === END kimi-plugin-cc-managed ===",
+            "# === END k3-plugin-cc-managed ===",
             "",
             header,
             'command = "foreign-hook"',
@@ -373,7 +373,7 @@ describe("verifyHookInstalled", () => {
         );
         const status = await verifyHookInstalled({
           KIMI_CODE_HOME: home,
-          KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+          K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
         });
         expect(status.installed).toBe(false);
         expect(status.reason).toContain("no configured PreToolUse hook");
@@ -409,12 +409,12 @@ describe("verifyHookInstalled", () => {
         await writeFile(
           path.join(home, "config.toml"),
           [
-            "# === BEGIN kimi-plugin-cc-managed (v1.7.2) ===",
+            "# === BEGIN k3-plugin-cc-managed (v1.7.2) ===",
             "[[hooks]]",
             'event = "PreToolUse"',
             `command = ${JSON.stringify(canonical)}`,
             "timeout = 15",
-            "# === END kimi-plugin-cc-managed ===",
+            "# === END k3-plugin-cc-managed ===",
             "",
             "[[hooks]]",
             `event = ${JSON.stringify(testCase.event)}`,
@@ -425,8 +425,8 @@ describe("verifyHookInstalled", () => {
 
         const status = await verifyHookInstalled({
           KIMI_CODE_HOME: home,
-          KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
-          KIMI_PLUGIN_CC_KIMI_BIN: kimiBin,
+          K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+          K3_PLUGIN_CC_KIMI_BIN: kimiBin,
         });
         expect(status.installed).toBe(testCase.installed);
         if (!testCase.installed) {
@@ -451,18 +451,18 @@ describe("verifyHookInstalled", () => {
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v1.0.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v1.0.0) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           "[not_hooks]",
           `command = ${JSON.stringify(canonical)}`,
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
       });
       expect(status.installed).toBe(false);
       expect(status.reason).toContain("missing required field `command`");
@@ -484,18 +484,18 @@ describe("verifyHookInstalled", () => {
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v1.0.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v1.0.0) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           `command = "true # ${hookPath}"`,
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
       });
       expect(status.installed).toBe(false);
       expect(status.reason).toContain("does not match the canonical command");
@@ -511,13 +511,13 @@ describe("verifyHookInstalled", () => {
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===",
           "[[hooks]]",
           'matcher = "*"',
           'event = "PreToolUse"',
           'command = "node /abs/path/dist/hooks/approval-hook.js"',
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
@@ -543,26 +543,26 @@ describe("verifyHookInstalled", () => {
       // version-independent), only the version-stamped path moved — the real
       // plugin-upgrade drift the diagnosis is for.
       const oldHookPath =
-        "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
       const newHookPath =
-        "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.7.0/dist/hooks/approval-hook.js";
+        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.7.0/dist/hooks/approval-hook.js";
       const staleCommand = canonicalCommandFor(oldHookPath);
       await mkdir(home, { recursive: true });
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           `command = ${JSON.stringify(staleCommand)}`,
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
+        K3_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
       });
       expect(status.installed).toBe(false);
       // H4: the verifier now classifies the mismatch. Same node (process.execPath),
@@ -598,9 +598,9 @@ describe("verifyHookInstalled", () => {
       const home = await createTestPluginDataRoot("hook-install-drift-bare");
       try {
         const oldHookPath =
-          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.7/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.7/dist/hooks/approval-hook.js";
         const newHookPath =
-          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
         await mkdir(home, { recursive: true });
         await writeFile(
           path.join(home, "config.toml"),
@@ -614,7 +614,7 @@ describe("verifyHookInstalled", () => {
         );
         const status = await verifyHookInstalled({
           KIMI_CODE_HOME: home,
-          KIMI_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
+          K3_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
         });
         expect(status.installed).toBe(false);
         expect(status.drift?.axis).toBe("hook-script");
@@ -634,13 +634,13 @@ describe("verifyHookInstalled", () => {
       const home = await createTestPluginDataRoot("hook-install-drift-repin");
       try {
         const oldHookPath =
-          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
         const newHookPath =
-          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.9.0/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.9.0/dist/hooks/approval-hook.js";
         // Two real spellings of the SAME interpreter on this machine.
         const resolved = realpathSync(process.execPath);
         const staleCommand = buildHookShellCommand(oldHookPath, {
-          KIMI_PLUGIN_CC_NODE_BIN: resolved,
+          K3_PLUGIN_CC_NODE_BIN: resolved,
         });
         await mkdir(home, { recursive: true });
         await writeFile(
@@ -655,8 +655,8 @@ describe("verifyHookInstalled", () => {
         );
         const status = await verifyHookInstalled({
           KIMI_CODE_HOME: home,
-          KIMI_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
-          KIMI_PLUGIN_CC_NODE_BIN: resolved,
+          K3_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
+          K3_PLUGIN_CC_NODE_BIN: resolved,
         });
         expect(status.installed).toBe(false);
         // Same node token here, so only the script moved.
@@ -674,9 +674,9 @@ describe("verifyHookInstalled", () => {
       const home = await createTestPluginDataRoot("hook-install-drift-node");
       try {
         const hookPath =
-          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
         const staleCommand = buildHookShellCommand(hookPath, {
-          KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.0.0/bin/node",
+          K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.0.0/bin/node",
         });
         await mkdir(home, { recursive: true });
         await writeFile(
@@ -691,8 +691,8 @@ describe("verifyHookInstalled", () => {
         );
         const status = await verifyHookInstalled({
           KIMI_CODE_HOME: home,
-          KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
-          KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
+          K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+          K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
         });
         expect(status.installed).toBe(false);
         expect(status.drift?.axis).toBe("node-bin");
@@ -707,11 +707,11 @@ describe("verifyHookInstalled", () => {
       const home = await createTestPluginDataRoot("hook-install-drift-both");
       try {
         const oldHookPath =
-          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.7/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.7/dist/hooks/approval-hook.js";
         const newHookPath =
-          "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
+          "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.8/dist/hooks/approval-hook.js";
         const staleCommand = buildHookShellCommand(oldHookPath, {
-          KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.0.0/bin/node",
+          K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.0.0/bin/node",
         });
         await mkdir(home, { recursive: true });
         await writeFile(
@@ -726,8 +726,8 @@ describe("verifyHookInstalled", () => {
         );
         const status = await verifyHookInstalled({
           KIMI_CODE_HOME: home,
-          KIMI_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
-          KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
+          K3_PLUGIN_CC_HOOK_SCRIPT: newHookPath,
+          K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
         });
         expect(status.installed).toBe(false);
         expect(status.drift?.axis).toBe("both");
@@ -775,7 +775,7 @@ describe("verifyHookInstalled", () => {
         );
         const status = await verifyHookInstalled({
           KIMI_CODE_HOME: home,
-          KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+          K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
         });
         expect(status.installed).toBe(true);
         expect(status.drift).toBeUndefined();
@@ -795,18 +795,18 @@ describe("verifyHookInstalled", () => {
       const hookPath = "/abs/plugin/dist/hooks/approval-hook.js";
       const goneNode = "/opt/homebrew/Cellar/node/26.0.0/bin/node"; // upgraded away
       const staleCommand = buildHookShellCommand(hookPath, {
-        KIMI_PLUGIN_CC_NODE_BIN: goneNode,
+        K3_PLUGIN_CC_NODE_BIN: goneNode,
       });
       await mkdir(home, { recursive: true });
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v1.2.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v1.2.0) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           `command = ${JSON.stringify(staleCommand)}`,
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
@@ -814,7 +814,7 @@ describe("verifyHookInstalled", () => {
       // Node = process.execPath (a real, existing binary) ≠ the gone path.
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
       });
       expect(status.installed).toBe(false);
       expect(status.reason).toContain("Node binary drift");
@@ -828,30 +828,30 @@ describe("verifyHookInstalled", () => {
     }
   });
 
-  test("rejects KIMI_PLUGIN_CC_NODE_BIN that is not an absolute path", async () => {
+  test("rejects K3_PLUGIN_CC_NODE_BIN that is not an absolute path", async () => {
     const home = await createTestPluginDataRoot("hook-install-bad-node-bin");
     try {
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: "/abs/path/dist/hooks/approval-hook.js",
-        KIMI_PLUGIN_CC_NODE_BIN: "node",
+        K3_PLUGIN_CC_HOOK_SCRIPT: "/abs/path/dist/hooks/approval-hook.js",
+        K3_PLUGIN_CC_NODE_BIN: "node",
       });
       expect(status.installed).toBe(false);
-      expect(status.reason).toContain("KIMI_PLUGIN_CC_NODE_BIN must be an absolute path");
+      expect(status.reason).toContain("K3_PLUGIN_CC_NODE_BIN must be an absolute path");
     } finally {
       await cleanupTestPath(home);
     }
   });
 
-  test("rejects KIMI_PLUGIN_CC_HOOK_SCRIPT that is not an absolute path (audit re-review M)", async () => {
+  test("rejects K3_PLUGIN_CC_HOOK_SCRIPT that is not an absolute path (audit re-review M)", async () => {
     const home = await createTestPluginDataRoot("hook-install-bad-script-path");
     try {
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: "./relative/hook.js",
+        K3_PLUGIN_CC_HOOK_SCRIPT: "./relative/hook.js",
       });
       expect(status.installed).toBe(false);
-      expect(status.reason).toContain("KIMI_PLUGIN_CC_HOOK_SCRIPT must be an absolute path");
+      expect(status.reason).toContain("K3_PLUGIN_CC_HOOK_SCRIPT must be an absolute path");
     } finally {
       await cleanupTestPath(home);
     }
@@ -875,18 +875,18 @@ describe("verifyHookInstalled", () => {
       await writeFile(
         path.join(home, "config.toml"),
         [
-          "# === BEGIN kimi-plugin-cc-managed (v1.0.0) ===",
+          "# === BEGIN k3-plugin-cc-managed (v1.0.0) ===",
           "[[hooks]]",
           'event = "PreToolUse"',
           `command = "${tomlEscaped}"`,
           "timeout = 15",
-          "# === END kimi-plugin-cc-managed ===",
+          "# === END k3-plugin-cc-managed ===",
         ].join("\n"),
         "utf8",
       );
       const status = await verifyHookInstalled({
         KIMI_CODE_HOME: home,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: hookPath,
+        K3_PLUGIN_CC_HOOK_SCRIPT: hookPath,
       });
       expect(status.installed).toBe(true);
       expect(status.reason).toBeUndefined();
@@ -941,6 +941,6 @@ describe("formatHookMissingWarning", () => {
     expect(text).toContain("no hook block");
     expect(text).toContain("review_gate");
     expect(text).toContain("/k3:setup");
-    expect(text).toContain("KIMI_PLUGIN_CC_SKIP_HOOK_CHECK");
+    expect(text).toContain("K3_PLUGIN_CC_SKIP_HOOK_CHECK");
   });
 });

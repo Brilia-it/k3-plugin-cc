@@ -60,18 +60,18 @@ function makeMockEnv(
   return {
     ...process.env,
     CLAUDE_PLUGIN_DATA: pluginDataRoot,
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: scenario,
-    KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-    KIMI_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
-    KIMI_PLUGIN_CC_NODE_BIN: "node",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: scenario,
+    K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+    K3_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
+    K3_PLUGIN_CC_NODE_BIN: "node",
     // Tests bypass the rescue hook-installation refusal — the mock
     // doesn't go through kimi-code's hook system, so the real hook
     // contract isn't being exercised here. Hook policy is tested
     // separately in approval-policy.test.ts, rescue-approval.test.ts,
     // and approval-hook-subprocess.test.ts.
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
   };
 }
 
@@ -120,8 +120,8 @@ describe("rescue command lifecycle", () => {
       const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as {
         argv: string[];
         env: {
-          KIMI_PLUGIN_CC_CMD: string | null;
-          KIMI_PLUGIN_CC_WORKSPACE_ROOT: string | null;
+          K3_PLUGIN_CC_CMD: string | null;
+          K3_PLUGIN_CC_WORKSPACE_ROOT: string | null;
         };
       };
       const status = JSON.parse(
@@ -142,11 +142,11 @@ describe("rescue command lifecycle", () => {
       expect(status.kimi_session_id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       );
-      // The hook gets KIMI_PLUGIN_CC_CMD=rescue so it can call
+      // The hook gets K3_PLUGIN_CC_CMD=rescue so it can call
       // evaluateRescueHookRequest. That env propagation is the only
       // runtime-side signal that selects the rescue policy.
-      expect(invocation.env.KIMI_PLUGIN_CC_CMD).toBe("rescue");
-      expect(invocation.env.KIMI_PLUGIN_CC_WORKSPACE_ROOT).toBe(repoRoot);
+      expect(invocation.env.K3_PLUGIN_CC_CMD).toBe("rescue");
+      expect(invocation.env.K3_PLUGIN_CC_WORKSPACE_ROOT).toBe(repoRoot);
       expect(invocation.argv).toContain("--output-format");
       expect(invocation.argv).toContain("stream-json");
       // v1.0 alpha.4: rescue runs thinking-on always. Locks the contract

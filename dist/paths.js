@@ -1,10 +1,24 @@
-import { constants } from "node:fs";
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change: the data directory is named `k3-plugin-cc`. A pre-0.6 install
+// kept its jobs, logs, artifacts and config in `kimi-plugin-cc`; while only
+// that directory exists it stays in use, so nothing is lost before /k3:setup
+// moves it (runtime/legacy-names.ts). See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
+import { constants, existsSync } from "node:fs";
 import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { RuntimeError } from "./errors.js";
 import { resolvePluginDataRoot } from "./plugin-data.js";
+/** The data directory under the plugin's data root, since 0.6.0. */
+export const DATA_DIR_NAME = "k3-plugin-cc";
+/** Its name before 0.6.0 (upstream's). Read as a fallback, never created. */
+export const LEGACY_DATA_DIR_NAME = "kimi-plugin-cc";
 export function resolvePluginPaths(env) {
     const claudePluginData = resolvePluginDataRoot(env);
-    const pluginRoot = path.join(claudePluginData, "kimi-plugin-cc");
+    const current = path.join(claudePluginData, DATA_DIR_NAME);
+    const legacy = path.join(claudePluginData, LEGACY_DATA_DIR_NAME);
+    const usingLegacyDataDir = !existsSync(current) && existsSync(legacy);
+    const pluginRoot = usingLegacyDataDir ? legacy : current;
     return {
         claudePluginData,
         pluginRoot,
@@ -13,9 +27,16 @@ export function resolvePluginPaths(env) {
         artifactsDir: path.join(pluginRoot, "artifacts"),
         worktreesDir: path.join(pluginRoot, "worktrees"),
         configPath: path.join(pluginRoot, "config.json"),
+        usingLegacyDataDir,
     };
 }
 export async function ensurePluginPaths(paths) {
+    // The pre-0.6 directory is used only while it exists. If it vanished after
+    // these paths were resolved, setup has just moved it: recreating it here
+    // would split the state in two, so stop and let the command run again.
+    if (paths.usingLegacyDataDir === true && !existsSync(paths.pluginRoot)) {
+        throw new RuntimeError("PLUGIN_DATA_MOVED", `The data directory ${paths.pluginRoot} was moved to ${path.join(paths.claudePluginData, DATA_DIR_NAME)} while this command was starting. Run the command again.`, "paths");
+    }
     await mkdir(paths.pluginRoot, { recursive: true });
     await mkdir(paths.logsDir, { recursive: true });
     await mkdir(paths.artifactsDir, { recursive: true });

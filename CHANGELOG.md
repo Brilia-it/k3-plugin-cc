@@ -8,6 +8,54 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.7-brilia.0.6.0 — 2026-09-29 (fork)
+
+**K3 everywhere. Up to 0.5.x this fork renamed its commands and agents but still used upstream's
+names underneath: the environment variables, the marker of its hook block in
+`~/.kimi-code/config.toml`, its data directory, its messages. From 0.6.0 everything a person or a
+program can see says K3, and the two plugins can be installed side by side.**
+
+**Upgrading: run `/k3:setup` once after updating.** Until then every command refuses, because the
+hook installed by 0.5.x reads variables this version no longer sets.
+
+- **Names.** `KIMI_PLUGIN_CC_*` becomes `K3_PLUGIN_CC_*`, the hook block marker
+  `kimi-plugin-cc-managed` becomes `k3-plugin-cc-managed`, the data directory `kimi-plugin-cc/`
+  becomes `k3-plugin-cc/`, and messages, session titles ("K3 Review: ...") and the review gate
+  ("K3 review gate") say K3. The Codex plugin lists BRILIA as author and developer. What keeps its
+  name is Moonshot's: the `kimi` and `kimi-code` CLI, its `KIMI_CODE_*` settings, and "Kimi" where it
+  names the model.
+- **Migration, done by `/k3:setup`.** It removes this fork's own hook blocks under the old marker,
+  only when the hook lives under this fork's install tree (`/brilia-k3-marketplace/` or
+  `/k3-plugin-cc/`), and leaves any other block under that marker byte for byte: that is the
+  upstream plugin's. It moves the data directory when no job is running and rewrites the paths
+  stored for past jobs, so `/k3:result` and `/k3:replay` still find them; until then the old
+  directory stays in use. It lists any `KIMI_PLUGIN_CC_*` variable still set: those are **not**
+  read, because they are the upstream plugin's names and a value set for it (including the switch
+  that skips the hook check) must not steer this one. `--check` reports all three; `--uninstall`
+  removes old blocks too.
+- **The plugin recognises itself.** Its self-recognition still looked for upstream's names, so on
+  this fork's installs it never matched: the data-directory ownership check never ran (it fell back
+  to the shared variables), a Codex shell launch fell back to upstream's own data directory
+  (`kimi-marketplace-kimi`), and its own stale marker-less hook blocks were never cleaned up. It now
+  matches this fork's layout, and no longer upstream's, so setup never prunes the upstream
+  plugin's hook. On Codex, jobs recorded by 0.5.x under `kimi-marketplace-kimi` are not moved (that
+  directory may be the upstream plugin's).
+- **Coexistence.** Up to 0.5.x both plugins wrote the same hook block, so whichever ran setup last
+  disabled the other. Now each writes its own, and each hook governs only its own sessions.
+- **`scripts/identity-map.mjs`, the single definition of the renaming.** `apply` rewrites an upstream
+  checkout into our names before it is merged, so future updates from upstream arrive already
+  renamed; `verify <upstream-ref>` checks that, apart from the files it declares with a reason, every
+  upstream file maps to ours byte for byte (313 files against v2.0.7, zero undeclared differences).
+  `tests/scripts/brand-residue.test.js` fails if one of upstream's names reappears anywhere it is not
+  pinned on purpose, and checks that every variable the hook reads is one the plugin sets.
+- **Tests.** `tests/runtime/legacy-brand.test.ts` (15 tests) covers the migration: whose block is
+  removed, that an old hook script is never counted as installed, that the new hook ignores the old
+  label variable, and that the data directory moves only with no job running and never merges.
+  Ten deliberate defects, one at a time, each made a test fail.
+- **README.** States the platforms (developed and verified on Windows 11; macOS and Linux supported,
+  Linux covered by CI), the upgrade steps, and coexistence. It no longer says the Windows fixes will
+  be proposed upstream: this fork is maintained independently.
+
 ## 2.0.7-brilia.0.5.1 — 2026-09-29 (fork)
 
 **0.5.0 reached `main` on a green CI that came on the third attempt, and `main`'s own run then

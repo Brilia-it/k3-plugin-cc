@@ -7,7 +7,7 @@ import path from "node:path";
 // Smoke tests for the installed-plugin entry scripts (scripts/*.sh). These exercise the
 // production launch path — shell wrapper → `node dist/...` — under a sanitized PATH so that
 // regressions like hardcoding bare `node` or skipping the dist build are caught in CI
-// before they ship. The scripts must honor KIMI_PLUGIN_CC_NODE_BIN for locked-down PATH.
+// before they ship. The scripts must honor K3_PLUGIN_CC_NODE_BIN for locked-down PATH.
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
 const companionScript = path.join(repoRoot, "scripts", "companion.sh");
@@ -19,7 +19,7 @@ let cleanCopyRoot: string;
 let fakeNode20Path: string;
 
 beforeAll(async () => {
-  cleanCopyRoot = await mkdtemp(path.join(tmpdir(), "kimi-plugin-cc-installed-"));
+  cleanCopyRoot = await mkdtemp(path.join(tmpdir(), "k3-plugin-cc-installed-"));
   await cp(repoRoot, cleanCopyRoot, {
     recursive: true,
     filter: (source) => {
@@ -70,11 +70,11 @@ afterAll(async () => {
 });
 
 describe("installed-plugin script wrappers", () => {
-  test("companion.sh launches dist/companion.js under sanitized PATH via KIMI_PLUGIN_CC_NODE_BIN", () => {
+  test("companion.sh launches dist/companion.js under sanitized PATH via K3_PLUGIN_CC_NODE_BIN", () => {
     const result = spawnSync(companionScript, ["setup-bogus-subcommand"], {
       env: {
         PATH: SANITIZED_PATH,
-        KIMI_PLUGIN_CC_NODE_BIN: nodeExecPath,
+        K3_PLUGIN_CC_NODE_BIN: nodeExecPath,
         CLAUDE_PLUGIN_ROOT: repoRoot,
         CLAUDE_PLUGIN_DATA: path.join(repoRoot, ".tmp", "installed-smoke-data"),
       },
@@ -92,7 +92,7 @@ describe("installed-plugin script wrappers", () => {
 
   test("companion.sh fails with actionable error when node cannot be resolved", () => {
     // SANITIZED_PATH contains bash (so the shebang resolves) but not node (node lives under
-    // /opt/homebrew/bin or /usr/local/bin on dev hosts). Leaving KIMI_PLUGIN_CC_NODE_BIN
+    // /opt/homebrew/bin or /usr/local/bin on dev hosts). Leaving K3_PLUGIN_CC_NODE_BIN
     // unset forces the fallback path and exercises the actionable-error branch.
     const result = spawnSync(companionScript, ["setup"], {
       env: {
@@ -104,7 +104,7 @@ describe("installed-plugin script wrappers", () => {
 
     expect(result.status).toBe(127);
     expect(result.stderr).toContain("unable to locate 'node'");
-    expect(result.stderr).toContain("KIMI_PLUGIN_CC_NODE_BIN");
+    expect(result.stderr).toContain("K3_PLUGIN_CC_NODE_BIN");
   });
 
   test("review-gate-hook.sh launches dist/hooks/review-gate-stop.js under sanitized PATH", () => {
@@ -118,7 +118,7 @@ describe("installed-plugin script wrappers", () => {
       }),
       env: {
         PATH: SANITIZED_PATH,
-        KIMI_PLUGIN_CC_NODE_BIN: nodeExecPath,
+        K3_PLUGIN_CC_NODE_BIN: nodeExecPath,
         CLAUDE_PLUGIN_ROOT: repoRoot,
         CLAUDE_PLUGIN_DATA: path.join(repoRoot, ".tmp", "installed-smoke-data"),
       },
@@ -143,7 +143,7 @@ describe("installed-plugin script wrappers", () => {
     const result = spawnSync(path.join(cleanCopyRoot, "scripts", "companion.sh"), ["setup"], {
       env: {
         PATH: SANITIZED_PATH,
-        KIMI_PLUGIN_CC_NODE_BIN: nodeExecPath,
+        K3_PLUGIN_CC_NODE_BIN: nodeExecPath,
         KIMI_CODE_HOME: kimiCodeHome,
         CLAUDE_PLUGIN_ROOT: cleanCopyRoot,
         CLAUDE_PLUGIN_DATA: path.join(cleanCopyRoot, ".tmp", "installed-smoke-data"),
@@ -153,7 +153,7 @@ describe("installed-plugin script wrappers", () => {
 
     const combined = `${result.stdout}\n${result.stderr}`;
     expect(result.status).toBe(0);
-    expect(combined).toContain("Installed kimi-plugin-cc PreToolUse hook");
+    expect(combined).toContain("Installed k3-plugin-cc PreToolUse hook");
     expect(combined).toContain("Probe:          ok");
     expect(combined).not.toContain("ERR_MODULE_NOT_FOUND");
   });
@@ -167,7 +167,7 @@ describe("installed-plugin script wrappers", () => {
       cwd: workspaceRoot,
       env: {
         PATH: SANITIZED_PATH,
-        KIMI_PLUGIN_CC_NODE_BIN: nodeExecPath,
+        K3_PLUGIN_CC_NODE_BIN: nodeExecPath,
         KIMI_CODE_HOME: "relative-kimi-home",
         CLAUDE_PLUGIN_ROOT: cleanCopyRoot,
         CLAUDE_PLUGIN_DATA: path.join(cleanCopyRoot, ".tmp", "installed-smoke-data-relative-home"),
@@ -177,7 +177,7 @@ describe("installed-plugin script wrappers", () => {
 
     const combined = `${result.stdout}\n${result.stderr}`;
     expect(result.status).toBe(0);
-    expect(combined).toContain("Installed kimi-plugin-cc PreToolUse hook");
+    expect(combined).toContain("Installed k3-plugin-cc PreToolUse hook");
     expect(combined).toContain(path.join(workspaceRoot, "relative-kimi-home", "config.toml"));
   });
 
@@ -186,7 +186,7 @@ describe("installed-plugin script wrappers", () => {
     const result = spawnSync(path.join(cleanCopyRoot, "scripts", "companion.sh"), ["setup"], {
       env: {
         PATH: SANITIZED_PATH,
-        KIMI_PLUGIN_CC_NODE_BIN: nodeExecPath,
+        K3_PLUGIN_CC_NODE_BIN: nodeExecPath,
         KIMI_CODE_HOME: kimiCodeHome,
         PLUGIN_ROOT: cleanCopyRoot,
         PLUGIN_DATA: path.join(cleanCopyRoot, ".tmp", "installed-smoke-data-codex"),
@@ -196,7 +196,7 @@ describe("installed-plugin script wrappers", () => {
 
     const combined = `${result.stdout}\n${result.stderr}`;
     expect(result.status).toBe(0);
-    expect(combined).toContain("Installed kimi-plugin-cc PreToolUse hook");
+    expect(combined).toContain("Installed k3-plugin-cc PreToolUse hook");
     expect(combined).toContain("Probe:          ok");
     expect(combined).not.toContain("MISSING_PLUGIN_DATA");
     expect(combined).not.toContain("ERR_MODULE_NOT_FOUND");
@@ -209,7 +209,7 @@ describe("installed-plugin script wrappers", () => {
       env: {
         PATH: SANITIZED_PATH,
         CODEX_HOME: codexHome,
-        KIMI_PLUGIN_CC_NODE_BIN: nodeExecPath,
+        K3_PLUGIN_CC_NODE_BIN: nodeExecPath,
         KIMI_CODE_HOME: kimiCodeHome,
         PLUGIN_ROOT: cleanCopyRoot,
       },
@@ -218,7 +218,7 @@ describe("installed-plugin script wrappers", () => {
 
     const combined = `${result.stdout}\n${result.stderr}`;
     expect(result.status).toBe(0);
-    expect(combined).toContain("Installed kimi-plugin-cc PreToolUse hook");
+    expect(combined).toContain("Installed k3-plugin-cc PreToolUse hook");
     expect(combined).toContain("Probe:          ok");
     expect(combined).not.toContain("MISSING_PLUGIN_DATA");
   });
@@ -227,7 +227,7 @@ describe("installed-plugin script wrappers", () => {
     const result = spawnSync(path.join(cleanCopyRoot, "scripts", "companion.sh"), ["setup"], {
       env: {
         PATH: SANITIZED_PATH,
-        KIMI_PLUGIN_CC_NODE_BIN: fakeNode20Path,
+        K3_PLUGIN_CC_NODE_BIN: fakeNode20Path,
         CLAUDE_PLUGIN_ROOT: cleanCopyRoot,
         CLAUDE_PLUGIN_DATA: path.join(cleanCopyRoot, ".tmp", "installed-smoke-data"),
       },
@@ -236,7 +236,7 @@ describe("installed-plugin script wrappers", () => {
 
     expect(result.status).toBe(127);
     expect(result.stderr).toContain("requires Node >= 22.5.0");
-    expect(result.stderr).toContain("KIMI_PLUGIN_CC_NODE_BIN");
+    expect(result.stderr).toContain("K3_PLUGIN_CC_NODE_BIN");
   });
 });
 

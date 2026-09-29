@@ -67,7 +67,7 @@ async function runNodePinProbe(
 describe("parseHookShellCommand", () => {
   test("round-trips a simple two-token command", () => {
     const cmd = buildHookShellCommand("/usr/local/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/node/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/node/bin/node",
     });
     expect(parseHookShellCommand(cmd)).toEqual({
       nodeBin: "/opt/node/bin/node",
@@ -78,14 +78,14 @@ describe("parseHookShellCommand", () => {
   test("round-trips paths containing spaces (space lives inside the quotes)", () => {
     const node = "/Apps/My Node/bin/node";
     const hook = "/Apps/My Plugin/dist/hooks/approval-hook.js";
-    const cmd = buildHookShellCommand(hook, { KIMI_PLUGIN_CC_NODE_BIN: node });
+    const cmd = buildHookShellCommand(hook, { K3_PLUGIN_CC_NODE_BIN: node });
     expect(parseHookShellCommand(cmd)).toEqual({ nodeBin: node, hookScript: hook });
   });
 
   test("round-trips paths containing apostrophes ('\\'' encoding)", () => {
     const node = "/Users/o'brien/bin/node";
     const hook = "/Users/o'brien/dist/hooks/approval-hook.js";
-    const cmd = buildHookShellCommand(hook, { KIMI_PLUGIN_CC_NODE_BIN: node });
+    const cmd = buildHookShellCommand(hook, { K3_PLUGIN_CC_NODE_BIN: node });
     expect(parseHookShellCommand(cmd)).toEqual({ nodeBin: node, hookScript: hook });
   });
 
@@ -157,7 +157,7 @@ describe("shellDoubleQuote: cmd.exe metacharacters (BRILIA fork)", () => {
 
 describe("describeHookCommandDrift", () => {
   const expected = buildHookShellCommand("/new/dist/hooks/approval-hook.js", {
-    KIMI_PLUGIN_CC_NODE_BIN: "/opt/node-26.3/bin/node",
+    K3_PLUGIN_CC_NODE_BIN: "/opt/node-26.3/bin/node",
   });
 
   test("same interpreter, different spelling → the v1.9.0 re-pin, NOT a version-manager switch", () => {
@@ -165,10 +165,10 @@ describe("describeHookCommandDrift", () => {
     // off the symlink-resolved Cellar path onto the stable one. Both paths name
     // the same binary, so telling the user their Node "moved" would be wrong.
     const installed = buildHookShellCommand("/new/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
     });
     const stable = buildHookShellCommand("/new/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/bin/node",
     });
     const reason = describeHookCommandDrift(
       installed,
@@ -185,7 +185,7 @@ describe("describeHookCommandDrift", () => {
 
   test("a genuinely different interpreter is still reported as a real change", () => {
     const installed = buildHookShellCommand("/new/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
     });
     const reason = describeHookCommandDrift(
       installed,
@@ -202,7 +202,7 @@ describe("describeHookCommandDrift", () => {
     // Order matters: "no longer exists" is the unambiguous danger signal and
     // must not be softened into a benign re-pin message.
     const installed = buildHookShellCommand("/new/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
     });
     const reason = describeHookCommandDrift(
       installed,
@@ -216,7 +216,7 @@ describe("describeHookCommandDrift", () => {
 
   test("Node binary drift when the old interpreter is gone (the live H4 case)", () => {
     const installed = buildHookShellCommand("/new/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
     });
     const reason = describeHookCommandDrift(installed, expected, () => false);
     expect(reason).toContain("Node binary drift");
@@ -228,7 +228,7 @@ describe("describeHookCommandDrift", () => {
 
   test("Node binary changed when both interpreters still exist (version-manager switch)", () => {
     const installed = buildHookShellCommand("/new/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
     });
     const reason = describeHookCommandDrift(installed, expected, () => true);
     expect(reason).toContain("Node binary changed");
@@ -238,7 +238,7 @@ describe("describeHookCommandDrift", () => {
 
   test("Hook script path drift when only the plugin path moved (same node)", () => {
     const installed = buildHookShellCommand("/old/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/node-26.3/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/node-26.3/bin/node",
     });
     const reason = describeHookCommandDrift(installed, expected, () => true);
     expect(reason).toContain("Hook script path drift");
@@ -249,7 +249,7 @@ describe("describeHookCommandDrift", () => {
 
   test("reports BOTH drifts when node and hook path changed", () => {
     const installed = buildHookShellCommand("/old/dist/hooks/approval-hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/node-26.0/bin/node",
     });
     const reason = describeHookCommandDrift(installed, expected, () => false);
     expect(reason).toContain("Node binary drift");
@@ -273,7 +273,7 @@ describe("resolveHostId / hostIdFromHookScript", () => {
   test("derives claude-code from a ~/.claude install path", () => {
     expect(
       hostIdFromHookScript(
-        "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
+        "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
       ),
     ).toBe("claude-code");
   });
@@ -281,25 +281,25 @@ describe("resolveHostId / hostIdFromHookScript", () => {
   test("derives codex from a ~/.codex install path", () => {
     expect(
       hostIdFromHookScript(
-        "/Users/x/.codex/plugins/cache/kimi-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
+        "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
       ),
     ).toBe("codex");
   });
 
   test("host id is version-independent (upgrade refreshes the same block)", () => {
     const v1 = hostIdFromHookScript(
-      "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
+      "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js",
     );
     const v2 = hostIdFromHookScript(
-      "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/9.9.9/dist/hooks/approval-hook.js",
+      "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/9.9.9/dist/hooks/approval-hook.js",
     );
     expect(v1).toBe(v2);
     expect(v1).toBe("claude-code");
   });
 
   test("dev checkouts fall back to a stable 64-bit host-<hash>", () => {
-    const a = hostIdFromHookScript("/repo/kimi-plugin-cc/dist/hooks/approval-hook.js");
-    const b = hostIdFromHookScript("/repo/kimi-plugin-cc/dist/hooks/approval-hook.js");
+    const a = hostIdFromHookScript("/repo/k3-plugin-cc/dist/hooks/approval-hook.js");
+    const b = hostIdFromHookScript("/repo/k3-plugin-cc/dist/hooks/approval-hook.js");
     expect(a).toBe(b);
     // 16 hex chars (64 bits) — an 8-char prefix collided in review.
     expect(a).toMatch(/^host-[0-9a-f]{16}$/);
@@ -307,11 +307,11 @@ describe("resolveHostId / hostIdFromHookScript", () => {
     expect(hostIdFromHookScript("/other/root/dist/hooks/approval-hook.js")).not.toBe(a);
   });
 
-  test("KIMI_PLUGIN_CC_HOST_ID override wins and is slugified", () => {
+  test("K3_PLUGIN_CC_HOST_ID override wins and is slugified", () => {
     expect(
       resolveHostId({
-        KIMI_PLUGIN_CC_HOST_ID: "My Host!",
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: "/a/dist/hooks/approval-hook.js",
+        K3_PLUGIN_CC_HOST_ID: "My Host!",
+        K3_PLUGIN_CC_HOOK_SCRIPT: "/a/dist/hooks/approval-hook.js",
       }),
     ).toBe("my-host");
   });
@@ -320,7 +320,7 @@ describe("resolveHostId / hostIdFromHookScript", () => {
     expect(
       resolveHostId(
         {},
-        "/Users/x/.codex/plugins/cache/kimi-marketplace/kimi/2.0.0/dist/hooks/approval-hook.js",
+        "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/kimi/2.0.0/dist/hooks/approval-hook.js",
       ),
     ).toBe("codex");
   });
@@ -332,10 +332,10 @@ describe("resolveHostId / hostIdFromHookScript", () => {
 });
 
 describe("isOurApprovalHookCommand", () => {
-  test("true for a canonical approval-hook command under a kimi-marketplace tree", () => {
+  test("true for a canonical approval-hook command under a brilia-k3-marketplace tree", () => {
     expect(
       isOurApprovalHookCommand(
-        "'/usr/bin/node' '/home/u/.claude/plugins/cache/kimi-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js'",
+        "'/usr/bin/node' '/home/u/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js'",
       ),
     ).toBe(true);
   });
@@ -352,7 +352,7 @@ describe("isOurApprovalHookCommand", () => {
     // A user's own hook that merely CONTAINS the substring must not be pruned.
     expect(
       isOurApprovalHookCommand(
-        "'/usr/bin/node' '/opt/acme/kimi-plugin-cc-wrapper/approval-hook.js'",
+        "'/usr/bin/node' '/opt/acme/k3-plugin-cc-wrapper/approval-hook.js'",
       ),
     ).toBe(false);
   });
@@ -486,14 +486,14 @@ describe("preferStableNodePath", () => {
   test("tryBuildExpectedHookCommand's nodeBin is the exact token inside its own command", () => {
     for (const env of [
       {},
-      { KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/bin/node" },
+      { K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/bin/node" },
       // A path needing shell quoting — proves nodeBin is the DECODED token, not
       // the quoted form, and that quoting round-trips.
-      { KIMI_PLUGIN_CC_NODE_BIN: "/weird path/it's/node" },
+      { K3_PLUGIN_CC_NODE_BIN: "/weird path/it's/node" },
     ]) {
       const built = tryBuildExpectedHookCommand({
         ...env,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: "/x/dist/hooks/approval-hook.js",
+        K3_PLUGIN_CC_HOOK_SCRIPT: "/x/dist/hooks/approval-hook.js",
       });
       expect("error" in built).toBe(false);
       if ("error" in built) continue;
@@ -516,8 +516,8 @@ describe("preferStableNodePath", () => {
 
   test("tryBuildExpectedHookCommand surfaces a structured error for a relative node override", () => {
     const built = tryBuildExpectedHookCommand({
-      KIMI_PLUGIN_CC_NODE_BIN: "node",
-      KIMI_PLUGIN_CC_HOOK_SCRIPT: "/x/dist/hooks/approval-hook.js",
+      K3_PLUGIN_CC_NODE_BIN: "node",
+      K3_PLUGIN_CC_HOOK_SCRIPT: "/x/dist/hooks/approval-hook.js",
     });
     expect("error" in built).toBe(true);
     if ("error" in built) {
@@ -527,10 +527,10 @@ describe("preferStableNodePath", () => {
 
   test("same-file node spelling change is flagged as an unchanged interpreter", () => {
     const a = buildHookShellCommand("/same/hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/Cellar/node/26.5.0/bin/node",
     });
     const b = buildHookShellCommand("/same/hook.js", {
-      KIMI_PLUGIN_CC_NODE_BIN: "/opt/homebrew/bin/node",
+      K3_PLUGIN_CC_NODE_BIN: "/opt/homebrew/bin/node",
     });
     expect(classifyHookCommandDrift(a, b, () => true)).toMatchObject({
       axis: "node-bin",
@@ -543,8 +543,8 @@ describe("preferStableNodePath", () => {
   });
 
   test("a pure hook-script move carries no interpreter verdict", () => {
-    const a = buildHookShellCommand("/old/hook.js", { KIMI_PLUGIN_CC_NODE_BIN: "/n/node" });
-    const b = buildHookShellCommand("/new/hook.js", { KIMI_PLUGIN_CC_NODE_BIN: "/n/node" });
+    const a = buildHookShellCommand("/old/hook.js", { K3_PLUGIN_CC_NODE_BIN: "/n/node" });
+    const b = buildHookShellCommand("/new/hook.js", { K3_PLUGIN_CC_NODE_BIN: "/n/node" });
     const drift = classifyHookCommandDrift(a, b, () => true);
     expect(drift?.axis).toBe("hook-script");
     expect(drift).not.toHaveProperty("nodeInterpreterUnchanged");
@@ -587,7 +587,7 @@ describe("normalizeHookPathSeparators", () => {
   test("the derived hook path carries no separator the TOML check rejects", () => {
     // This is the regression the change exists for: on Windows the derived path
     // used to contain backslashes and assertHookPathTomlSafe rejected it, which
-    // forced every user into a machine-specific KIMI_PLUGIN_CC_HOOK_SCRIPT.
+    // forced every user into a machine-specific K3_PLUGIN_CC_HOOK_SCRIPT.
     const derived = resolveHookScriptPath({} as NodeJS.ProcessEnv);
     if (isWin) expect(derived.includes(BACKSLASH)).toBe(false);
     expect(path.isAbsolute(derived)).toBe(true);

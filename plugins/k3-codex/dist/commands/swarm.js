@@ -42,7 +42,7 @@ import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js
 // SAFETY — swarm REFUSES without the hook, like every model-spawning command.
 //   A swarm fans out up to `cap` subagents, each capable of attempting writes;
 //   without the index-0 hook there is ZERO enforcement on ALL of them — an
-//   N-fold blast radius. KIMI_PLUGIN_CC_SKIP_HOOK_CHECK remains an explicit,
+//   N-fold blast radius. K3_PLUGIN_CC_SKIP_HOOK_CHECK remains an explicit,
 //   tests/diagnostics-only bypass of that refusal.
 const SWARM_SUMMARY_MAX = 120;
 const SWARM_AGENT_PROFILE = "<swarm>";
@@ -269,7 +269,7 @@ async function runWriteSwarm(parsed, objective, context) {
         }
         await sweepStaleWorktrees(paths, repoIdentity);
         if (await isWorkingTreeDirty(context.cwd)) {
-            context.stderr.write("[kimi-plugin-cc] /k3:swarm --write bases its worktree on HEAD — your uncommitted changes are NOT visible to the swarm. Commit or stash them first if the swarm needs them.\n");
+            context.stderr.write("[k3-plugin-cc] /k3:swarm --write bases its worktree on HEAD — your uncommitted changes are NOT visible to the swarm. Commit or stash them first if the swarm needs them.\n");
         }
         const prompt = buildSwarmWritePrompt(objective, parsed.cap);
         const jobId = randomUUID();
@@ -401,7 +401,7 @@ async function capturePatchArtifact(paths, jobId, worktreePath, stderr) {
         return { path: patchPath, bytes: Buffer.byteLength(patch, "utf8"), empty: patch.trim().length === 0 };
     }
     catch (error) {
-        stderr.write(`[kimi-plugin-cc] swarm-write patch capture failed for job ${jobId}: ${error.message ?? String(error)}\n`);
+        stderr.write(`[k3-plugin-cc] swarm-write patch capture failed for job ${jobId}: ${error.message ?? String(error)}\n`);
         return null;
     }
 }
@@ -440,12 +440,12 @@ writeMode) {
     // Swarm is read-only BY POLICY, but it fans out N subagents — without the
     // PreToolUse hook there is no enforcement on ANY of them. Fail closed before
     // spawning, matching the single-turn read-only commands.
-    if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+    if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
         const installStatus = await verifyHookInstalled(context.env);
         if (!installStatus.installed) {
             maybeWarnHookMissing(installStatus, "swarm", context.stderr);
             const classified = new RuntimeError("SWARM_HOOK_NOT_INSTALLED", [
-                "/k3:swarm refuses to run without the kimi-plugin-cc PreToolUse hook.",
+                "/k3:swarm refuses to run without the k3-plugin-cc PreToolUse hook.",
                 "Swarm fans out multiple subagents; the hook is the ONLY thing keeping every",
                 "one of them read-only, so a missing hook means no enforcement across the fan-out.",
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
@@ -524,7 +524,7 @@ writeMode) {
             artifactPath = await writeArtifact(paths, job, rendered.rendered);
         }
         catch (writeError) {
-            context.stderr.write(`[kimi-plugin-cc] swarm artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`);
+            context.stderr.write(`[k3-plugin-cc] swarm artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`);
             const classified = new RuntimeError("SWARM_ARTIFACT_WRITE_FAILED", `Failed to write swarm artifact: ${writeError.message ?? String(writeError)}`, "swarm.artifact", {
                 ...(writeError instanceof Error ? { cause: writeError } : {}),
                 details: { rawOutput: finalText },
@@ -548,7 +548,7 @@ writeMode) {
         if (writeMode) {
             const captured = await capturePatchArtifact(paths, job.job_id, writeMode.workspaceRoot, context.stderr);
             if (captured && !captured.empty) {
-                context.stderr.write(`[kimi-plugin-cc] swarm-write run ended early; partial patch captured at ${captured.path}.\n`);
+                context.stderr.write(`[k3-plugin-cc] swarm-write run ended early; partial patch captured at ${captured.path}.\n`);
             }
         }
         if (handlers.cancelling) {

@@ -1,4 +1,4 @@
-// End-to-end subprocess tests for the kimi-plugin-cc PreToolUse hook
+// End-to-end subprocess tests for the k3-plugin-cc PreToolUse hook
 // entry script. The pure decision function is covered by
 // approval-policy.test.ts; this file verifies the load-bearing
 // protocol surface — stdin JSON parsing, exit-code semantics,
@@ -67,9 +67,9 @@ async function invokeHook(
 }
 
 describe("approval-hook entry script", () => {
-  test("undefined KIMI_PLUGIN_CC_CMD → exit 0 (out-of-plugin context allows everything)", async () => {
+  test("undefined K3_PLUGIN_CC_CMD → exit 0 (out-of-plugin context allows everything)", async () => {
     const env = { ...process.env };
-    delete env.KIMI_PLUGIN_CC_CMD;
+    delete env.K3_PLUGIN_CC_CMD;
     const result = await invokeHook(
       { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "rm -rf /" } },
       env,
@@ -92,7 +92,7 @@ describe("approval-hook entry script", () => {
     // allowlist with review/challenge/review_gate.
     const result = await invokeHook(
       { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } },
-      { ...process.env, KIMI_PLUGIN_CC_CMD: "ask" },
+      { ...process.env, K3_PLUGIN_CC_CMD: "ask" },
     );
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("ask");
@@ -104,7 +104,7 @@ describe("approval-hook entry script", () => {
     async (label) => {
       const result = await invokeHook(
         { hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: "x" } },
-        { ...process.env, KIMI_PLUGIN_CC_CMD: label },
+        { ...process.env, K3_PLUGIN_CC_CMD: label },
       );
       expect(result.exitCode).toBe(0);
     },
@@ -115,7 +115,7 @@ describe("approval-hook entry script", () => {
     async (label) => {
       const result = await invokeHook(
         { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } },
-        { ...process.env, KIMI_PLUGIN_CC_CMD: label },
+        { ...process.env, K3_PLUGIN_CC_CMD: label },
       );
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain(label);
@@ -129,7 +129,7 @@ describe("approval-hook entry script", () => {
   test("malformed stdin JSON → exit 2 + 'misconfigured' on stderr", async () => {
     const result = await invokeHook(
       "{not json at all",
-      { ...process.env, KIMI_PLUGIN_CC_CMD: "review" },
+      { ...process.env, K3_PLUGIN_CC_CMD: "review" },
     );
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("misconfigured");
@@ -138,7 +138,7 @@ describe("approval-hook entry script", () => {
   test("stdin payload is an array (not an object) → exit 2", async () => {
     const result = await invokeHook(
       JSON.stringify(["not", "an", "object"]),
-      { ...process.env, KIMI_PLUGIN_CC_CMD: "review" },
+      { ...process.env, K3_PLUGIN_CC_CMD: "review" },
     );
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("misconfigured");
@@ -157,8 +157,8 @@ describe("approval-hook entry script", () => {
       },
       {
         ...process.env,
-        KIMI_PLUGIN_CC_CMD: "rescue",
-        KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+        K3_PLUGIN_CC_CMD: "rescue",
+        K3_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
       },
     );
     expect(result.exitCode).toBe(0);
@@ -174,8 +174,8 @@ describe("approval-hook entry script", () => {
       },
       {
         ...process.env,
-        KIMI_PLUGIN_CC_CMD: "rescue",
-        KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+        K3_PLUGIN_CC_CMD: "rescue",
+        K3_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
       },
     );
     expect(result.exitCode).toBe(2);
@@ -192,8 +192,8 @@ describe("approval-hook entry script", () => {
       },
       {
         ...process.env,
-        KIMI_PLUGIN_CC_CMD: "rescue",
-        KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+        K3_PLUGIN_CC_CMD: "rescue",
+        K3_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
       },
     );
     expect(result.exitCode).toBe(2);
@@ -210,8 +210,8 @@ describe("approval-hook entry script", () => {
       },
       {
         ...process.env,
-        KIMI_PLUGIN_CC_CMD: "rescue",
-        KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+        K3_PLUGIN_CC_CMD: "rescue",
+        K3_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
       },
     );
     expect(result.exitCode).toBe(0);
@@ -227,8 +227,8 @@ describe("approval-hook entry script", () => {
       },
       {
         ...process.env,
-        KIMI_PLUGIN_CC_CMD: "rescue",
-        KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+        K3_PLUGIN_CC_CMD: "rescue",
+        K3_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
       },
     );
     expect(result.exitCode).toBe(2);
@@ -239,7 +239,7 @@ describe("approval-hook entry script", () => {
   test("rescue label + Read → exit 0", async () => {
     const result = await invokeHook(
       { hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: "x" } },
-      { ...process.env, KIMI_PLUGIN_CC_CMD: "rescue" },
+      { ...process.env, K3_PLUGIN_CC_CMD: "rescue" },
     );
     expect(result.exitCode).toBe(0);
   });
@@ -247,7 +247,7 @@ describe("approval-hook entry script", () => {
   test("unknown command label + Bash → exit 2 (conservative default)", async () => {
     const result = await invokeHook(
       { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } },
-      { ...process.env, KIMI_PLUGIN_CC_CMD: "future_cmd_v2" },
+      { ...process.env, K3_PLUGIN_CC_CMD: "future_cmd_v2" },
     );
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("unrecognized");
@@ -256,7 +256,7 @@ describe("approval-hook entry script", () => {
   test("ReadMediaFile is read-only and allowed under review", async () => {
     const result = await invokeHook(
       { hook_event_name: "PreToolUse", tool_name: "ReadMediaFile", tool_input: { file_path: "x.png" } },
-      { ...process.env, KIMI_PLUGIN_CC_CMD: "review" },
+      { ...process.env, K3_PLUGIN_CC_CMD: "review" },
     );
     expect(result.exitCode).toBe(0);
   });
@@ -270,9 +270,9 @@ describe("pursue metadata hook environment", () => {
   ] as const)("pursue environment allows %s %j through the real hook subprocess", async (tool_name, tool_input) => {
     const result = await invokeHook({ hook_event_name: "PreToolUse", tool_name, tool_input }, {
       ...process.env,
-      KIMI_PLUGIN_CC_CMD: "rescue",
-      KIMI_PLUGIN_CC_OPERATION: "pursue",
-      KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+      K3_PLUGIN_CC_CMD: "rescue",
+      K3_PLUGIN_CC_OPERATION: "pursue",
+      K3_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
     });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("");
@@ -280,9 +280,9 @@ describe("pursue metadata hook environment", () => {
 
   test("untrusted payload cannot supply pursue provenance, and ordinary rescue stays denied", async () => {
     for (const operationKind of [undefined, "rescue"]) {
-      const env: NodeJS.ProcessEnv = { ...process.env, KIMI_PLUGIN_CC_CMD: "rescue", KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd() };
-      if (operationKind !== undefined) env.KIMI_PLUGIN_CC_OPERATION = operationKind;
-      else delete env.KIMI_PLUGIN_CC_OPERATION;
+      const env: NodeJS.ProcessEnv = { ...process.env, K3_PLUGIN_CC_CMD: "rescue", K3_PLUGIN_CC_WORKSPACE_ROOT: process.cwd() };
+      if (operationKind !== undefined) env.K3_PLUGIN_CC_OPERATION = operationKind;
+      else delete env.K3_PLUGIN_CC_OPERATION;
       const result = await invokeHook({
         tool_name: "UpdateGoal", tool_input: { status: "complete" }, operationKind: "pursue", cwd: process.cwd(),
       }, env);
@@ -296,7 +296,7 @@ describe("pursue metadata hook environment", () => {
     ["SetGoalBudget", { turns: 1 }], ["CreateGoal", { objective: "replace" }],
   ] as const)("pursue environment denies %s %j with exit 2", async (tool_name, tool_input) => {
     const result = await invokeHook({ tool_name, tool_input }, {
-      ...process.env, KIMI_PLUGIN_CC_CMD: "rescue", KIMI_PLUGIN_CC_OPERATION: "pursue", KIMI_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
+      ...process.env, K3_PLUGIN_CC_CMD: "rescue", K3_PLUGIN_CC_OPERATION: "pursue", K3_PLUGIN_CC_WORKSPACE_ROOT: process.cwd(),
     });
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain(tool_name);

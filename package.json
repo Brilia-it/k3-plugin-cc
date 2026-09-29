@@ -1,6 +1,6 @@
 {
   "name": "k3-plugin-cc",
-  "version": "2.0.7-brilia.0.5.1",
+  "version": "2.0.7-brilia.0.6.0",
   "private": true,
   "description": "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc that supports Windows: the safety hook launches under cmd.exe, setup needs no path override, and the shell probe really runs. Use Kimi K3 from Claude Code through your own Kimi Code subscription. Not affiliated with Moonshot AI. Not published to npm.",
   "type": "module",
@@ -14,7 +14,7 @@
     "build": "rm -rf dist && bunx tsc -p tsconfig.build.json && mkdir -p dist/vendor/shell-quote dist/vendor/smol-toml && cp runtime/vendor/shell-quote/LICENSE dist/vendor/shell-quote/LICENSE && cp runtime/vendor/smol-toml/*.js runtime/vendor/smol-toml/LICENSE dist/vendor/smol-toml/ && echo '{\"type\":\"module\"}' > dist/package.json",
     "companion": "node --import tsx runtime/companion.ts",
     "test": "bun test",
-    "smoke:real": "KIMI_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts",
+    "smoke:real": "K3_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts",
     "check:package": "node scripts/check-package.mjs"
   },
   "devDependencies": {

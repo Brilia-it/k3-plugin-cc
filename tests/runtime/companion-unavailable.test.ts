@@ -20,14 +20,14 @@ describe("companion Kimi-unavailable handling", () => {
     const env = {
       ...process.env,
       CLAUDE_PLUGIN_DATA: pluginDataRoot,
-      KIMI_PLUGIN_CC_KIMI_BIN: "/nonexistent/path",
-      KIMI_PLUGIN_CC_WORKSPACE_CWD: repoRoot,
+      K3_PLUGIN_CC_KIMI_BIN: "/nonexistent/path",
+      K3_PLUGIN_CC_WORKSPACE_CWD: repoRoot,
       // This test exercises the kimi-binary-unavailable code path
       // across all four commands. Rescue would otherwise short-circuit
       // on the v1.0 hook-installation refusal before reaching the
       // spawn; bypass that check so the binary-unavailable assertion
       // still runs for rescue. (Hook-refusal is covered separately.)
-      KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+      K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
     };
 
     try {
@@ -54,7 +54,7 @@ async function assertUnavailableCommand(
   const failure = await runCompanion(argv, env);
   const output = [failure.stdout, failure.stderr].join("\n");
   const paths = resolvePluginPaths(env);
-  const repoId = (await resolveRepoIdentity(env.KIMI_PLUGIN_CC_WORKSPACE_CWD || process.cwd())).repoId;
+  const repoId = (await resolveRepoIdentity(env.K3_PLUGIN_CC_WORKSPACE_CWD || process.cwd())).repoId;
   const jobStore = new JobStore(paths);
   try {
     const latest = jobStore.findLatestJob({

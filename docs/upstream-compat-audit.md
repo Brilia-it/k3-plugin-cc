@@ -1,6 +1,6 @@
 # Upstream compatibility audit playbook
 
-How to verify a new kimi-code release against kimi-plugin-cc without breaking the safety guarantees we ship.
+How to verify a new kimi-code release against k3-plugin-cc without breaking the safety guarantees we ship.
 
 Use this routine for every new exact native-v2 version, including patches. The 2.1.0/2.1.1 certification is the current worked example. Earlier audits remain useful historical evidence, but their legacy-v1 minor-version rules do not apply to native v2.
 
@@ -59,8 +59,8 @@ gates below pass and its version is appended to `NATIVE_V2_CERTIFIED`.
    grant is invalid`, fixed by `kimi login`).
 3. **Real-binary smoke** (Phase 1b) with the v2 lanes green for every operation.
    Before adding a production certification row, set
-   `KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE=<exact-version>` together with
-   `KIMI_PLUGIN_CC_KIMI_BIN=<exact-binary>`. The harness refuses a version
+   `K3_PLUGIN_CC_SMOKE_V2_CANDIDATE=<exact-version>` together with
+   `K3_PLUGIN_CC_KIMI_BIN=<exact-binary>`. The harness refuses a version
    mismatch, selects v2 lanes, and adds only an in-memory test-process
    write-swarm capability row so that command's real gates can run. It does
    not bypass the hook schema, hook installation or no-plan preflight.
@@ -126,9 +126,9 @@ The forward-scan is the lightweight discharge of the "quarterly drift" trigger a
 
 ## What we depend on (the surfaces to audit)
 
-These are the kimi-code surfaces kimi-plugin-cc consumes. If any one breaks, our safety guarantees break.
+These are the kimi-code surfaces k3-plugin-cc consumes. If any one breaks, our safety guarantees break.
 
-| Surface | Where in kimi-code (0.42.0, all paths under `packages/agent-core-v2/src` unless noted) | What we depend on | Where in kimi-plugin-cc |
+| Surface | Where in kimi-code (0.42.0, all paths under `packages/agent-core-v2/src` unless noted) | What we depend on | Where in k3-plugin-cc |
 |---|---|---|---|
 | `kimi -p` print mode + permission mode | `apps/kimi-code/src/cli/v2/run-v2-print.ts` (entry via `apps/kimi-code/src/cli/run-prompt.ts` → `runV2Print`), `apps/kimi-code/src/cli/options.ts` | v2-only since 0.42.0 (the v1 engine and `KIMI_CODE_LEGACY_FLAG` are gone — the tag scan asserts the selector is absent). `auto` permission mode forced fresh and resumed, `nonInteractive:true`; `--auto/--yolo/--plan` rejected with `-p`; `-r` refuses when the session's recorded cwd ≠ current cwd (`:426`). **Load-bearing audit lesson from 0.33.0:** the selector file changed semantics while `run-prompt.ts` changed only comments — never omit the print-mode entry from the CLI diff. | `runtime/kimi-engine.ts::selectIntendedEngine` (exact-version `NATIVE_V2_CERTIFIED`), `runtime/cli-client.ts` invokes `-p` and requires the `system.version` marker first; safety relies on the hook firing under the no-plan construction |
 | Before-execute channel (the ONE place every tool call is gated) | `agent/toolExecutor/beforeToolExecuteEvent.ts`, `agent/toolExecutor/toolExecutorService.ts` (`prepareToolCall` → `fireBeforeExecute`) | listeners run sequentially in registration order; `veto` wins; `pass` is non-terminal; `event.allow()` is chain-breaking. **Invariant:** the sole `.allow()` in the engine + CLI is the plan-file guard (`features/plan/planService.ts`), gated on ACTIVE plan mode, and the subscriber set is exactly permissionGate, toolDedupe, btw, externalHooks, goal, plan, swarm, tower | `tests/audit/v2-tag-scan.test.ts` (allow count, subscriber set, sha256 pins); the no-plan construction in `runtime/native-v2-preflight.ts` + `runtime/hooks/approval-policy.ts` |
@@ -138,7 +138,7 @@ These are the kimi-code surfaces kimi-plugin-cc consumes. If any one breaks, our
 | Auto-approve policy vs. hook | `agent/permissionGate/permissionGateService.ts` (→ `AutoModeApprovePermissionPolicyService`) | the auto-mode approval uses non-terminal `pass()`, never `allow()`, so it cannot pre-empt the external-hooks listener that runs after it | implicit — the entire safety model assumes a hook veto beats auto-approve; the tag scan's allow-count invariant covers it |
 | Plugin slash commands / command activation | `agent/pluginCommand/`, `agent/plugin/`, `app/plugin/` | activation stays RPC/host-initiated and absent from `-p`; `-p` intercepts exactly one prefix, `/goal` (`apps/kimi-code/src/cli/goal-prompt.ts:43`); a plugin command must never become a model-reachable tool or a permission bypass | read-only commands hard-prefix an instruction line so their prompt never starts with `/goal`; `runtime/commands/pursue.ts` is the only `/goal` producer |
 | Tool input schemas the allowlist reads | `agent/tools/os/write/writeTool.ts`, `agent/tools/edit/editTool.ts` (`path`; Write also `mode`), `agent/tools/os/bash/bashTool.ts` (`command`, **`cwd`**, `timeout`, `run_in_background`; `effectiveCwd` asserts NO workspace membership, `:191`) | field names, and the fact that `Bash.cwd` is honoured without an upstream membership check while the hook payload's top-level `cwd` is the process cwd | `runtime/rescue-approval.ts` (`checkApprovedPath`, `checkApprovedDirectory` confines `tool_input.cwd` to the trusted root before the command string); tag scan asserts the field names |
-| AgentSwarm / subagents | `features/swarm/tools/agent-swarm/agentSwarmTool.ts` (`'AgentSwarm'`, strict schema), `features/swarm/agent/swarmService.ts`; `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY` (unset = no cap) | children run in-process in a child DI scope sharing the session workspace with their OWN eager external-hooks service — every child tool call fires the hook; no deny-all path on the swarm route; `fork` gated by `subagent_fork` | `runtime/commands/swarm.ts` always exports the concurrency cap (4 read / 1 write); the `swarm`/`swarm-write` hook labels; worktree confinement via `KIMI_PLUGIN_CC_WORKSPACE_ROOT` |
+| AgentSwarm / subagents | `features/swarm/tools/agent-swarm/agentSwarmTool.ts` (`'AgentSwarm'`, strict schema), `features/swarm/agent/swarmService.ts`; `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY` (unset = no cap) | children run in-process in a child DI scope sharing the session workspace with their OWN eager external-hooks service — every child tool call fires the hook; no deny-all path on the swarm route; `fork` gated by `subagent_fork` | `runtime/commands/swarm.ts` always exports the concurrency cap (4 read / 1 write); the `swarm`/`swarm-write` hook labels; worktree confinement via `K3_PLUGIN_CC_WORKSPACE_ROOT` |
 | Experimental features | `apps/kimi-code/src/utils/experimental-features.ts` (`[experimental]` config table, per-flag `KIMI_CODE_EXPERIMENTAL_*` env, master `KIMI_CODE_EXPERIMENTAL_FLAG`; precedence env → config → master → default) | `tower` and `subagent_fork` are v2-only features outside the certified profile; the master flag enables all of them | `inspectExperimentalSelectors` (`CLI_V2_EXPERIMENTAL_UNSAFE`) + `assertNoUnsafeExperimentalSelector` (`CLI_V2_HOOK_ORDER_UNSAFE`) refuse before spawn |
 | Stream-json output | `apps/kimi-code/src/cli/prompt-render.ts` (`system.version` FIRST line, `session.resume_hint`, `turn.step.retrying`), `apps/kimi-code/src/cli/goal-prompt.ts` (`goal.summary`) | NDJSON record shapes for assistant/tool/tool_result; `role:"meta", type:"system.version"` is the provenance marker a v2 plan requires first and must equal the probed version; `session.resume_hint` carries the `session_<uuid>` token that round-trips via `-r` | `runtime/stream-json.ts` parser; `runtime/cli-client.ts` provenance gate (`CLI_ENGINE_PROVENANCE_MISMATCH`) and session pinning |
 | CLI argv | `apps/kimi-code/src/cli/options.ts` | `-p` (prompt as VALUE), `-r`/`-S`/`--session`, `--output-format stream-json`, `-m`, `--skills-dir` accepted with current semantics; `--agent`/`--agent-file`/`--add-dir` exist and are NEVER passed | `runtime/cli-client.ts::buildArgs`; `runtime/kimi-command.ts::assertPrefixArgsSafe` refuses reserved flags in the launcher prefix |
@@ -278,9 +278,9 @@ Run the exact candidate with the final implementation under review. Follow the [
 For a version not yet in the production certification table, use the candidate mode:
 
 ```bash
-KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE=<exact-version> \
-  KIMI_PLUGIN_CC_KIMI_BIN=<absolute-path-to-exact-binary> \
-  KIMI_PLUGIN_CC_SMOKE_HOME=<authorized-test-seed-home> \
+K3_PLUGIN_CC_SMOKE_V2_CANDIDATE=<exact-version> \
+  K3_PLUGIN_CC_KIMI_BIN=<absolute-path-to-exact-binary> \
+  K3_PLUGIN_CC_SMOKE_HOME=<authorized-test-seed-home> \
   bun run smoke:real
 ```
 

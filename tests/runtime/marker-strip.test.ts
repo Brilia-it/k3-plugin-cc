@@ -14,13 +14,13 @@
 // contracts.
 //
 // Host-id note: unlike the plain "setup host scoping" suite (which uses
-// `KIMI_PLUGIN_CC_HOST_ID` overrides with a SHARED hook script path — fine
+// `K3_PLUGIN_CC_HOST_ID` overrides with a SHARED hook script path — fine
 // there because ownership is read off the marker suffix), this suite gives
-// each host a DISTINCT `KIMI_PLUGIN_CC_HOOK_SCRIPT` path containing a real
-// `/.claude/` or `/.codex/` segment and does NOT set `KIMI_PLUGIN_CC_HOST_ID`.
+// each host a DISTINCT `K3_PLUGIN_CC_HOOK_SCRIPT` path containing a real
+// `/.claude/` or `/.codex/` segment and does NOT set `K3_PLUGIN_CC_HOST_ID`.
 // That's required for the bare-table (marker-stripped) scenarios: ownership
 // during pruning is derived from `hostIdFromHookCommand`, which reads the
-// COMMAND's script path — it never consults `KIMI_PLUGIN_CC_HOST_ID`. A
+// COMMAND's script path — it never consults `K3_PLUGIN_CC_HOST_ID`. A
 // mismatch between an overridden marker host id and a path-derived command
 // host id would make the host-scoped prune silently fail to find its own
 // bare table. Mirroring the real install topology
@@ -46,7 +46,7 @@ import type { CommandContext } from "../../runtime/types.js";
 let scratch: string;
 
 beforeAll(async () => {
-  scratch = await mkdtemp(path.join(tmpdir(), "kimi-plugin-cc-marker-strip-"));
+  scratch = await mkdtemp(path.join(tmpdir(), "k3-plugin-cc-marker-strip-"));
 });
 
 afterAll(async () => {
@@ -91,7 +91,7 @@ async function seedHostHookScript(caseDir: string, hostSegment: ".claude" | ".co
     hostSegment,
     "plugins",
     "cache",
-    "kimi-marketplace",
+    "brilia-k3-marketplace",
     "kimi",
     "1.8.2",
     "dist",
@@ -120,8 +120,8 @@ describe("marker-strip survival: real smol-toml round-trip", () => {
     const hookScriptClaude = await seedHostHookScript(caseDir, ".claude");
     const hookScriptCodex = await seedHostHookScript(caseDir, ".codex");
 
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOOK_SCRIPT: hookScriptClaude };
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOOK_SCRIPT: hookScriptCodex };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOOK_SCRIPT: hookScriptClaude };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOOK_SCRIPT: hookScriptCodex };
 
     // Install both hosts' marked blocks.
     const claudeInstall = await runSetup([], makeContext(claudeEnv));
@@ -130,15 +130,15 @@ describe("marker-strip survival: real smol-toml round-trip", () => {
     expect(codexInstall.probe).toBe("ok");
 
     const beforeRewrite = await readFile(configPath, "utf8");
-    expect(beforeRewrite).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
-    expect(beforeRewrite).toContain("BEGIN kimi-plugin-cc-managed:codex");
+    expect(beforeRewrite).toContain("BEGIN k3-plugin-cc-managed:claude-code");
+    expect(beforeRewrite).toContain("BEGIN k3-plugin-cc-managed:codex");
 
     // --- Simulate kimi-code's config rewrite with the REAL vendored smol-toml. ---
     const rewritten = stringify(parse(beforeRewrite));
     await writeFile(configPath, rewritten, "utf8");
 
     // Sanity: markers gone, both [[hooks]] tables survived as data.
-    expect(rewritten).not.toContain("kimi-plugin-cc-managed");
+    expect(rewritten).not.toContain("k3-plugin-cc-managed");
     expect(rewritten.match(/\[\[hooks\]\]/g)?.length).toBe(2);
     expect(rewritten).toContain(hookScriptClaude);
     expect(rewritten).toContain(hookScriptCodex);
@@ -174,11 +174,11 @@ describe("marker-strip survival: real smol-toml round-trip", () => {
     expect(claudeReinstallWarnings).not.toMatch(/cruft/i);
 
     const afterClaudeReinstall = await readFile(configPath, "utf8");
-    expect(afterClaudeReinstall).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
+    expect(afterClaudeReinstall).toContain("BEGIN k3-plugin-cc-managed:claude-code");
     // Host B's bare table is untouched — byte-for-byte identical command line.
     expect(lineContaining(afterClaudeReinstall, hookScriptCodex)).toBe(codexLineBefore);
     // Host B still has no marker (not yet re-adorned).
-    expect(afterClaudeReinstall).not.toContain("BEGIN kimi-plugin-cc-managed:codex");
+    expect(afterClaudeReinstall).not.toContain("BEGIN k3-plugin-cc-managed:codex");
 
     // --- Now host B re-adorns too; both end with marked blocks. ---
     const codexReinstall = await runSetup([], makeContext(codexEnv));
@@ -186,8 +186,8 @@ describe("marker-strip survival: real smol-toml round-trip", () => {
     expect(codexReinstall.warnings.join("\n")).toMatch(/re-adorn/i);
 
     const finalContents = await readFile(configPath, "utf8");
-    expect(finalContents).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
-    expect(finalContents).toContain("BEGIN kimi-plugin-cc-managed:codex");
+    expect(finalContents).toContain("BEGIN k3-plugin-cc-managed:claude-code");
+    expect(finalContents).toContain("BEGIN k3-plugin-cc-managed:codex");
 
     expect((await runSetup(["--check"], makeContext(claudeEnv))).probe).toBe("ok");
     expect((await runSetup(["--check"], makeContext(codexEnv))).probe).toBe("ok");
@@ -204,14 +204,14 @@ describe("marker-strip survival: real smol-toml round-trip", () => {
     const { env, configPath } = await makeCase(caseName);
     const caseDir = path.join(scratch, caseName);
     const hookScript = await seedHostHookScript(caseDir, ".claude");
-    const hostEnv = { ...env, KIMI_PLUGIN_CC_HOOK_SCRIPT: hookScript };
+    const hostEnv = { ...env, K3_PLUGIN_CC_HOOK_SCRIPT: hookScript };
 
     // Pre-seed the pre-migration upstream setting, then install our block.
     await writeFile(configPath, '[thinking]\neffort = "max"\n', "utf8");
     const install = await runSetup([], makeContext(hostEnv));
     expect(install.probe).toBe("ok");
     const beforeMigration = await readFile(configPath, "utf8");
-    expect(beforeMigration).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
+    expect(beforeMigration).toContain("BEGIN k3-plugin-cc-managed:claude-code");
     expect(beforeMigration).toContain('effort = "max"');
 
     // --- The 0.28.1-style migration: parse, flip the value, reserialize. ---
@@ -222,7 +222,7 @@ describe("marker-strip survival: real smol-toml round-trip", () => {
 
     // Sanity: value migrated, markers gone, hook table survived as data.
     expect(reserialized).toContain('effort = "high"');
-    expect(reserialized).not.toContain("kimi-plugin-cc-managed");
+    expect(reserialized).not.toContain("k3-plugin-cc-managed");
     expect(reserialized).toContain(hookScript);
     expect(reserialized).toContain("[[hooks]]");
 
@@ -292,13 +292,13 @@ describe("evaluateInstalled bare-table fallback strictness", () => {
 
   test("a marked-but-INVALID block for this host + a bare exact table elsewhere: no fallback from an invalid state", () => {
     const invalidMarked = [
-      `# === BEGIN kimi-plugin-cc-managed:${hostId} (v1.8.0) ===`,
+      `# === BEGIN k3-plugin-cc-managed:${hostId} (v1.8.0) ===`,
       "[[hooks]]",
       'matcher = "Write"', // invalid: matcher present disables the hook
       'event = "PreToolUse"',
       `command = "${expectedCommand}"`,
       "timeout = 15",
-      `# === END kimi-plugin-cc-managed:${hostId} ===`,
+      `# === END k3-plugin-cc-managed:${hostId} ===`,
       "",
       bareTableToml(expectedCommand),
     ].join("\n");
@@ -313,12 +313,12 @@ describe("evaluateInstalled bare-table fallback strictness", () => {
   test("duplicate marked blocks for this host + a bare exact table elsewhere: no fallback from a duplicate state", () => {
     const markedBlock = (version: string) =>
       [
-        `# === BEGIN kimi-plugin-cc-managed:${hostId} (v${version}) ===`,
+        `# === BEGIN k3-plugin-cc-managed:${hostId} (v${version}) ===`,
         "[[hooks]]",
         'event = "PreToolUse"',
         `command = "${expectedCommand}"`,
         "timeout = 15",
-        `# === END kimi-plugin-cc-managed:${hostId} ===`,
+        `# === END k3-plugin-cc-managed:${hostId} ===`,
       ].join("\n");
     const contents = [markedBlock("1.0.0"), markedBlock("1.0.1"), bareTableToml(expectedCommand)].join(
       "\n\n",
@@ -337,8 +337,8 @@ describe("scoped uninstall on a stripped config never touches a hand-rolled hook
     const hookScriptClaude = await seedHostHookScript(caseDir, ".claude");
     const hookScriptCodex = await seedHostHookScript(caseDir, ".codex");
 
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOOK_SCRIPT: hookScriptClaude };
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOOK_SCRIPT: hookScriptCodex };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOOK_SCRIPT: hookScriptClaude };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOOK_SCRIPT: hookScriptCodex };
 
     const HAND_ROLLED_HOOK = "/opt/acme/my-own-hook.js";
     const handRolled = [
@@ -356,13 +356,13 @@ describe("scoped uninstall on a stripped config never touches a hand-rolled hook
     const afterInstall = await readFile(configPath, "utf8");
     // Survives install (both hosts' installs run around it).
     expect(afterInstall).toContain(HAND_ROLLED_HOOK);
-    expect(afterInstall).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
-    expect(afterInstall).toContain("BEGIN kimi-plugin-cc-managed:codex");
+    expect(afterInstall).toContain("BEGIN k3-plugin-cc-managed:claude-code");
+    expect(afterInstall).toContain("BEGIN k3-plugin-cc-managed:codex");
 
     // Simulate the kimi-code config rewrite that strips all comments/markers.
     const rewritten = stringify(parse(afterInstall));
     await writeFile(configPath, rewritten, "utf8");
-    expect(rewritten).not.toContain("kimi-plugin-cc-managed");
+    expect(rewritten).not.toContain("k3-plugin-cc-managed");
     expect(rewritten).toContain(HAND_ROLLED_HOOK);
     expect(rewritten.match(/\[\[hooks\]\]/g)?.length).toBe(3);
 
@@ -381,7 +381,7 @@ describe("scoped uninstall on a stripped config never touches a hand-rolled hook
     expect(allUninstall.blockRemoved).toBe(true);
     const afterAll = await readFile(configPath, "utf8");
     expect(afterAll).not.toContain(hookScriptCodex);
-    expect(afterAll).not.toContain("kimi-plugin-cc-managed");
+    expect(afterAll).not.toContain("k3-plugin-cc-managed");
     // Survives --all.
     expect(afterAll).toContain(HAND_ROLLED_HOOK);
   });
@@ -389,8 +389,8 @@ describe("scoped uninstall on a stripped config never touches a hand-rolled hook
 
 describe("findUnmanagedApprovalHookBlocks(contents, ownedBy)", () => {
   test("ownedBy scopes to a single host; omitted returns every plugin table but never a hand-rolled hook", () => {
-    const claudeCmd = `'${process.execPath}' '/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js'`;
-    const codexCmd = `'${process.execPath}' '/Users/x/.codex/plugins/cache/kimi-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js'`;
+    const claudeCmd = `'${process.execPath}' '/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js'`;
+    const codexCmd = `'${process.execPath}' '/Users/x/.codex/plugins/cache/brilia-k3-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js'`;
     const handRolledCmd = "'/usr/bin/node' '/opt/acme/my-own-hook.js'";
 
     const table = (command: string): string =>
@@ -421,7 +421,7 @@ describe("findUnmanagedApprovalHookBlocks(contents, ownedBy)", () => {
 
 describe("blank-line-separated matcher (Opus review, HIGH — TOML table span)", () => {
   const NODE = process.execPath;
-  const HOOK = "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js";
+  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js";
   const expected = `'${NODE}' '${HOOK}'`;
   const cmdLine = `command = "'${NODE}' '${HOOK}'"`;
 
@@ -458,7 +458,7 @@ describe("blank-line-separated matcher (Opus review, HIGH — TOML table span)",
 
 describe("parser-based installed check (Codex/Opus/kimi convergence — TOML, not lexing)", () => {
   const NODE = process.execPath;
-  const HOOK = "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js";
+  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.2/dist/hooks/approval-hook.js";
   const expected = `'${NODE}' '${HOOK}'`;
   const cmdLine = `command = "'${NODE}' '${HOOK}'"`;
   const inst = (cfg: string) => evaluateInstalled(cfg, expected, { hostId: "claude-code" }).installed;
@@ -491,7 +491,7 @@ describe("parser-based installed check (Codex/Opus/kimi convergence — TOML, no
   // is that host's hook, not evidence THIS host is installed.
   test("exact command nested in another host's marked block does NOT count (host isolation)", () => {
     const cfg =
-      `# === BEGIN kimi-plugin-cc-managed:codex (v1.8.2) ===\n[[hooks]]\nevent = "PreToolUse"\n${cmdLine}\ntimeout = 15\n# === END kimi-plugin-cc-managed:codex ===\n`;
+      `# === BEGIN k3-plugin-cc-managed:codex (v1.8.2) ===\n[[hooks]]\nevent = "PreToolUse"\n${cmdLine}\ntimeout = 15\n# === END k3-plugin-cc-managed:codex ===\n`;
     expect(inst(cfg)).toBe(false);
   });
 
@@ -500,7 +500,7 @@ describe("parser-based installed check (Codex/Opus/kimi convergence — TOML, no
   test("a clean bare table counts even beside another host's marked block", () => {
     const cfg =
       `[[hooks]]\nevent = "PreToolUse"\n${cmdLine}\ntimeout = 15\n\n` +
-      `# === BEGIN kimi-plugin-cc-managed:codex (v1.8.2) ===\n[[hooks]]\nevent = "PreToolUse"\ncommand = "'${NODE}' '/other/approval-hook.js'"\ntimeout = 15\n# === END kimi-plugin-cc-managed:codex ===\n`;
+      `# === BEGIN k3-plugin-cc-managed:codex (v1.8.2) ===\n[[hooks]]\nevent = "PreToolUse"\ncommand = "'${NODE}' '/other/approval-hook.js'"\ntimeout = 15\n# === END k3-plugin-cc-managed:codex ===\n`;
     const r = evaluateInstalled(cfg, expected, { hostId: "claude-code" });
     expect(r.installed).toBe(true);
     expect(r.via).toBe("bare-table");
@@ -522,14 +522,14 @@ describe("parser-based installed check (Codex/Opus/kimi convergence — TOML, no
 // (kimi whole-repo audit 2026-07-17.)
 describe("marked-block matcher rejection (parser-based body check)", () => {
   const NODE = process.execPath;
-  const HOOK = "/Users/x/.claude/plugins/cache/kimi-marketplace/kimi/1.8.5/dist/hooks/approval-hook.js";
+  const HOOK = "/Users/x/.claude/plugins/cache/brilia-k3-marketplace/kimi/1.8.5/dist/hooks/approval-hook.js";
   const expected = `'${NODE}' '${HOOK}'`;
   const cmdLine = `command = "'${NODE}' '${HOOK}'"`;
   const hostId = "claude-code";
   const marked = (bodyExtra: string) =>
-    `# === BEGIN kimi-plugin-cc-managed:claude-code (v1.8.5) ===\n` +
+    `# === BEGIN k3-plugin-cc-managed:claude-code (v1.8.5) ===\n` +
     `[[hooks]]\nevent = "PreToolUse"\n${cmdLine}\ntimeout = 15\n${bodyExtra}` +
-    `# === END kimi-plugin-cc-managed:claude-code ===\n`;
+    `# === END k3-plugin-cc-managed:claude-code ===\n`;
   const inst = (cfg: string) => evaluateInstalled(cfg, expected, { hostId });
 
   test("a CLEAN marked block still counts as installed (no false positive)", () => {
@@ -563,9 +563,9 @@ describe("marked-block matcher rejection (parser-based body check)", () => {
   // clean. The whole-file `foundHookEntryIsClean` parse closes this.
   test("`matcher` AFTER the END marker does NOT count as installed", () => {
     const cfg =
-      `# === BEGIN kimi-plugin-cc-managed:claude-code (v1.8.6) ===\n` +
+      `# === BEGIN k3-plugin-cc-managed:claude-code (v1.8.6) ===\n` +
       `[[hooks]]\nevent = "PreToolUse"\n${cmdLine}\ntimeout = 15\n` +
-      `# === END kimi-plugin-cc-managed:claude-code ===\n` +
+      `# === END k3-plugin-cc-managed:claude-code ===\n` +
       `matcher = "*"\n`;
     const r = inst(cfg);
     expect(r.installed).toBe(false);
@@ -573,9 +573,9 @@ describe("marked-block matcher rejection (parser-based body check)", () => {
 
   test("a stray key AFTER the END marker does NOT count as installed", () => {
     const cfg =
-      `# === BEGIN kimi-plugin-cc-managed:claude-code (v1.8.6) ===\n` +
+      `# === BEGIN k3-plugin-cc-managed:claude-code (v1.8.6) ===\n` +
       `[[hooks]]\nevent = "PreToolUse"\n${cmdLine}\ntimeout = 15\n` +
-      `# === END kimi-plugin-cc-managed:claude-code ===\n` +
+      `# === END k3-plugin-cc-managed:claude-code ===\n` +
       `user_ok = true\n`;
     expect(inst(cfg).installed).toBe(false);
   });
@@ -584,9 +584,9 @@ describe("marked-block matcher rejection (parser-based body check)", () => {
     // A new `[table]`/`[[hooks]]` header after END terminates our table, so a
     // matcher there belongs to the other table, not ours — must stay installed.
     const cfg =
-      `# === BEGIN kimi-plugin-cc-managed:claude-code (v1.8.6) ===\n` +
+      `# === BEGIN k3-plugin-cc-managed:claude-code (v1.8.6) ===\n` +
       `[[hooks]]\nevent = "PreToolUse"\n${cmdLine}\ntimeout = 15\n` +
-      `# === END kimi-plugin-cc-managed:claude-code ===\n` +
+      `# === END k3-plugin-cc-managed:claude-code ===\n` +
       `[[hooks]]\nevent = "Stop"\nmatcher = "*"\ncommand = "'${NODE}' '/other.js'"\n`;
     const r = inst(cfg);
     expect(r.installed).toBe(true);

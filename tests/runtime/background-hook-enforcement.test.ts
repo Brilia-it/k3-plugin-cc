@@ -21,15 +21,15 @@ import { cleanupTestPath, createGitRepoFixture, createTestPluginDataRoot } from 
  *
  * That regression was caught by a pre-release model review, not by CI. The
  * post-release review identified the structural reason: every background test in
- * this suite sets `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1`, and the one worker-refusal
+ * this suite sets `K3_PLUGIN_CC_SKIP_HOOK_CHECK=1`, and the one worker-refusal
  * test drives `executeAskJob` IN-PROCESS. Nothing ever ran a real detached worker
  * with enforcement on, so nothing could observe the two processes disagreeing.
  *
  * WHY IT CANNOT LIVE IN ask-background.test.ts
  *
- * The bug only manifests on the NO-OVERRIDE path: with `KIMI_PLUGIN_CC_NODE_BIN`
+ * The bug only manifests on the NO-OVERRIDE path: with `K3_PLUGIN_CC_NODE_BIN`
  * set, both the spawner and the verifier honor it verbatim and agree by
- * construction — the buggy code (`env.KIMI_PLUGIN_CC_NODE_BIN || process.execPath`)
+ * construction — the buggy code (`env.K3_PLUGIN_CC_NODE_BIN || process.execPath`)
  * did too. Reproducing it therefore requires the PARENT to be a real node process
  * invoked through a symlink, which is impossible inside `bun test` (there,
  * `process.execPath` is bun). So this test shells out: it runs the companion CLI
@@ -122,17 +122,17 @@ async function buildFixture(label: string): Promise<{
     ...process.env,
     CLAUDE_PLUGIN_DATA: pluginDataRoot,
     KIMI_CODE_HOME: kimiHome,
-    KIMI_PLUGIN_CC_HOOK_SCRIPT: HOOK_SCRIPT,
+    K3_PLUGIN_CC_HOOK_SCRIPT: HOOK_SCRIPT,
     // Mock Kimi so no network/binary is needed.
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", MOCK_CLI]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: "ask-success",
-    KIMI_PLUGIN_CC_MOCK_DELAY_MS: "0",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", MOCK_CLI]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: "ask-success",
+    K3_PLUGIN_CC_MOCK_DELAY_MS: "0",
   };
   // The two variables that would defeat the test: an override makes spawner and
   // verifier agree by construction, and the skip flag disables enforcement.
-  delete env.KIMI_PLUGIN_CC_NODE_BIN;
-  delete env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK;
+  delete env.K3_PLUGIN_CC_NODE_BIN;
+  delete env.K3_PLUGIN_CC_SKIP_HOOK_CHECK;
 
   return { pluginDataRoot, repoFixture, env, nodeSymlink };
 }

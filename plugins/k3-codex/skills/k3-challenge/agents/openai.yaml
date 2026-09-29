@@ -1,5 +1,5 @@
 interface:
-  display_name: "Kimi Challenge"
+  display_name: "K3 Challenge"
   short_description: "Challenge a design or approach"
   default_prompt: "Use $k3-challenge to stress-test this approach."
 policy:

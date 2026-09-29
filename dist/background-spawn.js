@@ -33,7 +33,7 @@ export async function startBackgroundJob(job, prompt, context, paths, options) {
     // constraint — a bare name is resolved by spawn() via PATH — so the override
     // is honored verbatim here. Only the no-override default needs to change:
     // it must match what the verifier computes, hence `preferStableNodePath`.
-    const override = context.env.KIMI_PLUGIN_CC_NODE_BIN;
+    const override = context.env.K3_PLUGIN_CC_NODE_BIN;
     const nodeBinary = override !== undefined && override.length > 0
         ? override
         : preferStableNodePath(process.execPath);
@@ -48,7 +48,7 @@ export async function startBackgroundJob(job, prompt, context, paths, options) {
         catch (accessError) {
             const code = accessError.code;
             if (code === "ENOENT" || code === "EACCES" || code === "EPERM") {
-                const classified = new RuntimeError(options.nodeBinInvalidErrorCode, `Configured Node binary is not executable: ${nodeBinary}. Set KIMI_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and retry.`, options.spawnStage, accessError instanceof Error ? { cause: accessError } : undefined);
+                const classified = new RuntimeError(options.nodeBinInvalidErrorCode, `Configured Node binary is not executable: ${nodeBinary}. Set K3_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and retry.`, options.spawnStage, accessError instanceof Error ? { cause: accessError } : undefined);
                 await persistBackgroundFailure(paths, job.job_id, classified, options.failedSummary, "node-bin-invalid");
                 throw classified;
             }
@@ -66,12 +66,12 @@ export async function startBackgroundJob(job, prompt, context, paths, options) {
         stdio: "ignore",
         env: {
             ...context.env,
-            KIMI_PLUGIN_CC_WORKSPACE_CWD: context.cwd,
+            K3_PLUGIN_CC_WORKSPACE_CWD: context.cwd,
             [options.promptEnvVar]: b64,
             [options.reusedSessionEnvVar]: options.reusedSession ? "1" : "0",
             ...(options.extraEnv ?? {}),
             // A worker must reopen the exact store its parent selected, regardless of cwd.
-            KIMI_PLUGIN_CC_DATA: path.resolve(paths.claudePluginData),
+            K3_PLUGIN_CC_DATA: path.resolve(paths.claudePluginData),
         },
     });
     let spawnReportedFailure = false;
@@ -191,7 +191,7 @@ async function appendStuckJobTelemetry(paths, entry) {
         await appendFile(stuckPath, `${JSON.stringify({ ts: new Date().toISOString(), ...entry })}\n`, "utf8");
     }
     catch (appendError) {
-        process.stderr.write(`[kimi-plugin-cc] failed to append stuck job telemetry at ${stuckPath}: ${formatError(appendError)}\n`);
+        process.stderr.write(`[k3-plugin-cc] failed to append stuck job telemetry at ${stuckPath}: ${formatError(appendError)}\n`);
     }
 }
 function sleep(ms) {

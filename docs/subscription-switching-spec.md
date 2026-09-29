@@ -190,7 +190,7 @@ Add subscription provenance to jobs and a `job_attempts` table with this minimum
 
 Keep parent job status `running` while switching, with `phase=subscription-switching`. Terminal job and attempt states are permanent. Claim the next attempt transactionally, with a unique active-attempt constraint. Persist validated session metadata even when an attempt fails; currently ask stores the session ID after its success assertion.
 
-Use the existing host-specific SQLite store for jobs. Use a separate shared-home session lease for coordination between plugin hosts: `<KIMI_CODE_HOME>/.kimi-plugin-cc/session-locks/<session-id-hash>.lock`. Store only owner host, job, process identity and a random ownership token. Apply no-follow reads, bounded acquisition and ownership-checked stale recovery. Never create locks in the credential directory.
+Use the existing host-specific SQLite store for jobs. Use a separate shared-home session lease for coordination between plugin hosts: `<KIMI_CODE_HOME>/.k3-plugin-cc/session-locks/<session-id-hash>.lock`. Store only owner host, job, process identity and a random ownership token. Apply no-follow reads, bounded acquisition and ownership-checked stale recovery. Never create locks in the credential directory.
 
 Lease a known session before resume; lease a fresh session as soon as its ID is announced. A busy or uncertain lease refuses. Different sessions may use different regional profiles concurrently. This lease coordinates plugin invocations; direct native Kimi writers require upstream exclusive-session protection or a documented recovery refusal before Stage B can ship.
 

@@ -31,17 +31,17 @@ function makeMockEnv(
   return {
     ...process.env,
     CLAUDE_PLUGIN_DATA: pluginDataRoot,
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: scenario,
-    KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: scenario,
+    K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
   };
 }
 
 function withoutHookCheckBypass(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const guardedEnv = { ...env };
-  delete guardedEnv.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK;
+  delete guardedEnv.K3_PLUGIN_CC_SKIP_HOOK_CHECK;
   return guardedEnv;
 }
 
@@ -111,7 +111,7 @@ describe("read-only command handlers", () => {
     const env = {
       ...makeMockEnv(pluginDataRoot, "ask-success", invocationPath),
       KIMI_CODE_HOME: kimiHome,
-      KIMI_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
+      K3_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
     };
 
     try {
@@ -119,7 +119,7 @@ describe("read-only command handlers", () => {
       const result = await runAsk(["What", "changed?"], makeContext(process.cwd(), env));
       const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as {
         argv: string[];
-        env: { KIMI_PLUGIN_CC_CMD: string | null };
+        env: { K3_PLUGIN_CC_CMD: string | null };
       };
       const state = JSON.parse(await readFile(statePath, "utf8")) as Record<string, unknown>;
 
@@ -130,12 +130,12 @@ describe("read-only command handlers", () => {
       expect(invocation.argv).toContain("--output-format");
       expect(invocation.argv).toContain("stream-json");
       expect(invocation.argv).toContain("-p");
-      expect(invocation.env.KIMI_PLUGIN_CC_CMD).toBe("ask");
+      expect(invocation.env.K3_PLUGIN_CC_CMD).toBe("ask");
       // v1.0 alpha.4: ask runs thinking-on always. Only review-gate's
       // internal caller pins thinking=false. (Kimi alpha.4 finding #1.)
       expect(invocation.argv).not.toContain("--no-thinking");
       expect(invocation.argv).not.toContain("--thinking");
-      expect(state.title).toBe("Kimi Ask: What changed?");
+      expect(state.title).toBe("K3 Ask: What changed?");
       expect(state.isCustomTitle).toBe(true);
     } finally {
       await cleanupTestPath(pluginDataRoot);
@@ -152,7 +152,7 @@ describe("read-only command handlers", () => {
     const env = {
       ...makeMockEnv(pluginDataRoot, "review-success", invocationPath),
       KIMI_CODE_HOME: kimiHome,
-      KIMI_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
+      K3_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
     };
 
     try {
@@ -160,15 +160,15 @@ describe("read-only command handlers", () => {
       const result = await runReview([], makeContext(repoRoot, env), "review");
       const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as {
         argv: string[];
-        env: { KIMI_PLUGIN_CC_CMD: string | null };
+        env: { K3_PLUGIN_CC_CMD: string | null };
       };
       const state = JSON.parse(await readFile(statePath, "utf8")) as Record<string, unknown>;
 
       // Output passes through as prose — no schema parsing.
       expect(result).toContain("concern");
       expect(result).toContain("Incorrect answer constant");
-      expect(invocation.env.KIMI_PLUGIN_CC_CMD).toBe("review");
-      expect(state.title).toBe("Kimi Review: current working tree changes");
+      expect(invocation.env.K3_PLUGIN_CC_CMD).toBe("review");
+      expect(state.title).toBe("K3 Review: current working tree changes");
       expect(state.isCustomTitle).toBe(true);
     } finally {
       await cleanupTestPath(pluginDataRoot);
@@ -184,14 +184,14 @@ describe("read-only command handlers", () => {
     const env = makeMockEnv(pluginDataRoot, "challenge-success", invocationPath);
 
     try {
-      expect(env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK).toBe("1");
+      expect(env.K3_PLUGIN_CC_SKIP_HOOK_CHECK).toBe("1");
       const result = await runReview([], makeContext(repoRoot, env), "challenge");
       const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as {
-        env: { KIMI_PLUGIN_CC_CMD: string | null };
+        env: { K3_PLUGIN_CC_CMD: string | null };
       };
 
       expect(result).toContain("Mock Kimi challenge");
-      expect(invocation.env.KIMI_PLUGIN_CC_CMD).toBe("challenge");
+      expect(invocation.env.K3_PLUGIN_CC_CMD).toBe("challenge");
     } finally {
       await cleanupTestPath(pluginDataRoot);
       await cleanupTestPath(repoRoot);
