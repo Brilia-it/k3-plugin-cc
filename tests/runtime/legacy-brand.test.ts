@@ -11,8 +11,8 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { existsSync, lstatSync, realpathSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -38,6 +38,7 @@ import type { CommandContext } from "../../runtime/types.js";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
 const hookScriptPath = path.join(repoRoot, "dist", "hooks", "approval-hook.js");
+const WRITE_LOCK_HOLDER = path.join(repoRoot, "tests", "helpers", "hold-write-lock.ts");
 
 const OUR_OLD_SCRIPT = "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/2.0.7-brilia.0.5.1/dist/hooks/approval-hook.js";
 const OUR_OLD_CODEX_SCRIPT = "/home/u/.codex/plugins/cache/brilia-k3-marketplace/k3/2.0.7-brilia.0.5.1/dist/hooks/approval-hook.js";
@@ -58,6 +59,9 @@ function legacyBlock(host: string, script: string, extra: string[] = []): string
 
 const USER_BEFORE = ["# my settings", 'default_model = "kimi-for-coding"', ""];
 const UPSTREAM_BLOCK = legacyBlock("claude-code", UPSTREAM_SCRIPT);
+// The scan reads lines; TOML can hide a whole block-shaped text inside a
+// multi-line string. The parser has the last word before anything goes.
+const IN_A_STRING = ['note = """', ...legacyBlock("claude-code", OUR_OLD_SCRIPT), "[testo]", '"""', ""].join("\n");
 
 let scratch: string;
 beforeAll(async () => {
@@ -129,6 +133,24 @@ describe("blocks under the old marker", () => {
       expect({ key, ours: findLegacyBrandBlocks(contents)[0]!.ours }).toEqual({ key, ours: false });
       expect(stripLegacyBrandBlocks(contents, "\n", "claude-code").stripped).toBe(contents);
     }
+  });
+
+  test("a block-shaped text inside a multi-line string is never removed", () => {
+    const result = stripLegacyBrandBlocks(IN_A_STRING, "\n", "claude-code");
+    expect(result.removed).toEqual([]);
+    expect(result.unconfirmed).toHaveLength(1);
+    expect(result.stripped).toBe(IN_A_STRING);
+    expect(describeLegacyBrandBlocks([], [], "found", [], result.unconfirmed).join("\n")).toContain("remove them by hand");
+  });
+
+  test("a real block is still removed, and blank lines inside a string elsewhere stay as they are", () => {
+    const poem = ['poem = """', "one", "", "", "", "two", '"""'];
+    const contents = [...poem, "", ...legacyBlock("claude-code", OUR_OLD_SCRIPT), "", "", ""].join("\n");
+    const result = stripLegacyBrandBlocks(contents, "\n", "claude-code");
+    expect(result.removed).toHaveLength(1);
+    expect(result.unconfirmed).toEqual([]);
+    expect(result.stripped.startsWith(`${poem.join("\n")}\n`)).toBe(true);
+    expect(result.stripped).not.toContain("kimi-plugin-cc-managed");
   });
 
   test("host-scoped strip removes this host's own, keeps the other host's and upstream's byte for byte", () => {
@@ -259,6 +281,15 @@ describe("setup migrates the old block", () => {
     // A second run finds nothing left to migrate.
     const again = await runSetup([], context);
     expect(again.warnings.join("\n")).not.toContain("Migrated");
+  }, 60_000);
+
+  test("install and uninstall stop, touching nothing, when the parser does not confirm the removal", async () => {
+    const { context, configPath } = await makeCase("install-unconfirmed");
+    await writeFile(configPath, IN_A_STRING, "utf8");
+    await expect(runSetup([], context)).rejects.toThrow("left unchanged");
+    expect(await readFile(configPath, "utf8")).toBe(IN_A_STRING);
+    await expect(runSetup(["--uninstall"], context)).rejects.toThrow("left unchanged");
+    expect(await readFile(configPath, "utf8")).toBe(IN_A_STRING);
   }, 60_000);
 
   test("install also takes an old block that runs exactly its own command, under another host id", async () => {
@@ -433,6 +464,112 @@ describe("the data directory", () => {
     expect(lstatSync(old).isSymbolicLink()).toBe(true);
     expect(readJob(env, "job-late").stream_log_path).toBe(path.join(current, "logs", "job-late.jsonl"));
   });
+
+  // Another process holding the job store's write lock, as a command does while
+  // it records a job. Resolves once the lock is held.
+  async function holdWriteLock(dbPath: string, holdMs: number, keepOpenMs = 0) {
+    const marker = `${dbPath}.lock-held`;
+    const holder = spawn(process.execPath, [WRITE_LOCK_HOLDER, dbPath, marker, String(holdMs), String(keepOpenMs)], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    holder.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    const exited = new Promise<number | null>((resolve) => holder.on("exit", resolve));
+    const start = Date.now();
+    while (!existsSync(marker)) {
+      if (Date.now() - start > 10_000) throw new Error(`lock holder never started: ${stderr}`);
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    return { exited, kill: () => holder.kill(), releasedAt: () => Number(readFileSync(`${marker}.release`, "utf8")) };
+  }
+
+  // A writer that never lets go within setup's patience: setup must give up
+  // with the store's own "locked" error and change nothing.
+  test("the move takes the job store's write lock: while another process holds it, nothing moves", async () => {
+    const { root, env } = await dataCase("locked-move");
+    const old = await seedLegacy(root, env, [["job-done", "completed"]]);
+    const holder = await holdWriteLock(path.join(old, "state.db"), 120_000);
+    try {
+      const result = await migrateLegacyDataDir(env);
+      expect(result.status).toBe("failed");
+      expect(result.status === "failed" ? result.reason : "").toContain("locked by another process");
+    } finally {
+      holder.kill();
+      await holder.exited;
+    }
+    expect(lstatSync(old).isSymbolicLink()).toBe(false);
+    expect(lstatSync(old).isDirectory()).toBe(true);
+    expect(existsSync(path.join(root, "k3-plugin-cc"))).toBe(false);
+    expect(readJob(env, "job-done").stream_log_path).toBe(path.join(old, "logs", "job-done.jsonl"));
+  }, 120_000);
+
+  test("so does the removal of the alias", async () => {
+    const { root, env } = await dataCase("locked-alias");
+    const old = await seedLegacy(root, env, [["job-done", "completed"]]);
+    await migrateLegacyDataDir(env);
+    const holder = await holdWriteLock(path.join(root, "k3-plugin-cc", "state.db"), 120_000);
+    try {
+      const result = await migrateLegacyDataDir(env);
+      expect(result.status === "failed" ? result.reason : "").toContain("locked by another process");
+    } finally {
+      holder.kill();
+      await holder.exited;
+    }
+    expect(lstatSync(old).isSymbolicLink()).toBe(true);
+  }, 120_000);
+
+  // A writer that lets go after a while: on macOS and Linux setup waits for it,
+  // then moves.
+  test.skipIf(process.platform === "win32")("setup waits for a writer to finish, then moves", async () => {
+    const { root, env } = await dataCase("waits-then-moves");
+    const old = await seedLegacy(root, env, [["job-done", "completed"]]);
+    const holder = await holdWriteLock(path.join(old, "state.db"), 2000);
+    const result = await migrateLegacyDataDir(env);
+    const finished = Date.now();
+    expect(await holder.exited).toBe(0);
+    expect(result.status).toBe("migrated");
+    expect(finished).toBeGreaterThanOrEqual(holder.releasedAt());
+  }, 60_000);
+
+  // On Windows the rename runs after the lock is released, and fails while
+  // another process still has the store open: setup reports it, changes nothing.
+  test.skipIf(process.platform !== "win32")("a store another process keeps open makes the rename fail", async () => {
+    const { root, env } = await dataCase("open-store-blocks-rename");
+    const old = await seedLegacy(root, env, [["job-done", "completed"]]);
+    const holder = await holdWriteLock(path.join(old, "state.db"), 1000, 30_000);
+    try {
+      const result = await migrateLegacyDataDir(env);
+      expect(result.status).toBe("failed");
+    } finally {
+      holder.kill();
+      await holder.exited;
+    }
+    expect(lstatSync(old).isDirectory()).toBe(true);
+    expect(existsSync(path.join(root, "k3-plugin-cc"))).toBe(false);
+    expect(readJob(env, "job-done").stream_log_path).toBe(path.join(old, "logs", "job-done.jsonl"));
+  }, 60_000);
+
+  // Windows moves outside the lock (a rename with the store open fails there),
+  // so the rollback exists only on macOS and Linux.
+  test.skipIf(process.platform === "win32")(
+    "a rename that fails rolls back the rewrite of the stored paths",
+    async () => {
+      const { root, env } = await dataCase("rename-fails");
+      const old = await seedLegacy(root, env, [["job-done", "completed"]]);
+      await chmod(root, 0o555); // the directory cannot be renamed inside it
+      try {
+        const result = await migrateLegacyDataDir(env);
+        expect(result.status).toBe("failed");
+      } finally {
+        await chmod(root, 0o755);
+      }
+      expect(lstatSync(old).isDirectory()).toBe(true);
+      expect(readJob(env, "job-done").stream_log_path).toBe(path.join(old, "logs", "job-done.jsonl"));
+    },
+    60_000,
+  );
 
   test("paths stored under another spelling of the same root are rewritten too", async () => {
     // 0.5.x stored paths built from CLAUDE_PLUGIN_DATA as the host set it; the

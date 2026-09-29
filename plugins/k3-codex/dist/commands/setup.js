@@ -171,6 +171,13 @@ async function runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled,
         // under the old marker that are not ours are kept byte for byte.
         const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
         const legacyBrand = stripLegacyBrandBlocks(inlineHooks.contents, lineEnding, hostId, expectedCommand);
+        if (legacyBrand.unconfirmed.length > 0) {
+            // The TOML parser does not confirm that removing them changes only
+            // those hooks. Stop before touching the file: the orphan prune below
+            // would otherwise work on text this setup does not understand.
+            throw new RuntimeError("SETUP_LEGACY_BLOCK_UNCONFIRMED", describeLegacyBrandBlocks([], [], "found", [], legacyBrand.unconfirmed).join(" ") +
+                ` ${configPath} was left unchanged; run /k3:setup again once they are gone.`, "setup.install", { details: { configPath, lines: legacyBrand.unconfirmed.map((b) => b.beginLine + 1) } });
+        }
         warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "removed", legacyBrand.strayMarkers));
         // Prune THIS HOST's orphaned, marker-less approval-hook [[hooks]] entries
         // BEFORE resolving the managed block, so line numbers used for splicing are
@@ -300,7 +307,7 @@ async function runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, w
     // sessions, and this host's block (checked above) is the one that does.
     const checkLineEnding = detectLineEnding(existing);
     const legacyBrand = stripLegacyBrandBlocks(existing, checkLineEnding, hostId, expectedCommand);
-    warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "found", legacyBrand.strayMarkers));
+    warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "found", legacyBrand.strayMarkers, legacyBrand.unconfirmed));
     const legacyDataNote = describeLegacyDataDirInUse(context.env);
     if (legacyDataNote !== null)
         warnings.push(legacyDataNote);
@@ -475,11 +482,17 @@ async function runUninstallLocked(configPath, hookScriptPath, hostId, removeAllH
     // After the current-marker strip, so the orphan line numbers above refer to
     // the file as the user sees it.
     const legacyBrand = stripLegacyBrandBlocks(strippedCurrent, lineEnding, removeAllHosts ? undefined : hostId, expectedCommand);
+    if (legacyBrand.unconfirmed.length > 0) {
+        // As on install: stop before the orphan prune below works on text this
+        // setup does not understand.
+        throw new RuntimeError("SETUP_LEGACY_BLOCK_UNCONFIRMED", describeLegacyBrandBlocks([], [], "found", [], legacyBrand.unconfirmed).join(" ") +
+            ` ${configPath} was left unchanged; run /k3:setup --uninstall again once they are gone.`, "setup.uninstall", { details: { configPath, lines: legacyBrand.unconfirmed.map((b) => b.beginLine + 1) } });
+    }
     if (legacyBrand.removed.length > 0) {
         warnings.push(`Also removed ${legacyBrand.removed.length} block(s) written by k3-plugin-cc before 0.6.0 under the old marker \`kimi-plugin-cc-managed\`.`);
     }
     // Blocks left in place and stray old-marker lines are reported as on install.
-    warnings.push(...describeLegacyBrandBlocks([], legacyBrand.kept, "removed", legacyBrand.strayMarkers));
+    warnings.push(...describeLegacyBrandBlocks([], legacyBrand.kept, "removed", legacyBrand.strayMarkers, legacyBrand.unconfirmed));
     const strippedMarkers = legacyBrand.stripped;
     const removedBlocks = currentRemoved + legacyBrand.removed.length;
     // Pass `expectedCommand` as `alsoMatchCommand` (both scoped and --all) so

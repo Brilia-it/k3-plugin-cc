@@ -12,15 +12,25 @@
 //   - data directory: while only the old one exists, runtime/paths.ts keeps
 //     using it. Setup renames it when no job is marked running, and leaves an
 //     ALIAS under the old name pointing to the new one (a junction on Windows,
-//     a directory symlink elsewhere). The alias is what makes the move safe
-//     without a lock shared with every command: a command that resolved the old
-//     path just before the rename keeps working through it. A later setup
-//     removes the alias once no job is running. The paths the job store keeps
-//     for past jobs are rewritten on every setup, so a rewrite that failed once
-//     is simply done again.
+//     a directory symlink elsewhere), for a command that had already found the
+//     old name. A later setup removes the alias once no job is running. The
+//     paths the job store keeps for past jobs are rewritten on every setup, so
+//     a rewrite that failed once is simply done again.
+//
+//     The lock is the job store's own write lock (JobStore.withWriteLock):
+//     every command takes it to record a job. Setup holds it while it counts
+//     the running jobs and, on macOS and Linux, while it rewrites the stored
+//     paths, renames the directory and creates the alias, so no job can be
+//     created or marked running in between. Windows refuses to rename a
+//     directory while a file in it is open, the store included, so there the
+//     lock is released before the rename, and a command that opened the store
+//     meanwhile makes the rename fail (setup says to run it again). What no
+//     lock covers: a command that found the old name and touches the directory
+//     in the instant between the rename and the alias. It stops with an error
+//     and can be run again; runtime/paths.ts never recreates the old directory,
+//     so the state is never split in two.
 
-import { existsSync, lstatSync, realpathSync } from "node:fs";
-import { rename, rmdir, symlink, unlink } from "node:fs/promises";
+import { existsSync, lstatSync, realpathSync, renameSync, rmdirSync, symlinkSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
 import { JobStore } from "./job-store.js";
@@ -119,21 +129,39 @@ function withStore<T>(paths: PluginPaths, run: (store: JobStore) => T): T | null
   }
 }
 
-async function removeAlias(alias: string): Promise<void> {
+function removeAlias(alias: string): void {
   // Never a recursive removal: that would follow the alias into the real data.
   // On Windows a junction goes with rmdir; a POSIX symlink with unlink.
   try {
-    await unlink(alias);
+    unlinkSync(alias);
   } catch {
-    await rmdir(alias);
+    rmdirSync(alias);
   }
+}
+
+/** Rename, then leave the alias; an alias that cannot be created is reported, not fatal. */
+function renameAndAlias(legacy: string, current: string): string | undefined {
+  renameSync(legacy, current);
+  try {
+    symlinkSync(current, legacy, process.platform === "win32" ? "junction" : "dir");
+    return undefined;
+  } catch (error) {
+    return messageOf(error);
+  }
+}
+
+function migrated(legacy: string, current: string, rebased: number, aliasError: string | undefined): DataDirMigration {
+  return aliasError === undefined
+    ? { status: "migrated", from: legacy, to: current, rebased, alias: "kept" }
+    : { status: "migrated", from: legacy, to: current, rebased, alias: "not-created", aliasError };
 }
 
 /**
  * Move `<data root>/kimi-plugin-cc` to `<data root>/k3-plugin-cc`, only when the
- * new one does not exist and no job is marked running. Never merges two
- * directories and never throws: whatever happens, the plugin keeps working on
- * the directory runtime/paths.ts resolves.
+ * new one does not exist and no job is marked running, under the job store's
+ * write lock (see the top of this file). Never merges two directories and
+ * never throws: whatever happens, the plugin keeps working on the directory
+ * runtime/paths.ts resolves.
  */
 export async function migrateLegacyDataDir(env: NodeJS.ProcessEnv): Promise<DataDirMigration> {
   let root: string;
@@ -145,62 +173,79 @@ export async function migrateLegacyDataDir(env: NodeJS.ProcessEnv): Promise<Data
   }
   const legacy = path.join(root, LEGACY_DATA_DIR_NAME);
   const current = path.join(root, DATA_DIR_NAME);
-  const prefixes = legacyPrefixes(root, env);
+  const mapper = legacyPathMapper(legacyPrefixes(root, env), current);
   const state = legacyState(legacy, current);
 
   try {
     if (state === "other") return { status: "alias-foreign", alias: legacy };
 
-    if (state === "absent" || state === "alias-to-current") {
+    if (state === "absent") {
       // Retry the path rewrite every time: idempotent, and the only way a
       // rewrite that failed on the run that moved the directory gets done.
-      const paths = resolvePluginPaths(env);
-      const rebased = existsSync(current) ? withStore(paths, (s) => s.rebaseStoredPaths(legacyPathMapper(prefixes, current))) ?? 0 : 0;
-      if (state === "absent") return { status: "none", rebased };
-      const running = withStore(paths, (s) => s.countRunningJobs()) ?? 0;
-      if (running > 0) return { status: "alias-kept", alias: legacy, running, rebased };
-      await removeAlias(legacy);
-      return { status: "alias-removed", alias: legacy, rebased };
+      const rebased = existsSync(current) ? withStore(resolvePluginPaths(env), (s) => s.rebaseStoredPaths(mapper)) ?? 0 : 0;
+      return { status: "none", rebased };
+    }
+
+    if (state === "alias-to-current") {
+      // The rewrite, the count and the removal under one lock: a job that ends
+      // meanwhile cannot record a path under the old name after the rewrite and
+      // find the alias gone.
+      const outcome = withStore(resolvePluginPaths(env), (s) =>
+        s.withWriteLock((): DataDirMigration => {
+          const rebased = s.rewriteStoredPaths(mapper);
+          const running = s.countRunningJobs();
+          if (running > 0) return { status: "alias-kept", alias: legacy, running, rebased };
+          removeAlias(legacy);
+          return { status: "alias-removed", alias: legacy, rebased };
+        }),
+      );
+      if (outcome !== null) return outcome;
+      removeAlias(legacy); // no job store: no job was ever recorded
+      return { status: "alias-removed", alias: legacy, rebased: 0 };
     }
 
     // A real legacy directory.
     if (existsSync(current)) return { status: "both-exist", legacy, current };
-    const running = withStore(resolvePluginPaths(env), (s) => s.countRunningJobs()) ?? 0;
+    const legacyPaths = resolvePluginPaths(env);
+
+    if (process.platform !== "win32") {
+      // Count, rewrite, rename and alias under one lock. The store stays open
+      // across the rename: its file moves with the directory. A rename that
+      // fails rolls the rewrite back.
+      const outcome = withStore(legacyPaths, (s) =>
+        s.withWriteLock((): DataDirMigration => {
+          const running = s.countRunningJobs();
+          if (running > 0) return { status: "jobs-running", legacy, running };
+          const rebased = s.rewriteStoredPaths(mapper);
+          return migrated(legacy, current, rebased, renameAndAlias(legacy, current));
+        }),
+      );
+      return outcome ?? migrated(legacy, current, 0, renameAndAlias(legacy, current));
+    }
+
+    // Windows: count under the lock, then close the store, since an open file
+    // inside the directory makes the rename fail. So does any other command
+    // that opened the store meanwhile: then setup reports it and changes nothing.
+    const running = withStore(legacyPaths, (s) => s.withWriteLock(() => s.countRunningJobs())) ?? 0;
     if (running > 0) return { status: "jobs-running", legacy, running };
+    const aliasError = renameAndAlias(legacy, current);
+    let rebased = 0;
+    try {
+      rebased = withStore(resolvePluginPaths(env), (s) => s.rebaseStoredPaths(mapper)) ?? 0;
+    } catch (error) {
+      return {
+        status: "failed",
+        legacy,
+        current,
+        reason:
+          `moved, but the paths stored for past jobs were not rewritten yet (${messageOf(error)}); ` +
+          `the next /k3:setup rewrites them`,
+      };
+    }
+    return migrated(legacy, current, rebased, aliasError);
   } catch (error) {
     return { status: "failed", legacy, current, reason: messageOf(error) };
   }
-
-  try {
-    await rename(legacy, current);
-  } catch (error) {
-    // On Windows this is what an open handle inside the directory looks like.
-    return { status: "failed", legacy, current, reason: messageOf(error) };
-  }
-
-  let aliasError: string | undefined;
-  try {
-    await symlink(current, legacy, process.platform === "win32" ? "junction" : "dir");
-  } catch (error) {
-    aliasError = messageOf(error);
-  }
-
-  let rebased = 0;
-  try {
-    rebased = withStore(resolvePluginPaths(env), (s) => s.rebaseStoredPaths(legacyPathMapper(prefixes, current))) ?? 0;
-  } catch (error) {
-    return {
-      status: "failed",
-      legacy,
-      current,
-      reason:
-        `moved, but the paths stored for past jobs were not rewritten yet (${messageOf(error)}); ` +
-        `the next /k3:setup rewrites them`,
-    };
-  }
-  return aliasError === undefined
-    ? { status: "migrated", from: legacy, to: current, rebased, alias: "kept" }
-    : { status: "migrated", from: legacy, to: current, rebased, alias: "not-created", aliasError };
 }
 
 export function describeDataDirMigration(result: DataDirMigration): string | null {
@@ -214,10 +259,10 @@ export function describeDataDirMigration(result: DataDirMigration): string | nul
         `Moved the data directory from ${result.from} to ${result.to} (its pre-0.6 name). Jobs, logs, results ` +
         `and settings came with it; ${result.rebased} past job(s) had their stored paths rewritten. ` +
         (result.alias === "kept"
-          ? `The old name stays as an alias to the new directory, so a command started during the move keeps ` +
-            `working; the next /k3:setup removes it once no job is running.`
+          ? `The old name stays for now as an alias to the new directory, for a K3 command that had already ` +
+            `found it; the next /k3:setup removes it once no job is running.`
           : `The alias under the old name could not be created (${result.aliasError}): a K3 command that was ` +
-            `starting during the move may fail once; run it again.`)
+            `starting during the move may stop with an error; run it again.`)
       );
     case "alias-removed":
       return `Removed ${result.alias}, the alias left by the move of the data directory.`;

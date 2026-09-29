@@ -31,18 +31,31 @@ refuses, because the hook installed by 0.5.x reads variables this version no lon
     command this install writes, the BEGIN and END must carry the same host, and the block must hold
     only the hook table this plugin writes. In TOML the END comment does not close `[[hooks]]`: a key
     after it still belongs to the table, so such a block is left alone, as is a key before the
-    `[[hooks]]` header (it belongs to the table above). Any other block under that marker is kept
-    byte for byte: that is the upstream plugin's. Marker lines that do not pair up are reported by
-    text, never removed.
-  - *Data directory.* Renamed when no job is marked running, leaving an alias under the old name (a
-    junction on Windows, a directory symlink elsewhere) so a command that resolved the old path just
-    before the rename keeps working; the next setup removes the alias once no job is running, and
-    never follows it. The paths stored for past jobs are rewritten on every setup (idempotent, so a
-    rewrite that failed once is done next time), matching every spelling a 0.5.x install may have
-    used: the root, its real path, and the `CLAUDE_PLUGIN_DATA`/`PLUGIN_DATA` value, with Windows'
-    rules for case and separators. Until the rename the old directory stays in use; if both exist,
-    nothing is merged and `--check` says so. On Windows the rename fails while a file inside is open,
-    and setup says to run again later.
+    `[[hooks]]` header (it belongs to the table above). The scan reads lines, so before anything is
+    removed the TOML parser kimi-code uses (smol-toml) must confirm that the config, parsed before
+    and after, differs only by those hook entries; text shaped like a block inside a multi-line
+    string fails that. If it is not confirmed, setup (and `--uninstall`) stops before touching the
+    file and names the lines to remove by hand. Any other block under that marker is kept byte for
+    byte: that is the upstream plugin's. Marker lines that do not pair up are reported by text,
+    never removed.
+  - *Data directory.* Renamed when no job is marked running. Setup holds the job store's write lock,
+    the one every command takes to record a job, while it counts the running jobs and, on macOS and
+    Linux, while it rewrites the stored paths, renames the directory and creates the alias: no job
+    can be created or marked running in between, and a rename that fails rolls the rewrite back.
+    Windows refuses to rename a directory while a file in it is open, the store included, so there
+    the lock is released before the rename, and a command that opened the store meanwhile makes the
+    rename fail: setup says to run it again. The alias under the old name (a junction on Windows, a
+    directory symlink elsewhere) serves a command that had already found the old name; the next
+    setup removes it, under the same lock, once no job is running, and never follows it. What no
+    lock covers: a command that touches the old name in the instant between the rename and the
+    alias, or one still running from before the first setup, with no job recorded, when a later
+    setup removes the alias. Such a command stops with an error and can be run again: the old
+    directory is never recreated (the paths code creates only its subdirectories, one level at a
+    time), so the state is never split. The stored paths are rewritten on every setup
+    (idempotent), matching every spelling a 0.5.x install may have used: the root, its real path,
+    and the `CLAUDE_PLUGIN_DATA`/`PLUGIN_DATA` value, with Windows' rules for case and separators.
+    Until the rename the old directory stays in use; if both exist, nothing is merged and `--check`
+    says so.
   - *Variables.* It lists any `KIMI_PLUGIN_CC_*` variable still set: those are **not** read, because
     they are the upstream plugin's names and a value set for it (including the switch that skips the
     hook check) must not steer this one.
@@ -62,29 +75,39 @@ refuses, because the hook installed by 0.5.x reads variables this version no lon
   0.6.0 the same smoke fails 7 checks (the old collision), which is what shows it can fail.
 - **`scripts/identity-map.mjs`, the single definition of the renaming.** `apply` rewrites an upstream
   checkout into our names before it is merged, so future updates from upstream arrive already
-  renamed. It treats as text only strict UTF-8 without NUL bytes, refuses before writing anything
-  when a rename would land on an existing path, and has `--dry-run`. `verify <upstream-ref>` checks
-  that every difference from upstream is either the map or a file declared with its reason (313
-  files identical after the map against v2.0.7, zero undeclared differences); it does not prove the
-  map itself right, nor look inside a declared file. `tests/scripts/brand-residue.test.js` covers
-  upstream's names: it fails when one appears in a line not pinned on purpose (every file that keeps
-  some, documents included, has its count fixed), and checks that every variable the hook reads is
-  one the plugin sets.
-- **Tests.** `tests/runtime/legacy-brand.test.ts` (25 tests) covers the migration: whose block is
-  removed and whose is not (other host's END, keys after END, a key before `[[hooks]]`, stray
-  markers), that an old hook script is never counted as installed, marked or bare, that the new hook
-  ignores the old label variable, and the data directory: rename only with no job running, the
-  alias, its removal without touching the data behind it, the rewrite of stored paths under other
-  spellings, never merging, never touching an old name that points elsewhere.
-  `tests/scripts/identity-map.test.js` tests `verify` on a repository built for the purpose, and
-  `apply` on binaries, collisions and dry runs. 23 deliberate defects in the migration and the map,
-  one at a time, each made a test fail.
-- **Reviewed adversarially by Codex before release.** Its first review blocked this release on the
-  hook-block migration (END of another host, keys after END), the data-directory move (a race with
-  a command starting meanwhile, a path rewrite that could not be retried, strict path matching),
-  the map (upstream's own ids renamed in our prose, the plugin directory in install paths left out,
-  binaries without NUL bytes, collisions) and documentation that promised more than the code. All
-  of it is fixed above.
+  renamed. It leaves upstream's `README.md`, `CHANGELOG.md` and `NOTICE` as they are, since they are
+  ours to write and a mechanical rename in prose that names the upstream project would make it say
+  something false: their changes are merged by hand. It treats as text only strict UTF-8 without
+  NUL bytes, refuses before writing anything when a rename would land on an existing path, and has
+  `--dry-run`. `verify <upstream-ref>` checks that every difference from upstream is either the map
+  or a file declared with its reason (zero undeclared differences against v2.0.7); it does not
+  prove the map itself right, nor look inside a declared file. `tests/scripts/brand-residue.test.js`
+  covers upstream's names: each line that keeps one on purpose, documents included, is pinned by
+  its exact text in `tests/scripts/brand-residue.pins.json`, so a new line fails and so does an
+  allowed line swapped for another; it also checks that every variable the hook reads is one the
+  plugin sets.
+- **Tests.** `tests/runtime/legacy-brand.test.ts` covers the migration: whose block is removed and
+  whose is not (other host's END, keys after END, a key before `[[hooks]]`, stray markers, a
+  block-shaped text inside a multi-line string, setup stopping without a write when the parser does
+  not confirm), that an old hook script is never counted as installed, marked or bare, that the new
+  hook ignores the old label variable, and the data directory: rename only with no job running,
+  under the store's write lock (another process holding it, `tests/helpers/hold-write-lock.ts`,
+  stops the move and the removal of the alias), the alias, its removal without touching the data
+  behind it, the rewrite of stored paths under other spellings, never merging, never recreating the
+  old directory, never touching an old name that points elsewhere. Four of its tests run on one
+  platform only (rollback and waiting on macOS and Linux, the open store blocking the rename on
+  Windows). `tests/scripts/identity-map.test.js` tests `verify` on a repository built for the
+  purpose, and `apply` on binaries, collisions, dry runs and the prose it leaves alone. Deliberate
+  defects in the migration and the map, planted one at a time, each made a test fail.
+- **Reviewed adversarially by Codex before release.** The first review blocked the
+  release on the hook-block migration (END of another host, keys after END), the data-directory
+  move (a race with a command starting meanwhile, a path rewrite that could not be retried, strict
+  path matching), the map (upstream's own ids renamed in our prose, the plugin directory in install
+  paths left out, binaries without NUL bytes, collisions) and documentation that promised more than
+  the code. The second found what the first round of fixes left open: text inside a multi-line TOML
+  string taken for a block, no lock between the move and a job starting, a residue check that
+  counted lines per file instead of pinning them, and a map comment that said more than the code
+  did. The entries above describe the result, including what no lock covers.
 - **README.** States the platforms (developed and verified on Windows 11; macOS and Linux supported,
   Linux covered by CI), the upgrade steps, and coexistence. It no longer says the Windows fixes will
   be proposed upstream: this fork is maintained independently.

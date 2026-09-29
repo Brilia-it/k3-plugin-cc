@@ -141,8 +141,8 @@ does the rest, and says what it did:
 
 | What | Up to 0.5.x | From 0.6.0 | What setup does |
 |---|---|---|---|
-| Marker of the hook block in `~/.kimi-code/config.toml` | `kimi-plugin-cc-managed` | `k3-plugin-cc-managed` | Removes the old block **only if its hook is this fork's and the block holds nothing else** (a key after the END comment still belongs to that TOML table, so such a block is left alone), then writes the new one. A block written by the upstream plugin is left byte for byte. Marker lines that do not pair up are reported, never removed. |
-| Data directory (jobs, logs, results, settings) | `kimi-plugin-cc/` | `k3-plugin-cc/` | Renames it when no job is marked running, and leaves an alias under the old name so that a command starting at that very moment keeps working; the next `/k3:setup` removes the alias once no job is running. The paths stored for past jobs are rewritten on every setup, following Windows' rules for case and separators. Until the rename the old directory stays in use, so nothing is lost; if both exist, nothing is merged and `--check` says so. |
+| Marker of the hook block in `~/.kimi-code/config.toml` | `kimi-plugin-cc-managed` | `k3-plugin-cc-managed` | Removes the old block **only if its hook is this fork's and the block holds nothing else** (a key after the END comment still belongs to that TOML table, so such a block is left alone), and only if the TOML parser confirms that removing it changes nothing but that hook; otherwise setup stops, changes nothing, and names the lines to remove by hand. Then it writes the new one. A block written by the upstream plugin is left byte for byte. Marker lines that do not pair up are reported, never removed. |
+| Data directory (jobs, logs, results, settings) | `kimi-plugin-cc/` | `k3-plugin-cc/` | Renames it when no job is marked running, holding the job store's write lock (the one every command takes to record a job) while it counts and, on macOS and Linux, while it renames: no job can start in between. On Windows a command that has the store open makes the rename fail, and setup says to run it again. It leaves an alias under the old name for a command that had already found it; the next `/k3:setup` removes the alias once no job is running. A command that touches the old name in the instant between the rename and the alias stops with an error and can be run again: the old directory is never recreated, so nothing is split or lost. The paths stored for past jobs are rewritten on every setup, following Windows' rules for case and separators. Until the rename the old directory stays in use; if both exist, nothing is merged and `--check` says so. |
 | Environment variables | `KIMI_PLUGIN_CC_*` | `K3_PLUGIN_CC_*` | Lists any old ones still set. They are **not** read: rename yours (for example `KIMI_PLUGIN_CC_KIMI_BIN` becomes `K3_PLUGIN_CC_KIMI_BIN`). |
 
 The old variables are not honoured on purpose: they are the names the upstream plugin reads, and a
@@ -327,13 +327,15 @@ the job store fix below.
 
    The renaming is mechanical and has a single definition, `scripts/identity-map.mjs`. Every update
    from upstream goes through it: the map is applied to upstream's code **before** it is merged, so
-   upstream arrives already speaking our names. Two checks keep it honest.
-   `node scripts/identity-map.mjs verify v2.0.7` proves that every difference from upstream is
-   either the map or a file declared with its reason; it does not prove the map itself right, nor
-   look inside a declared file. `tests/scripts/brand-residue.test.js` fails in CI when one of
-   upstream's names appears in a line where it is not pinned: every file that keeps some on purpose
-   (the migration code, this README, the changelog, NOTICE) has its count of such lines fixed in the
-   test, so one more fails it.
+   upstream arrives already speaking our names. This README, the changelog and NOTICE are the
+   exception: the map leaves upstream's version of them alone, and their changes are merged by hand,
+   because a mechanical rename in prose that names the upstream project would make it say something
+   false. Two checks keep it honest. `node scripts/identity-map.mjs verify v2.0.7` proves that every
+   difference from upstream is either the map or a file declared with its reason; it does not prove
+   the map itself right, nor look inside a declared file. `tests/scripts/brand-residue.test.js`
+   fails in CI when one of upstream's names appears in a line that is not pinned: each line that
+   keeps one on purpose (in the migration code, this README, the changelog, NOTICE) is pinned by its
+   exact text, so a new line fails, and so does an allowed line swapped for another.
 
 This fork is maintained independently: these changes are not proposed upstream, so the upstream
 project is not aware of them and is not responsible for them.

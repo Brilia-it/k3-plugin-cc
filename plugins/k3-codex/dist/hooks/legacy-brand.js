@@ -16,6 +16,7 @@
 // reads the pre-0.6 variables (KIMI_PLUGIN_CC_*), which this plugin no longer
 // sets, so for a K3 session it would allow every tool call. The verifier knows
 // only the new marker; this module exists to remove what the old one left.
+import { parse as parseToml } from "../vendor/smol-toml/parse.js";
 import { hostIdFromHookCommand, isOurApprovalHookCommand } from "./install-paths.js";
 import { decodeManagedCommandLine } from "./managed-block.js";
 export const LEGACY_MARKER_TAG = "kimi-plugin-cc-managed";
@@ -132,11 +133,76 @@ export function scanLegacyBrand(contents, alsoOurs) {
 export function findLegacyBrandBlocks(contents, alsoOurs) {
     return scanLegacyBrand(contents, alsoOurs).blocks;
 }
+function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
+}
+function sameValue(a, b) {
+    if (a instanceof Date || b instanceof Date) {
+        if (!(a instanceof Date && b instanceof Date))
+            return false;
+        try {
+            return a.toISOString() === b.toISOString();
+        }
+        catch {
+            return Object.is(a.getTime(), b.getTime());
+        }
+    }
+    if (Array.isArray(a) || Array.isArray(b)) {
+        if (!(Array.isArray(a) && Array.isArray(b)) || a.length !== b.length)
+            return false;
+        return a.every((item, index) => sameValue(item, b[index]));
+    }
+    if (isRecord(a) || isRecord(b)) {
+        if (!(isRecord(a) && isRecord(b)))
+            return false;
+        const keys = Object.keys(a);
+        if (keys.length !== Object.keys(b).length)
+            return false;
+        return keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && sameValue(a[key], b[key]));
+    }
+    return Object.is(a, b);
+}
+/**
+ * The scan above reads lines, not TOML: text inside a multi-line string can
+ * look exactly like a block. So a removal is accepted only if the parser
+ * kimi-code itself uses (smol-toml) sees the same config before and after,
+ * minus one `[[hooks]]` entry per removed block, running that block's command.
+ * An unparsable file, a string that changed, a key that moved to another
+ * table: then nothing is removed.
+ */
+export function removalChangesOnlyTheseHooks(before, after, commands) {
+    let parsedBefore;
+    let parsedAfter;
+    try {
+        parsedBefore = parseToml(before);
+        parsedAfter = parseToml(after);
+    }
+    catch {
+        return false;
+    }
+    if (!isRecord(parsedBefore) || !isRecord(parsedAfter))
+        return false;
+    const hooks = Array.isArray(parsedBefore.hooks) ? [...parsedBefore.hooks] : [];
+    for (const command of commands) {
+        const index = hooks.findIndex((hook) => isRecord(hook) && hook.command === command);
+        if (index === -1)
+            return false;
+        hooks.splice(index, 1);
+    }
+    const expected = { ...parsedBefore };
+    if (hooks.length === 0)
+        delete expected.hooks;
+    else
+        expected.hooks = hooks;
+    return sameValue(expected, parsedAfter);
+}
 /**
  * Remove this fork's own legacy blocks. With `host`, only the blocks of that
  * host (the other host migrates its own on its next setup, exactly like the
  * current marker's host scoping); without it, every one of ours (`--all`).
  * Blocks that are not ours are kept byte for byte and returned in `kept`.
+ * If the parser does not confirm the removal (removalChangesOnlyTheseHooks),
+ * nothing is removed and `unconfirmed` lists the blocks that stay.
  */
 export function stripLegacyBrandBlocks(contents, lineEnding, host, alsoOurs) {
     const { blocks, strayMarkers } = scanLegacyBrand(contents, alsoOurs);
@@ -145,33 +211,49 @@ export function stripLegacyBrandBlocks(contents, lineEnding, host, alsoOurs) {
     const removed = blocks.filter((b) => b.ours && (host === undefined || b.host === host || (alsoOurs !== undefined && b.command === alsoOurs)));
     const kept = blocks.filter((b) => !removed.includes(b));
     if (removed.length === 0)
-        return { stripped: contents, removed, kept, strayMarkers };
+        return { stripped: contents, removed, kept, strayMarkers, unconfirmed: [] };
     const drop = new Set();
     for (const block of removed) {
         for (let line = block.beginLine; line <= block.endLine; line += 1)
             drop.add(line);
     }
-    const lines = splitLines(contents).filter((_, index) => !drop.has(index));
-    // Collapse runs of >= 3 blank lines created by removal back to 2, as the
-    // current-marker strip does.
+    // Collapse to 2 a run of >= 3 blank lines, but only a run where a block was
+    // removed: elsewhere blank lines are the user's, and inside a multi-line
+    // string they are part of its value.
     const collapsed = [];
     let blankRun = 0;
-    for (const line of lines) {
+    let removalInRun = false;
+    splitLines(contents).forEach((line, index) => {
+        if (drop.has(index)) {
+            removalInRun = true;
+            return;
+        }
         if (line.length === 0) {
             blankRun += 1;
-            if (blankRun <= 2)
-                collapsed.push(line);
-        }
-        else {
-            blankRun = 0;
+            if (blankRun > 2 && removalInRun)
+                return;
             collapsed.push(line);
+            return;
         }
+        blankRun = 0;
+        removalInRun = false;
+        collapsed.push(line);
+    });
+    const stripped = collapsed.join(lineEnding);
+    if (!removalChangesOnlyTheseHooks(contents, stripped, removed.map((b) => b.command))) {
+        return { stripped: contents, removed: [], kept, strayMarkers, unconfirmed: removed };
     }
-    return { stripped: collapsed.join(lineEnding), removed, kept, strayMarkers };
+    return { stripped, removed, kept, strayMarkers, unconfirmed: [] };
 }
 /** Human-readable notes for setup's warnings. Empty when there is nothing to say. */
-export function describeLegacyBrandBlocks(removed, kept, mode, strayMarkers = []) {
+export function describeLegacyBrandBlocks(removed, kept, mode, strayMarkers = [], unconfirmed = []) {
     const notes = [];
+    if (unconfirmed.length > 0) {
+        notes.push(`Found ${unconfirmed.length} hook block(s) written by k3-plugin-cc before 0.6.0 under the old marker ` +
+            `\`${LEGACY_MARKER_TAG}\` (lines ${unconfirmed.map((b) => b.beginLine + 1).join(", ")}), but removing them ` +
+            `would change more of the config than those blocks (for example text inside a multi-line string), or the ` +
+            `config does not parse. Left in place: remove them by hand. They no longer protect K3 sessions.`);
+    }
     if (removed.length > 0) {
         notes.push(mode === "removed"
             ? `Migrated ${removed.length} hook block(s) written by k3-plugin-cc before 0.6.0 under the old marker ` +

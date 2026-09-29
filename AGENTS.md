@@ -171,9 +171,13 @@ through npm OIDC in the `npm` environment. See `docs/registry-releases.md`.
 > `k3-plugin-cc/`); Moonshot's CLI keeps its own (`kimi`, `kimi-code`, `KIMI_CODE_*`). The renaming
 > has one definition, `scripts/identity-map.mjs`. To take an upstream release: check out the
 > upstream tag in a separate worktree, run `node scripts/identity-map.mjs apply <that worktree>`
-> there (it rewrites contents and file names, and leaves `KEEP_VERBATIM` pages alone), commit that
-> as the renamed upstream, and merge it; conflicts then mark only real behaviour differences. Never
-> run `apply` on this repository's own tree: the migration code spells upstream's names on purpose.
-> After the merge, `node scripts/identity-map.mjs verify <upstream tag>` must report zero undeclared
+> there (it rewrites contents and file names, and leaves the `KEEP_VERBATIM` page and the
+> `MERGED_BY_HAND` prose, `README.md`, `CHANGELOG.md` and `NOTICE`, as upstream wrote them), commit
+> that as the renamed upstream, and merge it; conflicts then mark only real behaviour differences.
+> Read upstream's changes to those three files and write them into ours by hand. Never run `apply`
+> on this repository's own tree: the migration code spells upstream's names on purpose. After the
+> merge, `node scripts/identity-map.mjs verify <upstream tag>` must report zero undeclared
 > differences, and `tests/scripts/brand-residue.test.js` fails in CI if an upstream name slipped
-> through or if the hook reads a variable the plugin does not set.
+> into a line that is not pinned, or if the hook reads a variable the plugin does not set. After a
+> deliberate change to a pinned line, regenerate the pins with
+> `K3_UPDATE_RESIDUE_PINS=1 bun test tests/scripts/brand-residue.test.js` and review the diff.

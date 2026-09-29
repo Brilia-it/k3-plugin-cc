@@ -2,7 +2,8 @@
 // One change: the data directory is named `k3-plugin-cc`. A pre-0.6 install
 // kept its jobs, logs, artifacts and config in `kimi-plugin-cc`; while only
 // that directory exists it stays in use, so nothing is lost before /k3:setup
-// moves it (runtime/legacy-names.ts). See NOTICE and README.md.
+// moves it (runtime/legacy-names.ts), and it is never recreated once moved.
+// See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { constants, existsSync } from "node:fs";
 import { access, mkdir } from "node:fs/promises";
@@ -30,16 +31,36 @@ export function resolvePluginPaths(env) {
         usingLegacyDataDir,
     };
 }
+function dataDirMoved(paths) {
+    return new RuntimeError("PLUGIN_DATA_MOVED", `The data directory ${paths.pluginRoot} was moved to ${path.join(paths.claudePluginData, DATA_DIR_NAME)} while this command was starting. Run the command again.`, "paths");
+}
 export async function ensurePluginPaths(paths) {
-    // The pre-0.6 directory is used only while it exists. If it vanished after
-    // these paths were resolved, setup has just moved it: recreating it here
-    // would split the state in two, so stop and let the command run again.
-    if (paths.usingLegacyDataDir === true && !existsSync(paths.pluginRoot)) {
-        throw new RuntimeError("PLUGIN_DATA_MOVED", `The data directory ${paths.pluginRoot} was moved to ${path.join(paths.claudePluginData, DATA_DIR_NAME)} while this command was starting. Run the command again.`, "paths");
+    if (paths.usingLegacyDataDir === true) {
+        // The pre-0.6 directory is used only while it exists, and is never
+        // created: if setup moves it while this command starts, recreating it
+        // would split the state in two. So only its subdirectories are created,
+        // one level at a time (no recursive mkdir, which would bring the parent
+        // back): if the parent is gone that fails, and the command stops. No
+        // separate existence check first: it would only reopen the same window.
+        for (const dir of [paths.logsDir, paths.artifactsDir]) {
+            try {
+                await mkdir(dir);
+            }
+            catch (error) {
+                const code = error.code;
+                if (code === "EEXIST")
+                    continue;
+                if (code === "ENOENT")
+                    throw dataDirMoved(paths);
+                throw error;
+            }
+        }
     }
-    await mkdir(paths.pluginRoot, { recursive: true });
-    await mkdir(paths.logsDir, { recursive: true });
-    await mkdir(paths.artifactsDir, { recursive: true });
+    else {
+        await mkdir(paths.pluginRoot, { recursive: true });
+        await mkdir(paths.logsDir, { recursive: true });
+        await mkdir(paths.artifactsDir, { recursive: true });
+    }
     await access(paths.pluginRoot, constants.R_OK | constants.W_OK);
     await access(paths.logsDir, constants.R_OK | constants.W_OK);
     await access(paths.artifactsDir, constants.R_OK | constants.W_OK);

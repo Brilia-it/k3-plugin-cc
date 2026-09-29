@@ -1,9 +1,10 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Two changes, on every platform: the constructor sets `busy_timeout` before
 // `journal_mode = WAL`, so opening the store while another process holds the
-// database waits instead of failing with SQLITE_BUSY; and two methods,
-// `countRunningJobs` and `rebaseStoredPaths`, used only by setup when it moves
-// the pre-0.6 data directory to its new name. See NOTICE and README.md.
+// database waits instead of failing with SQLITE_BUSY; and the methods
+// `withWriteLock`, `countRunningJobs`, `rewriteStoredPaths` and
+// `rebaseStoredPaths`, used only by setup when it moves the pre-0.6 data
+// directory to its new name. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { createRequire } from "node:module";
 import { RuntimeError, formatError } from "./errors.js";
@@ -228,36 +229,24 @@ export class JobStore {
         const rows = this.db.all(`SELECT * FROM jobs WHERE status = 'running' AND (pid IS NOT NULL OR kimi_pid IS NOT NULL)`);
         return rows.map(hydrateRow);
     }
-    // BRILIA fork (0.6.0): the two operations the data-directory rename needs
-    // (runtime/legacy-names.ts). Every job still marked running, with or without
-    // a process hint: a job not yet spawned is running too.
-    countRunningJobs() {
-        const row = this.db.get(`SELECT COUNT(*) AS n FROM jobs WHERE status = 'running'`);
-        return Number(row?.n ?? 0);
-    }
-    // Rewrites the stored absolute paths for which `map` returns a new value, in
-    // one write transaction; returns how many jobs changed. The matching lives in
-    // the caller, in JavaScript, so it can follow the platform's path rules (case
-    // and separators on Windows) instead of comparing strings byte for byte.
-    rebaseStoredPaths(map) {
-        this.db.exec("BEGIN IMMEDIATE");
+    // BRILIA fork (0.6.0): what the data-directory rename needs
+    // (runtime/legacy-names.ts).
+    // Runs `run` inside one BEGIN IMMEDIATE transaction and commits: until it
+    // returns, no other connection can write, so no job can be created, marked
+    // running or given its paths. It is the lock setup holds while it moves the
+    // data directory, and every command already takes it when it records a job.
+    // `run` is synchronous on purpose: the lock must not stay held across an
+    // await. An error from `run` rolls back and reaches the caller unchanged.
+    withWriteLock(run) {
         try {
-            const rows = this.db.all(`SELECT job_id, final_output_path, stream_log_path FROM jobs`);
-            let changed = 0;
-            for (const row of rows) {
-                const nextFinal = row.final_output_path === null ? null : map(row.final_output_path);
-                const nextLog = map(row.stream_log_path);
-                if (nextFinal === null && nextLog === null)
-                    continue;
-                this.db.run(`UPDATE jobs SET final_output_path = ?, stream_log_path = ? WHERE job_id = ?`, [
-                    nextFinal ?? row.final_output_path,
-                    nextLog ?? row.stream_log_path,
-                    row.job_id,
-                ]);
-                changed += 1;
-            }
-            this.db.exec("COMMIT");
-            return changed;
+            this.db.exec("BEGIN IMMEDIATE");
+        }
+        catch (error) {
+            throw translateSqliteError(error);
+        }
+        let result;
+        try {
+            result = run();
         }
         catch (error) {
             try {
@@ -266,8 +255,52 @@ export class JobStore {
             catch {
                 // The original error matters more than a failed rollback.
             }
+            throw error;
+        }
+        try {
+            this.db.exec("COMMIT");
+        }
+        catch (error) {
+            try {
+                this.db.exec("ROLLBACK");
+            }
+            catch {
+                // As above.
+            }
             throw translateSqliteError(error);
         }
+        return result;
+    }
+    // Every job still marked running, with or without a process hint: a job not
+    // yet spawned is running too.
+    countRunningJobs() {
+        const row = this.db.get(`SELECT COUNT(*) AS n FROM jobs WHERE status = 'running'`);
+        return Number(row?.n ?? 0);
+    }
+    // Rewrites the stored absolute paths for which `map` returns a new value;
+    // returns how many jobs changed. No transaction of its own: call it inside
+    // withWriteLock (rebaseStoredPaths does). The matching lives in the caller,
+    // in JavaScript, so it can follow the platform's path rules (case and
+    // separators on Windows) instead of comparing strings byte for byte.
+    rewriteStoredPaths(map) {
+        const rows = this.db.all(`SELECT job_id, final_output_path, stream_log_path FROM jobs`);
+        let changed = 0;
+        for (const row of rows) {
+            const nextFinal = row.final_output_path === null ? null : map(row.final_output_path);
+            const nextLog = map(row.stream_log_path);
+            if (nextFinal === null && nextLog === null)
+                continue;
+            this.db.run(`UPDATE jobs SET final_output_path = ?, stream_log_path = ? WHERE job_id = ?`, [
+                nextFinal ?? row.final_output_path,
+                nextLog ?? row.stream_log_path,
+                row.job_id,
+            ]);
+            changed += 1;
+        }
+        return changed;
+    }
+    rebaseStoredPaths(map) {
+        return this.withWriteLock(() => this.rewriteStoredPaths(map));
     }
     findRescueJobBySession(repoId, sessionId) {
         const row = this.db.get(`

@@ -76,11 +76,21 @@ describe("apply", () => {
       mkdirSync(path.join(root, "docs"));
       const verbatim = "Repository: `kimi-plugin-cc`, see /kimi:setup\n";
       writeFileSync(path.join(root, "docs", "registry-releases.md"), verbatim);
+      // Prose merged by hand: left as upstream wrote it, at the root only.
+      const prose = "upstream keeps kimi-marketplace and /kimi:setup\n";
+      for (const name of ["README.md", "CHANGELOG.md", "NOTICE"]) writeFileSync(path.join(root, name), prose);
+      writeFileSync(path.join(root, "plugins", "kimi-codex", "README.md"), prose);
 
       const result = apply([root]);
-      expect(result.rewritten).toBe(2);
-      expect(result.kept).toBe(1);
+      expect(result.rewritten).toBe(3);
+      expect(result.kept).toBe(4);
       expect(readFileSync(path.join(root, "docs", "registry-releases.md"), "utf8")).toBe(verbatim);
+      for (const name of ["README.md", "CHANGELOG.md", "NOTICE"]) {
+        expect(readFileSync(path.join(root, name), "utf8")).toBe(prose);
+      }
+      expect(readFileSync(path.join(root, "plugins", "k3-codex", "README.md"), "utf8")).toBe(
+        "upstream keeps brilia-k3-marketplace and /k3:setup\n",
+      );
       expect(readFileSync(path.join(root, "plugins", "k3-codex", "skills", "k3-setup", "SKILL.md"), "utf8")).toBe(
         "Run /k3:setup.\n",
       );

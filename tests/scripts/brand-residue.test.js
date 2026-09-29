@@ -7,46 +7,31 @@
 // Written as .js because the map is plain Node ESM and the TypeScript project
 // does not allowJs.
 //
-// Where upstream's names stay on purpose, the count of lines is pinned, so a
-// new occurrence in the same file still fails the test and gets looked at.
-// Documents are pinned like code: no file is exempt.
+// Where upstream's names stay on purpose, each such LINE is pinned: its text,
+// trimmed, hashed into tests/scripts/brand-residue.pins.json. A new line fails,
+// and so does an allowed line replaced by another one in the same file (a count
+// per file would not see that). Documents are pinned like code: no file is
+// exempt. The pinned lines are:
 //   - the migration of a pre-0.6 install, which has to recognise the old marker,
 //     the old data directory and the old variables;
 //   - the identity map, the coexistence smoke and the tests of all this;
 //   - documentation that names the upstream project, its npm package, its
 //     history, or describes the migration; docs/registry-releases.md is kept
 //     verbatim from upstream (KEEP_VERBATIM in the map).
+// After a deliberate change, look at the lines the failure lists, then
+// regenerate: K3_UPDATE_RESIDUE_PINS=1 bun test tests/scripts/brand-residue.test.js
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { applyIdentityMap } from "../../scripts/identity-map.mjs";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
+const PINS_FILE = "tests/scripts/brand-residue.pins.json";
 
-// File -> number of lines that keep an upstream name on purpose.
-const PINNED = {
-  "runtime/hooks/legacy-brand.ts": 5,
-  "runtime/legacy-names.ts": 4,
-  "runtime/paths.ts": 2,
-  "runtime/commands/setup.ts": 3,
-  "scripts/identity-map.mjs": 12,
-  "tests/manual/coexistence-smoke.mjs": 7,
-  "tests/runtime/legacy-brand.test.ts": 34,
-  "tests/scripts/identity-map.test.js": 32,
-  "CHANGELOG.md": 112,
-  "README.md": 8,
-  "NOTICE": 2,
-  "docs/registry-releases.md": 2,
-};
-// Compiled counterparts carry the same lines as their source.
-for (const [source, count] of Object.entries({ ...PINNED })) {
-  if (!source.startsWith("runtime/")) continue;
-  const compiled = source.replace(/^runtime\//, "").replace(/\.ts$/, ".js");
-  PINNED[`dist/${compiled}`] = count;
-  PINNED[`plugins/k3-codex/dist/${compiled}`] = count;
-}
+const hashLine = (line) => createHash("sha256").update(line, "utf8").digest("hex").slice(0, 16);
 
 function trackedTextFiles() {
   const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
@@ -69,22 +54,46 @@ function trackedTextFiles() {
   return out;
 }
 
+// File -> the trimmed lines that keep an upstream name.
+function residue() {
+  const found = {};
+  for (const { file, text } of trackedTextFiles()) {
+    const lines = text
+      .split("\n")
+      .filter((line) => applyIdentityMap(line) !== line)
+      .map((line) => line.trim());
+    if (lines.length > 0) found[file] = lines;
+  }
+  return found;
+}
+
 describe("upstream names", () => {
-  test("appear only where they are pinned, and exactly as often", () => {
-    const unexpected = [];
-    const counts = new Map();
-    for (const { file, text } of trackedTextFiles()) {
-      const lines = text.split("\n").filter((line) => applyIdentityMap(line) !== line);
-      if (lines.length === 0) continue;
-      counts.set(file, lines.length);
-      if (PINNED[file] === undefined) {
-        unexpected.push(`${file}: ${lines.slice(0, 3).map((l) => l.trim()).join(" | ")}`);
+  test("appear only in lines pinned one by one", () => {
+    const found = residue();
+    if (process.env.K3_UPDATE_RESIDUE_PINS === "1") {
+      const pins = Object.fromEntries(
+        Object.keys(found)
+          .sort()
+          .map((file) => [file, found[file].map(hashLine).sort()]),
+      );
+      writeFileSync(path.join(repoRoot, PINS_FILE), `${JSON.stringify(pins, null, 2)}\n`);
+      return;
+    }
+    const pins = JSON.parse(readFileSync(path.join(repoRoot, PINS_FILE), "utf8"));
+    const problems = [];
+    for (const [file, lines] of Object.entries(found)) {
+      const remaining = [...(pins[file] ?? [])];
+      for (const line of lines) {
+        const index = remaining.indexOf(hashLine(line));
+        if (index === -1) problems.push(`${file}: not pinned: ${line}`);
+        else remaining.splice(index, 1);
       }
+      if (remaining.length > 0) problems.push(`${file}: ${remaining.length} pinned line(s) no longer present`);
     }
-    expect(unexpected).toEqual([]);
-    for (const [file, count] of Object.entries(PINNED)) {
-      expect({ file, count: counts.get(file) ?? 0 }).toEqual({ file, count });
+    for (const file of Object.keys(pins)) {
+      if (found[file] === undefined) problems.push(`${file}: pinned, but has no upstream name any more`);
     }
+    expect(problems).toEqual([]);
   });
 
   test("every variable the hook reads is one the plugin sets on the kimi process", () => {

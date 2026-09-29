@@ -32,11 +32,15 @@
 //           declared file. tests/scripts/brand-residue.test.js covers the first
 //           gap for upstream's names; review covers the rest.
 //
-// A rule renames a TOKEN wherever it appears, so a sentence of ours that names
-// upstream's ids ("upstream keeps kimi-marketplace") comes out false. Text
-// written for this fork does not spell upstream's ids; README, CHANGELOG and
-// NOTICE, which must, are never mapped and have their lines pinned in the
-// residue test.
+// A rule renames a TOKEN wherever it appears, so a sentence that names
+// upstream's ids ("upstream keeps kimi-marketplace") comes out false. So the
+// map never touches prose that has to spell them: README.md, CHANGELOG.md and
+// NOTICE at the root are this fork's own text, and `apply` leaves upstream's
+// version of them as it is (MERGED_BY_HAND): a person reads upstream's change
+// and writes it into ours. The lines of ours that spell upstream's ids are
+// pinned one by one in the residue test. In every other file the rule is
+// right: there upstream's marketplace, commands and variables are the ones
+// that become ours.
 //
 // Never run `apply` on this repository's own tree: the code that migrates a
 // pre-0.6 install (runtime/hooks/legacy-brand.ts, runtime/legacy-names.ts,
@@ -108,6 +112,12 @@ export const IDENTITY_RULES = Object.freeze([
 // true. `apply` leaves them alone. Paths relative to the root being mapped.
 export const KEEP_VERBATIM = Object.freeze(["docs/registry-releases.md"]);
 
+// This fork's own prose at the root: `apply` leaves upstream's version of these
+// files as it is, and a person merges its changes by hand (see the top of this
+// file). Paths relative to the root being mapped, matched exactly: a
+// README.md deeper in the tree is mapped as usual.
+export const MERGED_BY_HAND = Object.freeze(["README.md", "CHANGELOG.md", "NOTICE"]);
+
 export function applyIdentityMap(text) {
   let out = text;
   for (const rule of IDENTITY_RULES) out = out.replace(rule.from, rule.to);
@@ -151,9 +161,11 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/scripts/promote-to-main.test.js": "added (NOTICE 3)",
   "tests/scripts/identity-map.test.js": "added (NOTICE 3)",
   "tests/scripts/brand-residue.test.js": "added: fails when an upstream name reappears (NOTICE 3)",
+  "tests/scripts/brand-residue.pins.json": "added: the lines allowed to keep an upstream name (NOTICE 6)",
   "tests/runtime/job-store-busy-open.test.ts": "added (NOTICE 5)",
   "tests/helpers/hold-exclusive-lock.ts": "added (NOTICE 5)",
   "tests/helpers/open-job-store-node.mjs": "added (NOTICE 5)",
+  "tests/helpers/hold-write-lock.ts": "added (NOTICE 6)",
   "tests/manual/coexistence-smoke.mjs": "added (NOTICE 3)",
   "tests/manual/enforcement-matrix.mjs": "added (NOTICE 3)",
   "tests/manual/shell-probe-discrimination.mjs": "added (NOTICE 3)",
@@ -270,7 +282,18 @@ function walk(target, files, dirs, isTarget) {
 export function apply(targets, { dryRun = false } = {}) {
   const files = [];
   const dirs = [];
-  for (const target of targets) walk(target, files, dirs, true);
+  // Each file's path relative to the target it was found under, with forward
+  // slashes: what KEEP_VERBATIM and MERGED_BY_HAND are matched against.
+  const relativeOf = new Map();
+  for (const target of targets) {
+    const before = files.length;
+    walk(target, files, dirs, true);
+    const isDir = lstatSync(target).isDirectory();
+    for (const file of files.slice(before)) {
+      relativeOf.set(file, (isDir ? path.relative(target, file) : path.basename(file)).replace(/\\/g, "/"));
+    }
+  }
+  const notMapped = new Set([...KEEP_VERBATIM, ...MERGED_BY_HAND]);
 
   const depth = (p) => path.resolve(p).split(path.sep).length;
   const renames = [];
@@ -296,8 +319,7 @@ export function apply(targets, { dryRun = false } = {}) {
   let kept = 0;
   let binary = 0;
   for (const file of files) {
-    const slashed = path.resolve(file).replace(/\\/g, "/");
-    if (KEEP_VERBATIM.some((keep) => slashed.endsWith(`/${keep}`))) {
+    if (notMapped.has(relativeOf.get(file))) {
       kept += 1;
       continue;
     }
@@ -330,8 +352,9 @@ function main(argv) {
     console.log(
       `identity-map apply${dryRun ? " (dry run, nothing written)" : ""}: ${result.files} files read, ` +
         `${result.rewritten} ${dryRun ? "would be rewritten" : "rewritten"}, ${result.renamed} ` +
-        `${dryRun ? "would be renamed" : "renamed"}, ${result.binary} left as binary, ${result.kept} kept verbatim ` +
-        `(${KEEP_VERBATIM.join(", ")}).`,
+        `${dryRun ? "would be renamed" : "renamed"}, ${result.binary} left as binary, ${result.kept} not mapped ` +
+        `(${[...KEEP_VERBATIM, ...MERGED_BY_HAND].join(", ")}).` +
+        (result.kept > 0 ? ` Merge upstream's changes to ${MERGED_BY_HAND.join(", ")} by hand.` : ""),
     );
     return 0;
   }
