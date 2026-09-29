@@ -1,6 +1,9 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
-// Changes are Windows-only and gated behind `process.platform === "win32"`.
-// See NOTICE and README.md. Section 4(b) of the License requires this notice.
+// Changes are made for Windows. How the hook command is written, quoted and
+// launched changes only when `process.platform === "win32"`; the parser that
+// recognises this plugin's own hook command also accepts the double-quoted form
+// on every platform. See NOTICE and README.md. Section 4(b) of the License
+// requires this notice.
 // Shared canonical-path helpers for the kimi-plugin-cc PreToolUse hook.
 //
 // Why a separate module:
@@ -121,6 +124,9 @@ export function resolveNodeBinary(env) {
  *   |------------------------|---------|----------------|
  *   | single quotes (upstream) | exit 2 (deny) | exit 255 (fail-open) |
  *   | double quotes            | exit 2 (deny) | exit 2 (deny)        |
+ *
+ * (The single-quoted form exited 255 on 2026-08-12 and 1 in a re-test on
+ * 2026-09-28. The number moves; it is never 2, so the call is allowed.)
  *
  * Double quotes are therefore the only form that holds in BOTH shells, and
  * they are safe on Windows because `"` is an illegal character in NTFS paths.

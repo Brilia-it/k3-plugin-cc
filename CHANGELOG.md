@@ -8,6 +8,50 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.7-brilia.0.5.1 — 2026-09-29 (fork)
+
+**0.5.0 reached `main` on a green CI that came on the third attempt, and `main`'s own run then
+failed. The failures were a real race in the job store, now fixed; and the promotion script no
+longer lets a re-run hide the attempts before it.**
+
+- **Job store: a busy database is waited on, on every platform.** The WAL pragma ran with SQLite's
+  default timeout of zero, so opening the store while another process held the database failed at
+  once with `SQLITE_BUSY`. `--background --wait` opens a fresh store on every poll while the
+  detached worker writes the same file: that is why "a background ask completes" and "a REAL
+  spawned background worker verifies the hook" failed 3 times in 4 CI runs on 0.5.0's commit.
+  `busy_timeout` now comes first (waits up to 5 s); `waitForTerminalJob` keeps polling past a busy
+  store until its own deadline instead of failing the wait; `repair-sessions` sets the same timeout
+  on its read-only connection. `tests/runtime/job-store-busy-open.test.ts` holds an EXCLUSIVE lock
+  from a second process and proves, from both processes' clocks, that the open started while
+  locked and finished only after the release began, under `bun:sqlite` and under Node's
+  `node:sqlite` through the compiled runtime; on the old order both variants fail with
+  `JOB_STORE_BUSY`. Upstream v2.0.7 has the same order.
+- **`scripts/promote-to-main.mjs` hardened** after an adversarial review found that it accepted
+  0.5.0 on attempt 3 of a run whose attempts 1 and 2 had failed, because GitHub reports only the
+  latest attempt and re-runs share one check suite. It now refuses unless EVERY attempt of the
+  qualifying run succeeded (`--accept-failed-attempts=<run id>` to override, for a failure you have
+  understood); it widens the "certifies itself" guard from `.github/` to everything that defines CI
+  (`package.json`, `bun.lock`, `bunfig.toml`, any root `tsconfig*.json`, `scripts/`), with the
+  review flag bound to the exact commit by its full 40-character SHA; it refuses to run unless its
+  content matches the copy on `main` (line endings aside), and refuses if `main` has no copy; it
+  derives the GitHub repository from the git remote; it rejects unknown options, unsupported `=`
+  forms and missing values (a mistyped `--dry-run` used to push for real); it refuses partial API
+  pages; and when `main` is already at the commit it reports whether `main`'s own run is green
+  instead of exiting 0 blind. Its logic is now tested in `tests/scripts/promote-to-main.test.js`,
+  including the guard's pathspecs against a real git repository (a mutation that drops the
+  `tsconfig*.json` glob is caught). What it still cannot do is stop a hand push by someone with
+  write access: said in `AGENTS.md`.
+- **Bootstrap, done in two steps.** A gatekeeper cannot check the promotion that introduces it: the
+  new script refuses to run while `main` holds the old one. So the new script was promoted first,
+  alone, by the old one; everything else in this release was then promoted by the new one.
+- **License notices made true.** The section 4(b) notices at the top of the modified files said
+  "Windows-only"; the own-hook parser and the `/k3:` names apply everywhere. They now say what
+  changed. `NOTICE` gains the job store fix as a fifth kind of change.
+- **README**: the "silently inert" sentence under "What this fork changes" now carries the
+  condition (only once the path was set by hand); "Git Bash as its shell" now says it is for
+  `kimi-code`'s own Bash tool, while hooks go through `cmd.exe`.
+- `AGENTS.md` releasing notes point at the fork's remote and the staging/promote flow.
+
 ## 2.0.7-brilia.0.5.0 — 2026-09-28 (fork)
 
 **Re-aligned to upstream v2.0.7, and the fork now says plainly why it exists: Windows.** The weekly

@@ -1,3 +1,8 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: the constructor sets `busy_timeout` before
+// `journal_mode = WAL`, so opening the store while another process holds the
+// database waits instead of failing with SQLITE_BUSY. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { createRequire } from "node:module";
 import { RuntimeError, formatError } from "./errors.js";
 export class JobStore {
@@ -11,8 +16,13 @@ export class JobStore {
         let db;
         try {
             db = createSqliteAdapter(paths.stateDbPath);
-            db.pragma("journal_mode = WAL");
+            // BRILIA fork: busy_timeout FIRST. `journal_mode = WAL` needs a lock, and
+            // with SQLite's default timeout of 0 it failed at once with SQLITE_BUSY
+            // whenever another process held the file, e.g. the detached worker while
+            // `--wait` polls (jobs.ts waitForTerminalJob opens a new store per tick).
+            // Test: tests/runtime/job-store-busy-open.test.ts.
             db.pragma("busy_timeout = 5000");
+            db.pragma("journal_mode = WAL");
         }
         catch (error) {
             try {

@@ -10,4 +10,4 @@
 // and AGENTS.md on every release. A future improvement would read this from
 // package.json at build time, but that adds a build-step dependency we
 // don't want yet.
-export const KIMI_PLUGIN_CC_VERSION = "2.0.7-brilia.0.5.0";
+export const KIMI_PLUGIN_CC_VERSION = "2.0.7-brilia.0.5.1";

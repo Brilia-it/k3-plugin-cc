@@ -1,5 +1,5 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
-// Changes are Windows-only and gated behind `process.platform === "win32"`.
+// Adds tests for this fork's Windows changes to runtime/hooks/install-paths.ts.
 // See NOTICE and README.md. Section 4(b) of the License requires this notice.
 
 import { describe, expect, test } from "bun:test";

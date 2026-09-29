@@ -1,6 +1,6 @@
 {
   "name": "k3-plugin-cc",
-  "version": "2.0.7-brilia.0.5.0",
+  "version": "2.0.7-brilia.0.5.1",
   "private": true,
   "description": "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc that supports Windows: the safety hook launches under cmd.exe, setup needs no path override, and the shell probe really runs. Use Kimi K3 from Claude Code through your own Kimi Code subscription. Not affiliated with Moonshot AI. Not published to npm.",
   "type": "module",

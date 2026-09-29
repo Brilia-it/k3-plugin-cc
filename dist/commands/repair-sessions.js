@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: the read-only job database connection sets a
+// busy timeout instead of failing at once with SQLITE_BUSY. See NOTICE and
+// README.md. Section 4(b) of the License requires this notice.
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -75,6 +79,9 @@ async function readRepairJobs(filename, repoId) {
         return new DatabaseSync(filename, { readOnly: true });
     })();
     try {
+        // BRILIA fork: wait for a writer instead of failing with SQLITE_BUSY at
+        // once (SQLite's default busy timeout is 0), the same as JobStore does.
+        db.exec("PRAGMA busy_timeout = 5000");
         // Never construct JobStore here: it performs migrations and stale-row
         // reconciliation. Both preview and apply keep plugin job data read-only.
         const columns = db.prepare("PRAGMA table_info(jobs)").all();

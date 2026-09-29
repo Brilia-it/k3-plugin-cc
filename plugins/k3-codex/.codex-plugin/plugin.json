@@ -1,6 +1,6 @@
 {
   "name": "k3",
-  "version": "2.0.7-brilia.0.5.0",
+  "version": "2.0.7-brilia.0.5.1",
   "description": "Codex plugin that delegates review, challenge, ask, rescue, pursue, and swarm workflows to the local kimi-code CLI through the kimi-plugin-cc companion runtime.",
   "author": {
     "name": "linxule"

@@ -38,7 +38,7 @@ described under [Known limits](#known-limits-stated-plainly).
 >
 > **Not the original project either.** This is a fork of
 > **[linxule/kimi-plugin-cc](https://github.com/linxule/kimi-plugin-cc)** (Apache-2.0) by Xule Lin,
-> who wrote everything that makes this work. Our changes are three Windows fixes, listed below.
+> who wrote everything that makes this work. Our changes are three Windows fixes and one reliability fix, listed below.
 >
 > Maintained by [BRILIA](https://brilia.it) on a best-effort basis. If something breaks, open an
 > issue **here**, not with Moonshot AI and not with the upstream author.
@@ -60,7 +60,9 @@ described under [Known limits](#known-limits-stated-plainly).
 - **The `kimi-code` CLI, installed and authenticated.** Run `kimi login` once, then check with
   `kimi --version`. Use a version this release certifies; **2.1.1** is the recommended one (see
   [Which versions this is](#which-versions-this-is)). On Windows, `kimi-code` itself needs
-  [Git for Windows](https://gitforwindows.org/), whose Git Bash it uses as its shell.
+  [Git for Windows](https://gitforwindows.org/), whose Git Bash it uses for its own Bash tool.
+  Hooks are a different path: `kimi-code` launches them through `cmd.exe`, which is what the
+  Windows fixes below are about.
 - **Node.js 22.5 or later** (the runtime uses the built-in `node:sqlite`).
 
 ### Before you install: the terms, and an open question
@@ -244,20 +246,23 @@ after the merge with upstream v2.0.7):
   quota, and this line will say so until it is done.
 - **The unit tests run on Linux, in CI**, which must be green before `main` moves. Run locally on
   Windows, the suite includes POSIX-only tests (`/usr/bin/false`, symlinks) that fail there for
-  reasons unrelated to this fork.
+  reasons unrelated to this fork. The background-job tests that failed intermittently in CI on
+  2026-09-28 were a real race, not noise: see change 4 below.
 
 ## What this fork changes
 
-Three Windows fixes. How the hook command is written, quoted and launched changes on Windows only.
-Two things differ on every platform, so this is not upstream byte-for-byte on macOS or Linux either:
-the parser that recognises this plugin's own hook command also accepts the double-quoted form there,
-so a hand-written double-quoted hook under an upstream install path would be treated as ours; and
-setup's messages and the managed block carry this fork's names and version.
+Three Windows fixes and one reliability fix. How the hook command is written, quoted and launched
+changes on Windows only. Three things differ on every platform, so this is not upstream
+byte-for-byte on macOS or Linux either: the parser that recognises this plugin's own hook command
+also accepts the double-quoted form there, so a hand-written double-quoted hook under an upstream
+install path would be treated as ours; setup's messages and the managed block carry this fork's
+names and version; and the job store fix below applies everywhere.
 
 1. **The hook command is double-quoted.** It was quoted POSIX-style with single quotes, which
-   `cmd.exe` does not recognise, so the hook never launched. Since any exit code other than 2 means
-   "allow", enforcement was silently inert while the setup check (upstream's `/kimi:setup --check` at
-   the time we found it) still reported `Probe: ok`.
+   `cmd.exe` does not recognise, so once the hook path was set by hand (see 2) the hook never
+   launched. Since any exit code other than 2 means "allow", enforcement was silently inert while
+   the setup check (upstream's `/kimi:setup --check` at the time we found it) still reported
+   `Probe: ok`.
    Measured with the same command string: `/bin/sh` exits 2, `cmd.exe` exited 255 when we found it
    (2026-08-12) and 1 in an independent re-test on 2026-09-28. The number moves; what matters is
    that it is not 2, so the call is allowed. Upstream v2.0.7 still writes the single-quoted form.
@@ -269,6 +274,17 @@ setup's messages and the managed block carry this fork's names and version.
 3. **The Windows shell probe runs.** It used to return "skipped (Windows)" as a *success*. We
    measured how `kimi-code` 0.30.0 actually spawns the hook on Windows (`node.exe <- cmd.exe <- kimi.exe`,
    via `ComSpec`) and the probe now reproduces that path. For 2.1.1 its source says the same.
+4. **A busy job database is waited on, not failed on, on every platform.** The store set
+   `journal_mode = WAL` before `busy_timeout`, so that first setting ran with SQLite's default
+   timeout of zero and failed at once with `SQLITE_BUSY` whenever another process held the
+   database. `--background --wait` opens a fresh store on every poll while the worker writes the
+   same file, so a background job could fail with `JOB_STORE_BUSY` and print nothing. Now the store
+   waits up to SQLite's 5-second busy timeout, `--wait` keeps polling past a busy store until its
+   own deadline, and the read-only connection of `repair-sessions` sets the same timeout.
+   `tests/runtime/job-store-busy-open.test.ts` holds an EXCLUSIVE lock from a second process and
+   proves the open started while locked and finished only after the release, under both
+   `bun:sqlite` and the compiled runtime on Node's `node:sqlite`; on the old order both fail with
+   `JOB_STORE_BUSY`. Upstream v2.0.7 has the same order.
 
 These have **not** been proposed upstream yet, so the upstream project is not aware of them and
 is not responsible for them. We intend to open them as pull requests against

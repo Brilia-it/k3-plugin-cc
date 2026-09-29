@@ -1,6 +1,8 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
-// Changes are Windows-only and gated behind `process.platform === "win32"`.
-// See NOTICE and README.md. Section 4(b) of the License requires this notice.
+// Changes are made for Windows: hook path normalisation and a shell probe that
+// really runs, gated behind `process.platform === "win32"`. User-facing command
+// names read `/k3:` on every platform. See NOTICE and README.md. Section 4(b) of
+// the License requires this notice.
 
 // Managed-block installer for the kimi-code PreToolUse hook.
 //
@@ -1301,7 +1303,9 @@ function truncate(value: string, max: number): string {
  *   127   POSIX "command not found"
  *   9009  the cmd.exe equivalent
  *   1     the hook ran but errored, or the shell rejected the command shape
- *   255   command malformed for the shell - the original single-quote bug
+ *         (the single-quote bug measured 1 in a re-test on 2026-09-28)
+ *   255   command malformed for the shell - the single-quote bug as first
+ *         measured on 2026-08-12. The number moved; either way it is not 2.
  *   null  no exit code: killed by the timeout, i.e. a hang
  */
 function classifyProbeExit(code: number | null): string {

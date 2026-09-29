@@ -13,7 +13,7 @@ kimi-plugin-cc project:
     Licensed under the Apache License, Version 2.0
 
 This fork is based on upstream tag v2.0.7. Modifications made by BRILIA fall into
-four kinds, and are released under the same Apache License, Version 2.0:
+five kinds, and are released under the same Apache License, Version 2.0:
 
 1. Changes to BEHAVIOUR, made for Windows compatibility. How the hook command is
    written, quoted and launched changes on Windows only; the parser that
@@ -33,13 +33,25 @@ four kinds, and are released under the same Apache License, Version 2.0:
 3. ADDITIONS that upstream does not carry: two manual test harnesses
    (tests/manual/enforcement-matrix.mjs and
    tests/manual/shell-probe-discrimination.mjs), a maintainer script
-   (scripts/promote-to-main.mjs) and this fork's documentation.
+   (scripts/promote-to-main.mjs) with its tests (tests/scripts/), and this
+   fork's documentation.
 
 4. Changes to RELEASE AND CI plumbing. This fork is not published to npm:
    upstream's .github/workflows/publish.yml is removed, package.json is private
    and points to this repository. CI also runs on staging/** branches, because
    this repository requires a green CI run on a commit before main may point at
    it.
+
+5. A RELIABILITY FIX on every platform, in runtime/job-store.ts,
+   runtime/jobs.ts and runtime/commands/repair-sessions.ts (each with the
+   prominent notice of section 4(b) at the top, plus their compiled
+   counterparts): the job store sets busy_timeout before journal_mode = WAL, so
+   opening it while another process holds the database waits up to 5 seconds
+   instead of failing at once with SQLITE_BUSY; the background wait keeps
+   polling past a busy store until its own deadline; and the read-only
+   connection used by repair-sessions sets the same busy timeout. Regression
+   tests: tests/runtime/job-store-busy-open.test.ts, with the helpers
+   tests/helpers/hold-exclusive-lock.ts and tests/helpers/open-job-store-node.mjs.
 
 "Kimi", "Kimi Code", "K3" and "Moonshot AI" are trademarks of their respective
 owners. The Apache License grants no trademark rights (section 6). Their use here

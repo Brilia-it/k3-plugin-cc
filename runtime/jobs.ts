@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: waitForTerminalJob retries a busy job store until
+// its deadline instead of failing the whole wait. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { createHash } from "node:crypto";
 
 import { RuntimeError } from "./errors.js";
@@ -253,12 +257,25 @@ export async function waitForTerminalJob(
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const store = storeFactory();
+    // BRILIA fork: a busy database is a reason to poll again, not to fail. The
+    // detached worker writes the same file this loop reads; JobStore already
+    // waits up to its busy_timeout, and contention longer than that is retried
+    // here until the wait's own deadline instead of aborting the whole --wait.
+    let store: JobStore;
+    try {
+      store = storeFactory();
+    } catch (error) {
+      if (!isJobStoreBusy(error)) throw error;
+      await sleep(200);
+      continue;
+    }
     try {
       const job = store.getJob(jobId);
       if (job && job.status !== "running") {
         return job;
       }
+    } catch (error) {
+      if (!isJobStoreBusy(error)) throw error;
     } finally {
       store.close();
     }
@@ -271,6 +288,14 @@ export async function waitForTerminalJob(
     `Timed out after ${timeoutMs}ms while waiting for job ${jobId} to finish. The worker may still be running; use /k3:status ${jobId} to check progress or /k3:result ${jobId} once it completes.`,
     "jobs.wait",
   );
+}
+
+// BRILIA fork: JobStore translates SQLITE_BUSY into RuntimeError JOB_STORE_BUSY on
+// open; a raw driver error can still surface from a query, so both are matched.
+export function isJobStoreBusy(error: unknown): boolean {
+  if (error instanceof RuntimeError && error.code === "JOB_STORE_BUSY") return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /database is locked|SQLITE_BUSY/i.test(message);
 }
 
 function sleep(ms: number): Promise<void> {
