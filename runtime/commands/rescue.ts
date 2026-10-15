@@ -36,7 +36,13 @@ import {
   maybeWarnHookMissing,
   verifyHookInstalled,
 } from "../hooks/install.js";
-import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
+import {
+  assertCliResultSuccess,
+  keepFailedJobSession,
+  reassembleProseFromRecords,
+  warnIfSessionIdMissing,
+} from "./cli-helpers.js";
+import { snapshotSessionIndex, type SessionIndexSnapshot } from "../kimi-session-recovery.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 
 export { describeMissingResult } from "../background-spawn.js";
@@ -235,6 +241,10 @@ export async function executeRescueJob(
   }
 
   const handlers = createCliCancellationHandlers();
+  // BRILIA fork (2026-10-15): keep the kimi session of a job that fails (for example on
+  // a usage limit) so it can be resumed later. See kimi-session-recovery.ts.
+  let announcedSessionId: string | undefined;
+  let sessionBaseline: SessionIndexSnapshot | null = null;
 
   try {
     const executionPlan = executionPlanFromPersisted(job);
@@ -250,6 +260,9 @@ export async function executeRescueJob(
       store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
     }
     store.updateRunningJob(job.job_id, { phase: "turn-running" });
+    if (job.kimi_session_id === null) {
+      sessionBaseline = await snapshotSessionIndex(context.env, job.cwd);
+    }
 
     const result = await runCliPromptWithBudget(
       {
@@ -273,6 +286,8 @@ export async function executeRescueJob(
     );
 
     store.updateRunningJob(job.job_id, observedExecutionFields(result));
+    // Remember what kimi announced BEFORE the exit code is judged (see ask.ts).
+    announcedSessionId = result.sessionId;
 
     if (handlers.cancelling) {
       throw new RuntimeError(
@@ -367,8 +382,14 @@ export async function executeRescueJob(
       );
     }
 
+    const keptSessionId = await keepFailedJobSession(store, job, {
+      announcedSessionId,
+      baseline: sessionBaseline,
+      env: context.env,
+    });
     const classified = classifyManagedCommandFailure(error, "rescue", job.job_id, {
       preserveStage: true,
+      resumeCommand: keptSessionId ? `/k3:rescue --resume ${job.job_id}` : null,
     });
     return await markJobFailed(store, paths, job, classified, cancel.failedSummary, { phase: "failed" });
   } finally {

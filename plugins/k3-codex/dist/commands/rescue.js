@@ -16,7 +16,8 @@ import { parseRescueArgs } from "../parsing.js";
 import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.js";
 import { startBackgroundJob } from "../background-spawn.js";
 import { hookRefusalDetails, hookRefusalRetryProtocol, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
-import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
+import { assertCliResultSuccess, keepFailedJobSession, reassembleProseFromRecords, warnIfSessionIdMissing, } from "./cli-helpers.js";
+import { snapshotSessionIndex } from "../kimi-session-recovery.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
 export { describeMissingResult } from "../background-spawn.js";
 // v1.0 cutover note (PR 3):
@@ -162,6 +163,10 @@ export async function executeRescueJob(jobId, prompt, context, options) {
         }
     }
     const handlers = createCliCancellationHandlers();
+    // BRILIA fork (2026-10-15): keep the kimi session of a job that fails (for example on
+    // a usage limit) so it can be resumed later. See kimi-session-recovery.ts.
+    let announcedSessionId;
+    let sessionBaseline = null;
     try {
         const executionPlan = executionPlanFromPersisted(job);
         // Re-validate resume lineage from the store before spawning: a detached
@@ -175,6 +180,9 @@ export async function executeRescueJob(jobId, prompt, context, options) {
             store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
         }
         store.updateRunningJob(job.job_id, { phase: "turn-running" });
+        if (job.kimi_session_id === null) {
+            sessionBaseline = await snapshotSessionIndex(context.env, job.cwd);
+        }
         const result = await runCliPromptWithBudget({
             cwd: job.cwd,
             env: context.env,
@@ -192,6 +200,8 @@ export async function executeRescueJob(jobId, prompt, context, options) {
             // matches v0.4's cancellation.ts behavior for the wire client.
         }, KIMI_RESCUE_PROMPT_TIMEOUT_MS, "rescue.prompt");
         store.updateRunningJob(job.job_id, observedExecutionFields(result));
+        // Remember what kimi announced BEFORE the exit code is judged (see ask.ts).
+        announcedSessionId = result.sessionId;
         if (handlers.cancelling) {
             throw new RuntimeError(cancel.errorCodes.cancelled, cancel.cancelMessages.afterPrompt, "rescue.runtime");
         }
@@ -251,8 +261,14 @@ export async function executeRescueJob(jobId, prompt, context, options) {
             const cancelledError = new RuntimeError(cancel.errorCodes.cancelled, cancel.cancelMessages.default, "rescue.runtime", error instanceof Error ? { cause: error } : undefined);
             return await markJobCancelled(store, paths, job, cancel.cancelledSummary, cancelledError, { phase: "cancelled" });
         }
+        const keptSessionId = await keepFailedJobSession(store, job, {
+            announcedSessionId,
+            baseline: sessionBaseline,
+            env: context.env,
+        });
         const classified = classifyManagedCommandFailure(error, "rescue", job.job_id, {
             preserveStage: true,
+            resumeCommand: keptSessionId ? `/k3:rescue --resume ${job.job_id}` : null,
         });
         return await markJobFailed(store, paths, job, classified, cancel.failedSummary, { phase: "failed" });
     }

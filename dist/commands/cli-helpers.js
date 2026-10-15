@@ -1,4 +1,35 @@
 import { RuntimeError } from "../errors.js";
+import { resolveFailedJobSession } from "../kimi-session-recovery.js";
+/**
+ * BRILIA fork (2026-10-15): keep the kimi session id of a job that FAILED, so the
+ * work already done (for example files read before a usage limit) can be resumed
+ * with `--resume <job-id>` instead of restarting from zero.
+ *
+ * Uses the id kimi announced, else the conservative index recovery in
+ * kimi-session-recovery.ts. Never throws: failing to keep the id must not hide the
+ * original failure. Returns the id now stored on the job, or null.
+ */
+export async function keepFailedJobSession(store, job, options) {
+    if (job.kimi_session_id !== null) {
+        return job.kimi_session_id;
+    }
+    try {
+        const outcome = await resolveFailedJobSession({
+            announcedSessionId: options.announcedSessionId,
+            baseline: options.baseline,
+            env: options.env,
+            jobCwd: job.cwd,
+        });
+        if (outcome.sessionId === null) {
+            return null;
+        }
+        const updated = store.updateRunningJob(job.job_id, { kimi_session_id: outcome.sessionId });
+        return updated ? outcome.sessionId : null;
+    }
+    catch {
+        return null;
+    }
+}
 /**
  * Reassemble prose final text from cli-client records.
  *

@@ -16,8 +16,9 @@ import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.j
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { startBackgroundJob } from "../background-spawn.js";
 import { hookRefusalDetails, hookRefusalRetryProtocol, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
-import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing } from "./cli-helpers.js";
+import { assertCliResultSuccess, keepFailedJobSession, reassembleProseFromRecords, warnIfSessionIdMissing, } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
+import { snapshotSessionIndex } from "../kimi-session-recovery.js";
 // v1.0 cutover note (PR 2):
 //
 //   The v0.4 wire client/initialize/prompt sequence is replaced with a
@@ -144,6 +145,10 @@ export async function executeAskJob(jobId, prompt, context, options) {
     const askConfig = getManagedCommandConfig("ask");
     const cancel = askConfig.cancellation;
     let handlers;
+    // BRILIA fork (2026-10-15): what is needed to keep the kimi session of a job that
+    // fails (for example on a usage limit), so it can be resumed later.
+    let announcedSessionId;
+    let sessionBaseline = null;
     try {
         // Re-verify in the worker so a background job cannot outlive or bypass
         // enforcement drift between the user invocation and the actual Kimi spawn.
@@ -162,6 +167,9 @@ export async function executeAskJob(jobId, prompt, context, options) {
         if (options?.workerPid) {
             store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
         }
+        if (job.kimi_session_id === null) {
+            sessionBaseline = await snapshotSessionIndex(context.env, job.cwd);
+        }
         const result = await runCliPromptWithBudget({
             cwd: job.cwd,
             env: context.env,
@@ -176,6 +184,9 @@ export async function executeAskJob(jobId, prompt, context, options) {
             signal: handlers.signal,
         }, KIMI_ASK_PROMPT_TIMEOUT_MS, "ask.prompt");
         store.updateRunningJob(job.job_id, observedExecutionFields(result));
+        // Remember what kimi announced BEFORE the exit code is judged: a non-zero exit
+        // (usage limit, 403) used to throw below and drop the announced session id.
+        announcedSessionId = result.sessionId;
         if (handlers.cancelling) {
             throw new RuntimeError(cancel.errorCodes.cancelled, cancel.cancelMessages.afterPrompt, "ask.runtime");
         }
@@ -232,7 +243,14 @@ export async function executeAskJob(jobId, prompt, context, options) {
             await markJobFailed(store, paths, job, error, cancel.failedSummary, { phase: "failed" });
             throw error;
         }
-        const classified = classifyManagedCommandFailure(error, "ask", job.job_id);
+        const keptSessionId = await keepFailedJobSession(store, job, {
+            announcedSessionId,
+            baseline: sessionBaseline,
+            env: context.env,
+        });
+        const classified = classifyManagedCommandFailure(error, "ask", job.job_id, {
+            resumeCommand: keptSessionId ? `/k3:ask --resume ${job.job_id}` : null,
+        });
         await markJobFailed(store, paths, job, classified, cancel.failedSummary, { phase: "failed" });
         throw classified;
     }

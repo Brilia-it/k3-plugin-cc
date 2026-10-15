@@ -22,7 +22,7 @@
 //   K3_PLUGIN_CC_MOCK_SESSION_ID    override session id announced in stderr
 
 import { randomUUID } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { appendFile, writeFile } from "node:fs/promises";
 
 const scenario = process.env.K3_PLUGIN_CC_MOCK_SCENARIO ?? "ask-success";
 const invocationPath = process.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH;
@@ -81,6 +81,37 @@ async function main(): Promise<void> {
 
   if (delayMs > 0) {
     await sleep(delayMs);
+  }
+
+  if (scenario === "quota-fail") {
+    // The 2026-10-15 incident: kimi starts, warns about the untrusted folder, creates
+    // its session on disk, then the provider refuses with the 5-hour usage limit and
+    // kimi exits 1. Knobs: K3_PLUGIN_CC_MOCK_INDEX_ENTRY=1 writes the session into
+    // <KIMI_CODE_HOME>/session_index.jsonl (as kimi does); K3_PLUGIN_CC_MOCK_ANNOUNCE_ON_FAIL=1
+    // also prints the "To resume this session" line.
+    if (process.env.K3_PLUGIN_CC_MOCK_INDEX_ENTRY === "1" && process.env.KIMI_CODE_HOME) {
+      const extraEntries = Number(process.env.K3_PLUGIN_CC_MOCK_INDEX_EXTRA ?? "0");
+      const lines: string[] = [];
+      for (let i = 0; i <= extraEntries; i += 1) {
+        const id = i === 0 ? sessionId : randomUUID();
+        lines.push(
+          JSON.stringify({
+            sessionId: id,
+            sessionDir: `${process.env.KIMI_CODE_HOME}/sessions/wd_mock/${id}`,
+            workDir: process.cwd(),
+          }),
+        );
+      }
+      await appendFile(`${process.env.KIMI_CODE_HOME}/session_index.jsonl`, `${lines.join("\n")}\n`, "utf8");
+    }
+    process.stderr.write("Warning: this folder is not trusted; skipped 4 project-level MCP servers.\n");
+    process.stderr.write(
+      "provider.auth_error: 403 You've reached your 5-hour usage limit. Your quota will reset when the current 5-hour window ends.\n",
+    );
+    if (process.env.K3_PLUGIN_CC_MOCK_ANNOUNCE_ON_FAIL === "1") {
+      process.stderr.write(`To resume this session: kimi -r ${sessionId}\n`);
+    }
+    process.exit(1);
   }
 
   const records = recordsForScenario(scenario);
