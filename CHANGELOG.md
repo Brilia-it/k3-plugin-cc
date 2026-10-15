@@ -17,7 +17,15 @@ session to resume. From 0.7.0 `--wait` waits for the job, a usage limit is named
 model job runs at a time, a stopped job can be resumed, and a new opt-in probe tests the model
 itself.**
 
-No setup run is needed after updating.
+**Upgrading: run `/k3:setup` once after updating.** The hook command that setup pins into
+`~/.kimi-code/config.toml` contains the version-stamped path of the plugin install, and the
+check compares it byte for byte. A normal cache upgrade changes that path, so until `/k3:setup`
+re-pins it every command that starts a model refuses (`<CMD>_HOOK_NOT_INSTALLED`) and the review
+gate skips visibly; `status`, `result`, `replay` and `cancel` keep working.
+
+**Behaviour change:** `ask`/`rescue --background --wait` on a job that ends `failed` or `cancelled`
+still prints the failure artifact on stdout, but the process now exits non-zero (it used to exit 0,
+so a script that keys on the exit code went on to the next job).
 
 - **`--wait` waits for the job.** It was bounded by a fixed 60 seconds
   (`waitForTerminalJob`'s default) while an `ask` job has a 15-minute budget and a `rescue` job 30
@@ -46,20 +54,35 @@ No setup run is needed after updating.
   `ASK_ALREADY_RUNNING` / `RESCUE_ALREADY_RUNNING`.
 - **A job stopped by a limit can be resumed.** The failed jobs had `kimi_session_id: null`: the
   commands threw on the non-zero exit before saving the session id kimi had announced. They now
-  save it first. If kimi announced nothing, the id is recovered from kimi's own
-  `session_index.jsonl` (home resolved as everywhere else), only when exactly one new entry appeared
-  for the job's folder (Windows paths compared by separator and case); several candidates mean none
-  is guessed, and nothing else in kimi's home is read. `ask --resume <job-id>` and
-  `rescue --resume <job-id>` accept a failed source job, and the quota message prints the exact
-  command. Not verified against a real kimi 403: whether kimi announces or indexes the session
-  before the first model call is covered by tests with a fake binary only, and a native-v2 resume
-  still requires proven engine provenance of the source job.
+  save it first, and only an id that kimi announced for that run is ever stored.
+  `ask --resume <job-id>` and `rescue --resume <job-id>` accept a failed source job, and the quota
+  message prints the exact command. A session that appears in kimi's `session_index.jsonl` is NOT
+  adopted (an interactive kimi in the same folder, another job or an index rebuild look the same):
+  when exactly one new entry matches the folder and the index was read completely, the message
+  mentions it only as an unverified candidate for a human (`kimi -r <id>`); it is never stored and
+  never used for resume or lineage. Not verified against a real kimi 403: whether kimi announces
+  the session before the first model call is covered by tests with a fake binary only, and a
+  native-v2 resume still requires proven engine provenance of the source job.
+- **Review fixes (Codex review of the first 0.7.0 cut).** Provider limits are classified only from
+  kimi's own provider error line (`provider.<kind>_error: ...`, the last one), so a local error
+  that mentions "does not have access to" or a quota sentence echoed in a log no longer becomes
+  account advice. The official "Your current plan supports only k3 up to 256K context" denial is a
+  `context_exceeded` with `details.reason` `plan-256k`. The one-job guard counts a running row with
+  no process only within two minutes (older ones are reported as "stale, not counted" and never
+  block), never counts review-gate rows, and its final check runs in the same write-locked
+  transaction as the job insert so two launches cannot both pass. The guard's scope is one job
+  store (one plugin data directory): it does not see Codex, another data directory or a native
+  interactive `kimi`.
 - **`/k3:setup --check --probe-model [-m <model>]`.** The plain `--check` probe exercises the hook
   and printed `Probe: ok` minutes before the quota refused everything. The new opt-in flag sends one
-  minimal prompt ("Reply with the single word READY.", 120 second budget) through the same
+  prompt ("Reply with the single word READY.", 120 second budget) through the same
   read-only path as `ask` and reports `Model probe: ok | failed | skipped`, with the classified
-  error. Without the flag no model call is made and the output says the probe tests the hook, not
-  model access or quota. A failed model probe exits non-zero.
+  error. It does not promise a single provider request: kimi has no documented tool-free
+  single-request mode, so the provider may count more than one. It goes through the same
+  one-job-at-a-time admission (refuses while a job runs, `--allow-concurrent` overrides, holds a
+  running row while it works, releases it on every outcome). Without the flag no model call is
+  made and the output says the probe tests the hook, not model access or quota. A failed or
+  refused model probe exits non-zero.
 - **Dependency audit.** The `smol-toml` development dependency is bumped to 1.9.1 for
   GHSA-r4xh-jqrq-34v2 (quadratic `parse()`, <= 1.8.0). The vendored parser subset in
   `runtime/vendor/smol-toml/` (from 1.6.1) is also in the advisory range; the upstream fix is a

@@ -1,12 +1,12 @@
 ---
 description: List configured models, guide subscription/API-key provider setup, and verify local Kimi companion readiness and manage review-gate state. Writes a managed PreToolUse hook block to ~/.kimi-code/config.toml so kimi-code enforces this plugin's safety contract. Claude Code and Codex each own a host-scoped block in the shared config.
-argument-hint: "[--models [--json] | --check [--probe-model [-m <model>]] | --uninstall [--all] | --enable-review-gate | --disable-review-gate]"
+argument-hint: "[--models [--json] | --check [--probe-model [-m <model>] [--allow-concurrent]] | --uninstall [--all] | --enable-review-gate | --disable-review-gate]"
 disable-model-invocation: true
 ---
 
 For model/provider questions, use `--models` (or `--models --json` for structured output); do not forward question text as arguments. This mode is offline, read-only, and cannot be combined with other setup flags. Bare `setup` installs hooks.
 
-`--check` tests the hook, NOT model access, the plan, or the quota: it can print `Probe: ok` while the model would refuse every call. `--check --probe-model [-m <model>]` additionally sends ONE minimal prompt ("Reply with the single word READY.", 120 s budget) through the same read-only path as `ask` and reports `Model probe: ok | failed | skipped`, with the classified error (usage limit, concurrent limit, plan, context) when it fails. It uses a very small amount of quota, so it is opt-in; run it before a long job. Without `--probe-model` no model call is made.
+`--check` tests the hook, NOT model access, the plan, or the quota: it can print `Probe: ok` while the model would refuse every call. `--check --probe-model [-m <model>]` additionally sends one prompt ("Reply with the single word READY.", 120 s budget) through the same read-only path as `ask` and reports `Model probe: ok | failed | skipped`, with the classified error (usage limit, concurrent limit, plan, context) when it fails. The provider may count more than one request for it (kimi has no documented tool-free single-request mode), so it is opt-in; run it before a long job. It follows the same one-job-at-a-time rule as every model command: it refuses while a job is running (`--allow-concurrent` overrides, only if the user asks) and exits non-zero when refused or failed. Without `--probe-model` no model call is made.
 
 Run the companion with the selected flags appended after `setup`:
 

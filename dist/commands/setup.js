@@ -127,7 +127,7 @@ function withSkippedModelProbe(result) {
 }
 // BRILIA fork (2026-10-15 incident): `setup --check` printed "Probe: ok" minutes before
 // three jobs were refused by the plan's usage limit, because that probe exercises the
-// PreToolUse hook and never touches the model. This opt-in probe sends ONE minimal
+// PreToolUse hook and never touches the model. This opt-in probe sends ONE short
 // prompt through the same CLI path as `ask` (read-only label, hook enforced) and reports
 // the classified provider error. It costs a (very small) call against the quota, which is
 // why it is opt-in and never part of the plain --check.
@@ -314,7 +314,7 @@ function parseArgs(argv) {
         throw new RuntimeError("INVALID_ARGS", "--all is only valid with --uninstall (it removes EVERY host's managed block).", "setup.parse");
     }
     if (probeModel && mode !== "check") {
-        throw new RuntimeError("INVALID_ARGS", "--probe-model is only valid with --check (it sends one minimal prompt to the model).", "setup.parse");
+        throw new RuntimeError("INVALID_ARGS", "--probe-model is only valid with --check (it sends one prompt to the model).", "setup.parse");
     }
     if (allowConcurrent && !probeModel) {
         throw new RuntimeError("INVALID_ARGS", "--allow-concurrent is only valid with --check --probe-model for setup.", "setup.parse");
@@ -1416,7 +1416,7 @@ export function renderSetupResult(result) {
         ...(result.action === "check" && (result.modelProbe ?? "skipped") === "skipped"
             ? [
                 "Note: the Probe line tests the hook, not model access, your plan, or your quota. " +
-                    "Run `setup --check --probe-model [-m <model>]` to send one minimal prompt to the model (it uses a very small amount of quota).",
+                    "Run `setup --check --probe-model [-m <model>]` to send one prompt (120 s budget) to the model; the provider may count more than one request for it.",
             ]
             : []),
         `Review gate:    ${result.reviewGateEnabled ? "enabled" : "disabled"}`,

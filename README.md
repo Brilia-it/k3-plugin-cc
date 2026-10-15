@@ -92,8 +92,9 @@ human-initiated plugin invocation is classified under a subscription, and only M
 What we can tell you plainly:
 
 - Every command that talks to the model goes through `kimi -p`. There is no interactive mode that
-  avoids it. (`setup`, `status`, `result`, `cancel` and `replay` never invoke `kimi -p` and never reach the
-  model.)
+  avoids it. (`status`, `result`, `cancel` and `replay` never invoke `kimi -p` and never reach the
+  model. `setup` does not either, with one opt-in exception: `setup --check --probe-model` sends one
+  prompt to the model.)
 - Some commands go considerably further from interactive use than a single review does. `/k3:pursue`
   runs an autonomous multi-turn goal loop, and `/k3:swarm` fans out to parallel subagents. If the
   distinction between interactive and automated matters to you, those are the ones to weigh.
@@ -250,21 +251,30 @@ Practical rules:
   (`/k3:status <id>`, `/k3:result <id>`). It never queues or schedules anything: refusing is the whole
   behaviour. `--allow-concurrent` overrides the refusal for that one call, and you take the quota
   and terms consequences. A swarm's own internal fan-out counts as one job, and the Stop-hook review
-  gate is not affected.
+  gate is not affected. The check and the job insert happen in one database transaction, so two
+  launches cannot both slip through. A running row with no process that is older than two minutes
+  is an orphan and is not counted (the refusal names it as "stale, not counted"). **Scope:** the
+  guard sees one job store, that is one plugin data directory. It does not see Codex or Claude Code
+  running against another data directory, nor a native interactive `kimi`.
 - **`--wait` now really waits.** It waits for the job's own budget (ask 15 minutes, rescue 30
   minutes) plus 60 seconds. If it still stops waiting, the message says in capitals that the job is
   STILL RUNNING and that starting another now would run in parallel. `review`, `challenge`, `pursue`
   and `swarm` run in the foreground and do not take `--wait`.
-- **Resume after a limit.** A failed `ask` or `rescue` job now keeps the Kimi session id when Kimi
-  created one (from what Kimi announced, or, failing that, from exactly one new entry in Kimi's own
-  `session_index.jsonl` for the same folder; never guessed when there are several). When the window
-  has reset, `/k3:ask --resume <job-id>` or `/k3:rescue --resume <job-id>` continues that session
-  instead of starting over. The quota error prints the exact command, or says that a retry starts
-  from zero when no session could be recovered.
+- **Resume after a limit.** A failed `ask` or `rescue` job now keeps the Kimi session id **only
+  when Kimi announced it for that run**. When the window has reset, `/k3:ask --resume <job-id>` or
+  `/k3:rescue --resume <job-id>` continues that session instead of starting over, and the quota
+  error prints the exact command. A session that merely shows up in Kimi's own
+  `session_index.jsonl` is never adopted (it could be an interactive Kimi in the same folder or
+  another job): at most the message mentions it as an unverified candidate you can open yourself
+  with `kimi -r <id>`. Otherwise a retry starts from zero. **Not yet verified against a real Kimi
+  403:** whether Kimi announces the session before the first model call is covered by tests with a
+  fake binary only.
 - **Test the model before a long run.** `/k3:setup --check` prints `Probe: ok` but tests the hook,
   not model access, your plan, or your quota. `/k3:setup --check --probe-model [-m <model>]` sends
-  one minimal prompt and reports `Model probe: ok | failed | skipped` with the classified error. It
-  uses a very small amount of quota, so it is opt-in.
+  one prompt with a 120 second budget and reports `Model probe: ok | failed | skipped` with the
+  classified error. The provider may count more than one request for it (Kimi offers no documented
+  tool-free single-request mode), so it uses a small, not a guaranteed minimal, amount of quota and
+  is opt-in. It goes through the same one-job-at-a-time admission as every model job.
 - **Extra usage is Moonshot's paid option.** If you need more calls than the plan gives, buy extra
   usage from Moonshot; this plugin has no way around a limit and does not try to find one.
 

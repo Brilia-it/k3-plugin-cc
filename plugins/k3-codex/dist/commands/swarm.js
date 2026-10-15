@@ -225,7 +225,7 @@ async function runReadSwarm(parsed, objective, context) {
             final_output_path: null,
             stream_log_path: logPath,
             error: null,
-        });
+        }, { commandType: "swarm", allowConcurrent: parsed.allowConcurrent });
         try {
             await writeInvocationLogHeader(logPath, {
                 commandType: "swarm",
@@ -325,7 +325,7 @@ async function runWriteSwarm(parsed, objective, context) {
                 final_output_path: null,
                 stream_log_path: logPath,
                 error: null,
-            });
+            }, { commandType: "swarm", allowConcurrent: parsed.allowConcurrent });
             try {
                 await writeInvocationLogHeader(logPath, {
                     commandType: "swarm-write",

@@ -8,6 +8,7 @@
 // Section 4(b) of the License requires this notice.
 import { createRequire } from "node:module";
 import { RuntimeError, formatError } from "./errors.js";
+import { assertNoModelJobRunning } from "./admission.js";
 export class JobStore {
     db;
     constructor(paths) {
@@ -166,7 +167,26 @@ export class JobStore {
     close() {
         this.db.close();
     }
-    createJob(input) {
+    /**
+     * BRILIA fork (review 0.7.0, finding 3): with `admission`, the one-model-job guard and
+     * the insert happen in ONE write-locked transaction, so two launches that both passed
+     * the early check cannot both start. `allowConcurrent` skips the check. Without
+     * `admission` (review gate, tests, repairs) this is the plain insert.
+     */
+    createJob(input, admission) {
+        if (!admission || admission.allowConcurrent) {
+            return this.insertJob(input);
+        }
+        return this.withWriteLock(() => {
+            // Insert first: a same-session uniqueness violation (ASK_ALREADY_RUNNING /
+            // RESCUE_ALREADY_RUNNING) keeps its more specific error. If other counted jobs
+            // are running, the throw rolls the insert back.
+            const created = this.insertJob(input);
+            assertNoModelJobRunning(this, admission.commandType, false, Date.now(), input.job_id);
+            return created;
+        });
+    }
+    insertJob(input) {
         const now = new Date().toISOString();
         try {
             this.db.run(`

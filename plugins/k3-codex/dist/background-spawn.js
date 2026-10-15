@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { access, appendFile, constants as fsConstants } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RuntimeError, formatError } from "./errors.js";
+import { RuntimeError, TerminalJobFailure, formatError } from "./errors.js";
 import { preferStableNodePath } from "./hooks/install-paths.js";
 import { markJobFailed, waitForTerminalJob } from "./jobs.js";
 import { JobStore } from "./job-store.js";
@@ -144,7 +144,12 @@ export async function startBackgroundJob(job, prompt, context, paths, options) {
         if (!completed.final_output_path) {
             throw new RuntimeError(options.missingResultErrorCode, describeMissingResult(completed, options.workerKind), options.waitStage);
         }
-        return readArtifact(completed.final_output_path);
+        const artifact = await readArtifact(completed.final_output_path);
+        if (completed.status === "failed" || completed.status === "cancelled") {
+            throw new TerminalJobFailure(completed.error?.code || `${options.workerKind.toUpperCase()}_JOB_${completed.status.toUpperCase()}`, `Background ${options.workerKind} job ${completed.job_id} ended ${completed.status}` +
+                `${completed.error?.code ? ` (${completed.error.code})` : ""}; the failure artifact is on stdout.`, options.waitStage, artifact);
+        }
+        return artifact;
     }
     return `${JSON.stringify({
         job_id: job.job_id,
