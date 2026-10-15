@@ -40,8 +40,15 @@ function nonzeroExit(stderrTail: string): RuntimeError {
   );
 }
 
+// kimi prints a provider refusal as `error: failed to run prompt: provider.<kind>_error: <payload>`.
+// Bare payloads are wrapped like that; text that already carries a provider marker is left alone.
+function realLine(payload: string): string {
+  return `error: failed to run prompt: provider.auth_error: ${payload}`;
+}
+
 function classify(stderrTail: string, command: "ask" | "review" | "rescue" | "review_gate" = "ask"): RuntimeError {
-  const out = classifyManagedCommandFailure(nonzeroExit(stderrTail), command, "job-1");
+  const wrapped = stderrTail.includes("provider.") ? stderrTail : realLine(stderrTail);
+  const out = classifyManagedCommandFailure(nonzeroExit(wrapped), command, "job-1");
   expect(out).toBeInstanceOf(RuntimeError);
   return out as RuntimeError;
 }
@@ -87,7 +94,7 @@ describe("provider limits get their own classification", () => {
   });
 
   test("a quota failure with a recoverable session gives the exact resume command", () => {
-    const err = classifyManagedCommandFailure(nonzeroExit(QUOTA_5H), "ask", "job-9", {
+    const err = classifyManagedCommandFailure(nonzeroExit(realLine(QUOTA_5H)), "ask", "job-9", {
       resumeCommand: '/k3:ask --resume job-9 "continue"',
     }) as RuntimeError;
     expect(err.code).toBe("ASK_KIMI_QUOTA_EXHAUSTED");
@@ -108,7 +115,7 @@ describe("provider limits get their own classification", () => {
     const k3 = classify(PLAN_K3);
     expect(k3.code).toBe("ASK_KIMI_PLAN_UNAVAILABLE");
     expect(k3.message).toContain("kimi-for-coding");
-    const code = classify(`${TRUST_WARNING}\n${PLAN_CODE}`);
+    const code = classify(`${TRUST_WARNING}\n${realLine(PLAN_CODE)}`);
     expect(code.code).toBe("ASK_KIMI_PLAN_UNAVAILABLE");
     expect(code.message).toContain("subscription");
   });
@@ -135,10 +142,53 @@ describe("provider limits get their own classification", () => {
 
   test("the review gate stays fail-open: every limit kind is a warning that allows stop", () => {
     for (const text of [QUOTA_5H, CONCURRENCY, PLAN_K3, CONTEXT_SIZE]) {
-      const warning = summarizeKimiAvailabilityWarning(nonzeroExit(text), "review_gate");
+      const warning = summarizeKimiAvailabilityWarning(nonzeroExit(realLine(text)), "review_gate");
       expect(warning).not.toBeNull();
       expect(warning).toContain("allowing stop");
     }
-    expect(summarizeKimiAvailabilityWarning(nonzeroExit(QUOTA_5H), "review_gate")).toContain("usage limit");
+    expect(summarizeKimiAvailabilityWarning(nonzeroExit(realLine(QUOTA_5H)), "review_gate")).toContain("usage limit");
+  });
+
+  // Review 0.7.0, finding 4: only kimi's provider error line is classified.
+  test("a local EPERM mentioning 'does not have access to' is not a plan error", () => {
+    const out = classifyManagedCommandFailure(
+      nonzeroExit("EPERM: process does not have access to C:/protected/file.txt"),
+      "ask",
+      "job-1",
+    ) as RuntimeError;
+    expect(out.code).toBe("ASK_KIMI_STARTUP_FAILED");
+  });
+
+  test("an echoed quota sentence followed by a local error is not a quota error", () => {
+    const out = classifyManagedCommandFailure(
+      nonzeroExit(`The log said: ${QUOTA_5H}\nError: disk full`),
+      "ask",
+      "job-1",
+    ) as RuntimeError;
+    expect(out.code).toBe("ASK_KIMI_STARTUP_FAILED");
+  });
+
+  test("with several provider lines the LAST one wins, and quoted text elsewhere does not", () => {
+    const tail = [`echo: ${QUOTA_5H}`, realLine(QUOTA_5H), realLine(CONCURRENCY)].join("\n");
+    const out = classifyManagedCommandFailure(nonzeroExit(tail), "ask", "job-1") as RuntimeError;
+    expect(out.code).toBe("ASK_KIMI_CONCURRENCY_LIMITED");
+  });
+
+  test("the real 2026-10-15 line classifies as 5-hour quota with or without the warning and the EPERM stack", () => {
+    const real = realLine(QUOTA_5H);
+    for (const tail of [real, `${TRUST_WARNING}\n${real}`, `${TRUST_WARNING}\n${EPERM_STACK}\n${real}`]) {
+      const out = classifyManagedCommandFailure(nonzeroExit(tail), "ask", "job-1") as RuntimeError;
+      expect(out.code).toBe("ASK_KIMI_QUOTA_EXHAUSTED");
+      expect(out.details?.limit).toBe("5-hour");
+    }
+  });
+
+  // Review 0.7.0, finding 8: the official "no 1M access" denial.
+  test("'Your current plan supports only k3 up to 256K context' is a context error with the plan-256k reason", () => {
+    const err = classify("403 Your current plan supports only k3 up to 256K context");
+    expect(err.code).toBe("ASK_KIMI_CONTEXT_EXCEEDED");
+    expect(err.details?.reason).toBe("plan-256k");
+    expect(err.message).toContain("stay within 256K (use kimi-code/k3-256k), or upgrade to a plan with 1M");
+    expect(err.message).not.toContain("Run `/k3:setup` to verify");
   });
 });
