@@ -24,6 +24,9 @@ const FAILURE_PERSIST_RETRY_DELAYS_MS = [100, 200, 400] as const;
 export interface BackgroundSpawnOptions {
   workerKind: "rescue" | "ask";
   wait: boolean;
+  // BRILIA fork (2026-10-15): the job's own prompt budget (ms). `--wait` waits
+  // for that budget plus a grace period, never for a fixed 60 s.
+  waitBudgetMs: number;
   promptEnvVar: string;
   reusedSessionEnvVar: string;
   reusedSession: boolean;
@@ -38,6 +41,26 @@ export interface BackgroundSpawnOptions {
   // question for ask's title announcement, which differs from the wrapped
   // prompt the worker uses for client.prompt).
   extraEnv?: Record<string, string>;
+}
+
+// BRILIA fork (2026-10-15 incident): three read-only ask jobs were launched with
+// `--background --wait`. `--wait` gave up after the 60 s default of
+// waitForTerminalJob while each job had a 900 s budget, so the caller's loop
+// started the next job and the three ran in PARALLEL. The wait is now the job's
+// budget plus this grace period.
+export const BACKGROUND_WAIT_GRACE_MS = 60_000;
+
+/**
+ * Total time `--wait` blocks for a job whose own budget is `budgetMs`.
+ * `K3_PLUGIN_CC_WAIT_TIMEOUT_MS` (a positive integer) overrides the total; it
+ * exists so tests can exercise the timeout without a real 15-minute wait.
+ */
+export function resolveBackgroundWaitTimeoutMs(budgetMs: number, env: NodeJS.ProcessEnv): number {
+  const override = Number.parseInt(env.K3_PLUGIN_CC_WAIT_TIMEOUT_MS ?? "", 10);
+  if (Number.isFinite(override) && override > 0) {
+    return override;
+  }
+  return budgetMs + BACKGROUND_WAIT_GRACE_MS;
 }
 
 export async function startBackgroundJob(
@@ -176,7 +199,11 @@ export async function startBackgroundJob(
   }
 
   if (options.wait) {
-    const completed = await waitForTerminalJob(() => new JobStore(paths), job.job_id);
+    const completed = await waitForTerminalJob(
+      () => new JobStore(paths),
+      job.job_id,
+      resolveBackgroundWaitTimeoutMs(options.waitBudgetMs, context.env),
+    );
     if (!completed.final_output_path) {
       throw new RuntimeError(
         options.missingResultErrorCode,

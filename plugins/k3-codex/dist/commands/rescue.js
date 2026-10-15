@@ -97,6 +97,7 @@ export async function runRescue(argv, context) {
             return startBackgroundJob(job, prompt, context, paths, {
                 workerKind: "rescue",
                 wait: parsed.wait,
+                waitBudgetMs: KIMI_RESCUE_PROMPT_TIMEOUT_MS,
                 promptEnvVar: "K3_PLUGIN_CC_RESCUE_PROMPT_B64",
                 reusedSessionEnvVar: "K3_PLUGIN_CC_RESCUE_REUSED_SESSION",
                 reusedSession: sessionResolution.reusedSession,

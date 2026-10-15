@@ -388,6 +388,14 @@ export class JobStore {
     return result;
   }
 
+  // BRILIA fork (2026-10-15): every running job, oldest first, so the
+  // one-job-at-a-time guard can name them.
+  listRunningJobs(): JobRecord[] {
+    return this.db
+      .all<DbRow>(`SELECT * FROM jobs WHERE status = 'running' ORDER BY created_at ASC`)
+      .map(hydrateRow);
+  }
+
   // Every job still marked running, with or without a process hint: a job not
   // yet spawned is running too.
   countRunningJobs(): number {

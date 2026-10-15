@@ -105,6 +105,7 @@ export async function runAsk(argv, context) {
             return startBackgroundJob(job, askPrompt, context, paths, {
                 workerKind: "ask",
                 wait: parsed.wait,
+                waitBudgetMs: KIMI_ASK_PROMPT_TIMEOUT_MS,
                 promptEnvVar: "K3_PLUGIN_CC_ASK_PROMPT_B64",
                 reusedSessionEnvVar: "K3_PLUGIN_CC_ASK_REUSED_SESSION",
                 reusedSession: sessionResolution.reusedSession,

@@ -285,7 +285,10 @@ export async function waitForTerminalJob(
 
   throw new RuntimeError(
     "JOB_WAIT_TIMEOUT",
-    `Timed out after ${timeoutMs}ms while waiting for job ${jobId} to finish. The worker may still be running; use /k3:status ${jobId} to check progress or /k3:result ${jobId} once it completes.`,
+    // BRILIA fork (2026-10-15): the old text said the worker "may" still be running,
+    // and a caller loop took the timeout for the end of the job and started the
+    // next one in parallel. The job is STILL RUNNING: say so, and say what not to do.
+    `Stopped waiting after ${timeoutMs}ms, but job ${jobId} is STILL RUNNING; the wait ended, the job did not. Do not start another model job now: it would run in parallel with this one and burn the same Kimi quota. Use /k3:status ${jobId} to follow it and /k3:result ${jobId} once it completes.`,
     "jobs.wait",
   );
 }

@@ -14,6 +14,24 @@ const isCompiledRuntime = import.meta.url.endsWith(".js");
 const companionEntrypoint = fileURLToPath(new URL(isCompiledRuntime ? "./companion.js" : "./companion.ts", import.meta.url));
 const companionProjectRoot = path.resolve(path.dirname(companionEntrypoint), "..");
 const FAILURE_PERSIST_RETRY_DELAYS_MS = [100, 200, 400];
+// BRILIA fork (2026-10-15 incident): three read-only ask jobs were launched with
+// `--background --wait`. `--wait` gave up after the 60 s default of
+// waitForTerminalJob while each job had a 900 s budget, so the caller's loop
+// started the next job and the three ran in PARALLEL. The wait is now the job's
+// budget plus this grace period.
+export const BACKGROUND_WAIT_GRACE_MS = 60_000;
+/**
+ * Total time `--wait` blocks for a job whose own budget is `budgetMs`.
+ * `K3_PLUGIN_CC_WAIT_TIMEOUT_MS` (a positive integer) overrides the total; it
+ * exists so tests can exercise the timeout without a real 15-minute wait.
+ */
+export function resolveBackgroundWaitTimeoutMs(budgetMs, env) {
+    const override = Number.parseInt(env.K3_PLUGIN_CC_WAIT_TIMEOUT_MS ?? "", 10);
+    if (Number.isFinite(override) && override > 0) {
+        return override;
+    }
+    return budgetMs + BACKGROUND_WAIT_GRACE_MS;
+}
 export async function startBackgroundJob(job, prompt, context, paths, options) {
     // MUST be the same resolution the hook verifier uses. The worker re-verifies
     // the hook (rescue.ts / ask.ts, deliberately, so a background job cannot
@@ -122,7 +140,7 @@ export async function startBackgroundJob(job, prompt, context, paths, options) {
         store.close();
     }
     if (options.wait) {
-        const completed = await waitForTerminalJob(() => new JobStore(paths), job.job_id);
+        const completed = await waitForTerminalJob(() => new JobStore(paths), job.job_id, resolveBackgroundWaitTimeoutMs(options.waitBudgetMs, context.env));
         if (!completed.final_output_path) {
             throw new RuntimeError(options.missingResultErrorCode, describeMissingResult(completed, options.workerKind), options.waitStage);
         }
