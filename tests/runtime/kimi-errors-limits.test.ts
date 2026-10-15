@@ -183,6 +183,40 @@ describe("provider limits get their own classification", () => {
     }
   });
 
+  // Round 3, item C: anchored at the start of a line, taken from the CLI error's own text.
+  test("a complete provider line quoted inside echoed text (not at line start) is not classified", () => {
+    const tail = `The log said: ${realLine(QUOTA_5H)}\nError: disk full`;
+    const out = classifyManagedCommandFailure(nonzeroExit(tail), "ask", "job-1") as RuntimeError;
+    expect(out.code).toBe("ASK_KIMI_STARTUP_FAILED");
+  });
+
+  test("a provider line that exists only in serialized details is not classified", () => {
+    const error = new RuntimeError("CLI_NONZERO_EXIT", "kimi subprocess exited with code 1:\nError: disk full", "ask.runtime", {
+      details: { stderr_excerpt: realLine(QUOTA_5H) },
+    });
+    const out = classifyManagedCommandFailure(error, "ask", "job-1") as RuntimeError;
+    expect(out.code).toBe("ASK_KIMI_STARTUP_FAILED");
+  });
+
+  test("a provider line with leading whitespace and without the 'error: failed to run prompt:' prefix still classifies", () => {
+    const out = classifyManagedCommandFailure(
+      nonzeroExit(`  provider.auth_error: ${QUOTA_5H}`),
+      "ask",
+      "job-1",
+    ) as RuntimeError;
+    expect(out.code).toBe("ASK_KIMI_QUOTA_EXHAUSTED");
+  });
+
+  // Round 3, item D: the gate warning comes from the structured classification.
+  test("review gate warning after a quota line then a concurrency line says concurrency", () => {
+    const tail = [realLine(QUOTA_5H), realLine(CONCURRENCY)].join("\n");
+    const classified = classifyManagedCommandFailure(nonzeroExit(tail), "review_gate", "job-1") as RuntimeError;
+    expect(classified.code).toBe("REVIEW_GATE_KIMI_CONCURRENCY_LIMITED");
+    const warning = summarizeKimiAvailabilityWarning(classified, "review_gate");
+    expect(warning).toContain("concurrent request limit");
+    expect(warning).not.toContain("usage limit");
+  });
+
   // Review 0.7.0, finding 8: the official "no 1M access" denial.
   test("'Your current plan supports only k3 up to 256K context' is a context error with the plan-256k reason", () => {
     const err = classify("403 Your current plan supports only k3 up to 256K context");
