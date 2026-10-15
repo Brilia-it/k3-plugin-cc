@@ -80,8 +80,8 @@ export function summarizeKimiAvailabilityWarning(error, commandType) {
             return `K3 ${formatCommandLabel(commandType).toLowerCase()} timed out; allowing stop.`;
     }
 }
-export function classifySetupFailure(error) {
-    return classifyKimiAvailability(error);
+export function classifySetupFailure(error, options) {
+    return classifyKimiAvailability(error, options);
 }
 /**
  * BRILIA fork (2026-10-15 incident): which provider limit, if any, kimi's stderr
@@ -112,15 +112,17 @@ function classifyProviderLimit(message, options) {
                 : limit === "billing-cycle"
                     ? "monthly billing cycle"
                     : "plan";
-        const resume = options?.resumeCommand
-            ? `The work already done is kept in the Kimi session: once the limit resets, continue with \`${options.resumeCommand}\`.`
-            : "No resumable Kimi session was recovered, so a retry starts from zero.";
+        const resume = options?.omitResumeHint
+            ? ""
+            : options?.resumeCommand
+                ? `The work already done is kept in the Kimi session: once the limit resets, continue with \`${options.resumeCommand}\`.`
+                : "No resumable Kimi session was recovered, so a retry starts from zero.";
         return {
             kind: "quota_exhausted",
             summary: `the Kimi subscription refused the call: the ${which} usage limit is reached. This is call volume on your plan, NOT the context window.`,
             nextStep: "`/k3:setup` does not fix it. The limit resets by itself when the window ends (or buy extra usage from Kimi). " +
                 "For long read-heavy jobs, `kimi-code/k3-256k` uses about half the quota of `k3` at 1M context. " +
-                `Run jobs one at a time. ${resume}`,
+                `Run jobs one at a time.${resume ? ` ${resume}` : ""}`,
             runtimeProbe: "ok",
             authProbe: "ok",
             details: { limit },

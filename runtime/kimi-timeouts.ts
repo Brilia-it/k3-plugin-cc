@@ -25,6 +25,11 @@ export const KIMI_REVIEW_PROMPT_TIMEOUT_MS = 1_800_000;
 /** Rescue budget. Thinking-on multi-step apply/test/verify loops. */
 export const KIMI_RESCUE_PROMPT_TIMEOUT_MS = 1_800_000;
 /**
+ * BRILIA fork (2026-10-15): budget of the opt-in `setup --check --probe-model` call,
+ * one minimal prompt ("Reply with the single word READY."). Short on purpose.
+ */
+export const KIMI_MODEL_PROBE_TIMEOUT_MS = 120_000;
+/**
  * Pursue (autonomous goal mode) DEFAULT wall-clock ceiling when the user
  * passes no `--budget`. This is the ONLY hard bound on an autonomous goal —
  * headless goal create sets no token/turn budget (only the model, via

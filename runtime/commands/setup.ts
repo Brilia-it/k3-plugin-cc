@@ -95,8 +95,12 @@ import {
   formatVersionOutOfRangeWarning,
   probeKimiVersion,
 } from "../kimi-version-probe.js";
-import { isNativeV2CertifiedVersion } from "../kimi-engine.js";
+import { isNativeV2CertifiedVersion, prepareKimiExecutionPlan } from "../kimi-engine.js";
+import { runCliPromptWithBudget } from "../cli-client.js";
+import { classifySetupFailure } from "../kimi-errors.js";
+import { KIMI_MODEL_PROBE_TIMEOUT_MS } from "../kimi-timeouts.js";
 import { resolveKimiHome } from "../kimi-home.js";
+import { assertCliResultSuccess, reassembleProseFromRecords } from "./cli-helpers.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import type { CommandContext } from "../types.js";
 import { K3_PLUGIN_CC_VERSION } from "../version.js";
@@ -137,6 +141,16 @@ export interface SetupResult {
   probe: "ok" | "failed" | "skipped";
   /** Failure detail when probe === "failed". */
   probeError?: string;
+  /**
+   * BRILIA fork (2026-10-15): outcome of the opt-in `--probe-model` call. `"skipped"`
+   * (the default) means NO model call was made. The plain `probe` above tests the
+   * hook, not model access, plan, or quota.
+   */
+  modelProbe?: "ok" | "failed" | "skipped";
+  /** Why the model probe failed or was skipped (classified provider error when there is one). */
+  modelProbeDetail?: string;
+  /** Classified kind of a failed model probe (quota_exhausted, plan_unavailable, ...). */
+  modelProbeKind?: string;
   /** Warnings about user-side config that may interfere. */
   warnings: string[];
   reviewGateEnabled: boolean;
@@ -150,6 +164,10 @@ interface ParsedArgs {
   disableReviewGate: boolean;
   /** `--uninstall --all`: remove EVERY host's managed block + orphan cruft. */
   removeAllHosts: boolean;
+  /** `--check --probe-model`: also send one tiny prompt to the model. */
+  probeModel: boolean;
+  /** `-m/--model <name>` for the model probe. */
+  model?: string;
 }
 
 export async function runSetup(argv: string[], context: CommandContext): Promise<SetupResult> {
@@ -182,19 +200,102 @@ export async function runSetup(argv: string[], context: CommandContext): Promise
 
   switch (parsed.mode) {
     case "uninstall":
-      return await runUninstall(
-        configPath,
-        hookScriptPath,
-        hostId,
-        parsed.removeAllHosts,
-        reviewGateEnabled,
-        warnings,
-        context,
+      return withSkippedModelProbe(
+        await runUninstall(
+          configPath,
+          hookScriptPath,
+          hostId,
+          parsed.removeAllHosts,
+          reviewGateEnabled,
+          warnings,
+          context,
+        ),
       );
-    case "check":
-      return await runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context);
+    case "check": {
+      const checked = await runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context);
+      return parsed.probeModel
+        ? await applyModelProbe(checked, parsed.model, context)
+        : withSkippedModelProbe(checked);
+    }
     case "install":
-      return await runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context);
+      return withSkippedModelProbe(
+        await runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context),
+      );
+  }
+}
+
+function withSkippedModelProbe(result: SetupResult): SetupResult {
+  return { ...result, modelProbe: "skipped" };
+}
+
+// BRILIA fork (2026-10-15 incident): `setup --check` printed "Probe: ok" minutes before
+// three jobs were refused by the plan's usage limit, because that probe exercises the
+// PreToolUse hook and never touches the model. This opt-in probe sends ONE minimal
+// prompt through the same CLI path as `ask` (read-only label, hook enforced) and reports
+// the classified provider error. It costs a (very small) call against the quota, which is
+// why it is opt-in and never part of the plain --check.
+const MODEL_PROBE_PROMPT = "Reply with the single word READY.";
+
+async function applyModelProbe(
+  checked: SetupResult,
+  model: string | undefined,
+  context: CommandContext,
+): Promise<SetupResult> {
+  if (checked.probe !== "ok") {
+    return {
+      ...checked,
+      modelProbe: "skipped",
+      modelProbeDetail: "the hook probe did not pass, so no model call was made",
+    };
+  }
+  try {
+    const executionPlan = await prepareKimiExecutionPlan({
+      operationKind: "ask",
+      cwd: context.cwd,
+      env: context.env,
+    });
+    const result = await runCliPromptWithBudget(
+      {
+        cwd: context.cwd,
+        env: context.env,
+        command: executionPlan.command,
+        prefixArgs: [...executionPlan.prefixArgs],
+        executionPlan,
+        prompt: MODEL_PROBE_PROMPT,
+        commandLabel: "ask",
+        model,
+      },
+      KIMI_MODEL_PROBE_TIMEOUT_MS,
+      "setup.model-probe",
+    );
+    assertCliResultSuccess(result, "setup.model-probe");
+    if (reassembleProseFromRecords(result.records).trim().length === 0) {
+      return {
+        ...checked,
+        modelProbe: "failed",
+        modelProbeDetail: "the model answered with an empty reply",
+        nextStep: "The model call returned nothing; retry, or pick another model with -m.",
+      };
+    }
+    return {
+      ...checked,
+      modelProbe: "ok",
+      modelProbeDetail: model
+        ? `one minimal prompt was answered by model ${model}`
+        : "one minimal prompt was answered by the default model",
+    };
+  } catch (error) {
+    const classification = classifySetupFailure(error, { omitResumeHint: true });
+    const detail = classification
+      ? `${classification.summary} ${classification.nextStep}`
+      : `the model call failed: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`;
+    return {
+      ...checked,
+      modelProbe: "failed",
+      modelProbeKind: classification?.kind,
+      modelProbeDetail: detail,
+      nextStep: `Model probe failed: ${detail}`,
+    };
   }
 }
 
@@ -203,9 +304,25 @@ function parseArgs(argv: string[]): ParsedArgs {
   let enableReviewGate = false;
   let disableReviewGate = false;
   let removeAllHosts = false;
+  let probeModel = false;
+  let model: string | undefined;
 
-  for (const token of argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index]!;
     switch (token) {
+      case "--probe-model":
+        probeModel = true;
+        break;
+      case "-m":
+      case "--model": {
+        const value = argv[index + 1];
+        if (!value || value.startsWith("-")) {
+          throw new RuntimeError("INVALID_ARGS", `${token} requires a model name.`, "setup.parse");
+        }
+        model = value;
+        index += 1;
+        break;
+      }
       case "--check":
         if (mode === "uninstall") {
           throw new RuntimeError(
@@ -238,7 +355,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       default:
         throw new RuntimeError(
           "INVALID_ARGS",
-          `Unknown setup flag ${token}. Supported flags: --check, --uninstall, --all (with --uninstall), --enable-review-gate, --disable-review-gate.`,
+          `Unknown setup flag ${token}. Supported flags: --check, --probe-model [-m <model>] (with --check), --uninstall, --all (with --uninstall), --enable-review-gate, --disable-review-gate.`,
           "setup.parse",
         );
     }
@@ -260,7 +377,23 @@ function parseArgs(argv: string[]): ParsedArgs {
     );
   }
 
-  return { mode, enableReviewGate, disableReviewGate, removeAllHosts };
+  if (probeModel && mode !== "check") {
+    throw new RuntimeError(
+      "INVALID_ARGS",
+      "--probe-model is only valid with --check (it sends one minimal prompt to the model).",
+      "setup.parse",
+    );
+  }
+
+  if (model !== undefined && !probeModel) {
+    throw new RuntimeError(
+      "INVALID_ARGS",
+      "-m/--model is only valid with --check --probe-model for setup.",
+      "setup.parse",
+    );
+  }
+
+  return { mode, enableReviewGate, disableReviewGate, removeAllHosts, probeModel, model };
 }
 
 async function runInstall(
@@ -1604,6 +1737,13 @@ export function renderSetupResult(result: SetupResult): string {
     `Block written:  ${result.blockWritten ? "yes" : "no"}`,
     `Block removed:  ${result.blockRemoved ? "yes" : "no"}`,
     `Probe:          ${result.probe}${result.probeError ? ` (${result.probeError})` : ""}`,
+    `Model probe:    ${result.modelProbe ?? "skipped"}${result.modelProbeDetail ? ` (${result.modelProbeDetail})` : ""}`,
+    ...(result.action === "check" && (result.modelProbe ?? "skipped") === "skipped"
+      ? [
+          "Note: the Probe line tests the hook, not model access, your plan, or your quota. " +
+            "Run `setup --check --probe-model [-m <model>]` to send one minimal prompt to the model (it uses a very small amount of quota).",
+        ]
+      : []),
     `Review gate:    ${result.reviewGateEnabled ? "enabled" : "disabled"}`,
     "",
     "Details:",

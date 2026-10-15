@@ -45,7 +45,7 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: "commands/rescue.md", sha256: "f48f336121a451b582e41004d4f5de3974c7a18d144e929db5fd6598f3737b67" },
   { path: "commands/result.md", sha256: "d5ae361ea6c95f139e4bf1d2f23cb69e14c23c9e0e2b6e8084274e8245016db5" },
   { path: "commands/review.md", sha256: "8685625c96314e1653021c7c246fb481bad971c8b0916ba1b65fb74fcddc37ee" },
-  { path: "commands/setup.md", sha256: "ede6fb64d0a8b9876a2405b3685483d4db5ce9505dd724ad903cdf1b048abc44" },
+  { path: "commands/setup.md", sha256: "94e2b9cc2cc98d4cb65927879b0530725e7e47432703dff21bad9951fcee9a17" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
   { path: "commands/swarm.md", sha256: "1d15d26e50514915f3d9796a2f64ac04f8827c96e628f6ef975be9af4783d3aa" },
   { path: "agents/k3-ask.md", sha256: "58a50e1a84b3a50a27744b21da95b4365e8b1071c86f444f19128f889d4593f9" },
@@ -269,7 +269,7 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     implicit: false,
     command: "setup",
     argumentSummary:
-      "[--models [--json] | --check | --uninstall [--all] | --enable-review-gate | --disable-review-gate]",
+      "[--models [--json] | --check [--probe-model [-m <model>]] | --uninstall [--all] | --enable-review-gate | --disable-review-gate]",
     description:
       "List configured models, guide provider setup, verify local Kimi companion readiness, and manage the PreToolUse hook plus optional review gate. Use when asked about available models, subscription/API-key setup, default selection, or explicitly requested to install, check, enable, disable, or uninstall the integration. Codex and Claude Code share one ~/.kimi-code/config.toml but each own a host-scoped block, so $k3-setup here does not disturb Claude Code's /k3:setup (and vice-versa).",
     guidance: [
@@ -277,6 +277,7 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
       "For model/provider questions, run `setup --models` (or `--models --json` for structured output). Do not append the question text or combine this mode with other setup flags; bare setup installs hooks. Listing is offline and does not change configuration or validate credentials.",
       ...MODEL_SELECTION_GUIDANCE,
       "Use `--check` for read-only verification and `--uninstall` only when explicitly requested. `--uninstall` removes only this host's block; `--uninstall --all` removes every host's block from the shared config.",
+      "`--check` tests the hook, not model access, plan or quota. Add `--probe-model [-m <model>]` only when asked (or before a long job): it sends one minimal prompt and reports `Model probe: ok|failed|skipped` with the classified provider error.",
       "Setup validates the complete shared TOML and every configured hook under a serialized lock. If it reports invalid foreign config, surface that failure; do not bypass it or claim the managed block is safe in isolation.",
       "Report setup stdout verbatim because it contains hook and probe status.",
     ],
