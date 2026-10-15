@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { renderSetupResult, runSetup } from "../../runtime/commands/setup.js";
+import { JobStore } from "../../runtime/job-store.js";
+import { resolvePluginPaths } from "../../runtime/paths.js";
 import type { CommandContext } from "../../runtime/types.js";
 
 const mockCliPath = path.join(process.cwd(), "tests/helpers/mock-kimi-cli-v1.ts");
@@ -127,4 +129,89 @@ describe("setup --check --probe-model", () => {
     expect(result.modelProbeDetail).toContain("hook probe did not pass");
     expect(existsSync(invocationPath)).toBe(false);
   }, 60_000);
+
+  // Review 0.7.0, finding 5: the probe goes through the same admission as every model job.
+  function seedRunning(env: NodeJS.ProcessEnv, jobId: string): void {
+    const store = new JobStore(resolvePluginPaths(env));
+    try {
+      store.createJob({
+        job_id: jobId,
+        repo_id: "repo-x",
+        command_type: "ask",
+        cwd: process.cwd(),
+        model: null,
+        thinking: null,
+        background: false,
+        pid: process.pid,
+        kimi_pid: null,
+        status: "running",
+        kimi_session_id: null,
+        agent_profile: "read-only",
+        prompt_digest: "digest",
+        summary: "Running.",
+        phase: "turn-running",
+        final_output_path: null,
+        stream_log_path: path.join(scratch, `${jobId}.jsonl`),
+        error: null,
+      });
+    } finally {
+      store.close();
+    }
+  }
+
+  function runningIds(env: NodeJS.ProcessEnv): string[] {
+    const store = new JobStore(resolvePluginPaths(env));
+    try {
+      return store.listRunningJobs().map((job) => job.job_id);
+    } finally {
+      store.close();
+    }
+  }
+
+  test("refuses while a job is running (nonzero outcome), sends nothing, and --allow-concurrent overrides", async () => {
+    const { env, invocationPath } = await makeCase("adm-refuse", "ask-success");
+    await runSetup([], makeContext(env));
+    seedRunning(env, "job-long-running");
+    const refused = await runSetup(["--check", "--probe-model"], makeContext(env));
+    expect(refused.modelProbe).toBe("failed");
+    expect(refused.modelProbeKind).toBe("job_already_running");
+    expect(refused.modelProbeDetail).toContain("job-long-running");
+    expect(existsSync(invocationPath)).toBe(false);
+    expect(runningIds(env)).toEqual(["job-long-running"]);
+
+    const allowed = await runSetup(["--check", "--probe-model", "--allow-concurrent"], makeContext(env));
+    expect(allowed.modelProbe).toBe("ok");
+    expect(runningIds(env)).toEqual(["job-long-running"]);
+  }, 60_000);
+
+  test("plain setup and setup --check are untouched by a running job", async () => {
+    const { env } = await makeCase("adm-plain", "ask-success");
+    await runSetup([], makeContext(env));
+    seedRunning(env, "job-long-running");
+    const check = await runSetup(["--check"], makeContext(env));
+    expect(check.probe).toBe("ok");
+    expect(check.modelProbe).toBe("skipped");
+  }, 60_000);
+
+  test("while the probe runs it holds a running row; the row is released on success and on failure", async () => {
+    const slow = await makeCase("adm-hold", "ask-success");
+    slow.env.K3_PLUGIN_CC_MOCK_DELAY_MS = "4000";
+    await runSetup([], makeContext(slow.env));
+    const pending = runSetup(["--check", "--probe-model"], makeContext(slow.env));
+    let seen: string[] = [];
+    for (let i = 0; i < 80 && seen.length === 0; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      seen = runningIds(slow.env);
+    }
+    expect(seen.length).toBe(1);
+    const result = await pending;
+    expect(result.modelProbe).toBe("ok");
+    expect(runningIds(slow.env)).toEqual([]);
+
+    const failing = await makeCase("adm-release-fail", "quota-fail");
+    await runSetup([], makeContext(failing.env));
+    const failed = await runSetup(["--check", "--probe-model"], makeContext(failing.env));
+    expect(failed.modelProbe).toBe("failed");
+    expect(runningIds(failing.env)).toEqual([]);
+  }, 90_000);
 });
