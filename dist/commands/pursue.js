@@ -157,7 +157,7 @@ export async function runPursue(argv, context) {
             final_output_path: null,
             stream_log_path: logPath,
             error: null,
-        });
+        }, { commandType: "pursue", allowConcurrent: parsed.allowConcurrent });
         try {
             await writeInvocationLogHeader(logPath, {
                 commandType: "pursue",

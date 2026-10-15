@@ -12,7 +12,7 @@ import { runSwarm } from "./commands/swarm.js";
 import { renderSetupResult, runSetup } from "./commands/setup.js";
 import { runStatus } from "./commands/status.js";
 import { runWorker } from "./commands/worker.js";
-import { formatError, RuntimeError } from "./errors.js";
+import { formatError, RuntimeError, TerminalJobFailure } from "./errors.js";
 import { resolveKimiHome } from "./kimi-home.js";
 import type { CommandContext } from "./types.js";
 
@@ -123,6 +123,14 @@ async function main(argv: string[]): Promise<void> {
 }
 
 main(process.argv.slice(2)).catch((error) => {
+  if (error instanceof TerminalJobFailure) {
+    // Waited background job that ended failed/cancelled: the artifact stays the stdout
+    // output, the exit code says it did not succeed (same family as the foreground path).
+    process.stdout.write(`${error.artifact.trimEnd()}\n`);
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
   process.stderr.write(`${formatError(error)}\n`);
   process.exitCode = 1;
 });

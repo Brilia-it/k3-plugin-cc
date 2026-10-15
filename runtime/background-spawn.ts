@@ -3,7 +3,7 @@ import { access, appendFile, constants as fsConstants } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { RuntimeError, formatError } from "./errors.js";
+import { RuntimeError, TerminalJobFailure, formatError } from "./errors.js";
 import { preferStableNodePath } from "./hooks/install-paths.js";
 import { markJobFailed, waitForTerminalJob } from "./jobs.js";
 import { JobStore, type JobRecord } from "./job-store.js";
@@ -212,7 +212,17 @@ export async function startBackgroundJob(
       );
     }
 
-    return readArtifact(completed.final_output_path);
+    const artifact = await readArtifact(completed.final_output_path);
+    if (completed.status === "failed" || completed.status === "cancelled") {
+      throw new TerminalJobFailure(
+        completed.error?.code || `${options.workerKind.toUpperCase()}_JOB_${completed.status.toUpperCase()}`,
+        `Background ${options.workerKind} job ${completed.job_id} ended ${completed.status}` +
+          `${completed.error?.code ? ` (${completed.error.code})` : ""}; the failure artifact is on stdout.`,
+        options.waitStage,
+        artifact,
+      );
+    }
+    return artifact;
   }
 
   return `${JSON.stringify(

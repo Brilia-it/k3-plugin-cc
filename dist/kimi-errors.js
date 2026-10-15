@@ -84,13 +84,30 @@ export function classifySetupFailure(error, options) {
     return classifyKimiAvailability(error, options);
 }
 /**
+ * Review 0.7.0: provider limits are classified ONLY from kimi's own provider error
+ * line, `error: failed to run prompt: provider.auth_error: 403 You've reached ...`,
+ * never from the whole message. A local error that merely mentions "does not have
+ * access to", or a quota sentence echoed in a log, must not become account advice.
+ * Returns the payload after the marker of the LAST provider line, or null.
+ */
+export function extractProviderPayload(message) {
+    let payload = null;
+    for (const line of message.split(/\r?\n/)) {
+        const match = /provider\.[a-z0-9_]*_error:\s*(.*)$/i.exec(line);
+        if (match) {
+            payload = match[1] ?? "";
+        }
+    }
+    return payload;
+}
+/**
  * BRILIA fork (2026-10-15 incident): which provider limit, if any, kimi's stderr
  * reports. The tail is embedded in the CLI_NONZERO_EXIT message. Texts are the
  * ones in https://www.kimi.com/code/docs/en/kimi-code/error-reference.html
  * (checked 2026-10-15). Case-insensitive; `you.ve` tolerates a curly apostrophe.
  */
-function classifyProviderLimit(message, options) {
-    const text = message.toLowerCase();
+function classifyProviderLimit(payload, options) {
+    const text = payload.toLowerCase();
     let limit = null;
     if (text.includes("5-hour usage limit")) {
         limit = "5-hour";
@@ -116,7 +133,10 @@ function classifyProviderLimit(message, options) {
             ? ""
             : options?.resumeCommand
                 ? `The work already done is kept in the Kimi session: once the limit resets, continue with \`${options.resumeCommand}\`.`
-                : "No resumable Kimi session was recovered, so a retry starts from zero.";
+                : "No resumable Kimi session was announced for this job, so a retry starts from zero." +
+                    (options?.unverifiedSessionCandidate
+                        ? ` Kimi may have created session ${options.unverifiedSessionCandidate} (not verified as this job's); if it is yours, \`kimi -r ${options.unverifiedSessionCandidate}\` in a terminal resumes it interactively.`
+                        : "");
         return {
             kind: "quota_exhausted",
             summary: `the Kimi subscription refused the call: the ${which} usage limit is reached. This is call volume on your plan, NOT the context window.`,
@@ -144,6 +164,17 @@ function classifyProviderLimit(message, options) {
             nextStep: "Check the plan on your Kimi account. For `k3` the Kimi docs suggest `kimi-for-coding` (pass `-m kimi-for-coding`). `/k3:setup` does not fix it.",
             runtimeProbe: "ok",
             authProbe: "failed",
+        };
+    }
+    // Official "no 1M access" denial (error reference, anchor #no-1m-access).
+    if (text.includes("supports only k3 up to 256k context")) {
+        return {
+            kind: "context_exceeded",
+            summary: "the current plan has no 1M context access for `k3`, only up to 256K.",
+            nextStep: "The remedy is to stay within 256K (use kimi-code/k3-256k), or upgrade to a plan with 1M. `/k3:setup` does not fix it.",
+            runtimeProbe: "ok",
+            authProbe: "ok",
+            details: { reason: "plan-256k" },
         };
     }
     if (text.includes("exceeded model token limit") ||
@@ -182,7 +213,8 @@ function classifyKimiAvailability(error, options) {
     // A provider limit arrives inside the same CLI_NONZERO_EXIT message and must not
     // fall into the generic startup_failed branch, whose "/k3:setup" advice cannot
     // fix a quota, a plan, or a context window.
-    const providerLimit = classifyProviderLimit(message, options);
+    const providerPayload = extractProviderPayload(message);
+    const providerLimit = providerPayload === null ? null : classifyProviderLimit(providerPayload, options);
     if (providerLimit) {
         return providerLimit;
     }

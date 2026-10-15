@@ -85,7 +85,7 @@ export async function runRescue(argv, context) {
             final_output_path: null,
             stream_log_path: logPath,
             error: null,
-        });
+        }, { commandType: "rescue", allowConcurrent: parsed.allowConcurrent });
         try {
             await writeInvocationLogHeader(logPath, {
                 commandType: "rescue",
@@ -261,14 +261,15 @@ export async function executeRescueJob(jobId, prompt, context, options) {
             const cancelledError = new RuntimeError(cancel.errorCodes.cancelled, cancel.cancelMessages.default, "rescue.runtime", error instanceof Error ? { cause: error } : undefined);
             return await markJobCancelled(store, paths, job, cancel.cancelledSummary, cancelledError, { phase: "cancelled" });
         }
-        const keptSessionId = await keepFailedJobSession(store, job, {
+        const kept = await keepFailedJobSession(store, job, {
             announcedSessionId,
             baseline: sessionBaseline,
             env: context.env,
         });
         const classified = classifyManagedCommandFailure(error, "rescue", job.job_id, {
             preserveStage: true,
-            resumeCommand: keptSessionId ? `/k3:rescue --resume ${job.job_id}` : null,
+            resumeCommand: kept.keptSessionId ? `/k3:rescue --resume ${job.job_id}` : null,
+            unverifiedSessionCandidate: kept.unverifiedCandidate,
         });
         return await markJobFailed(store, paths, job, classified, cancel.failedSummary, { phase: "failed" });
     }

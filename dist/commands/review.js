@@ -102,7 +102,7 @@ export async function runReview(argv, context, commandType) {
         final_output_path: null,
         stream_log_path: logPath,
         error: null,
-    });
+    }, { commandType: commandType, allowConcurrent: parsed.allowConcurrent });
     await writeInvocationLogHeader(logPath, {
         commandType,
         kimiSessionId: reviewSessionId ?? "(pending)",

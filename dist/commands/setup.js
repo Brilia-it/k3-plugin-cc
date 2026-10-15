@@ -61,6 +61,11 @@ import { collectLegacyEnvWarnings, describeDataDirMigration, describeLegacyDataD
 import { formatVersionOutOfRangeWarning, probeKimiVersion, } from "../kimi-version-probe.js";
 import { isNativeV2CertifiedVersion, prepareKimiExecutionPlan } from "../kimi-engine.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
+import { randomUUID } from "node:crypto";
+import { resolveRepoIdentity } from "../git.js";
+import { JobStore } from "../job-store.js";
+import { assertNoModelJobRunning, digestPrompt, normalizeJobError, sweepStaleJobs } from "../jobs.js";
+import { persistedExecutionPlanFields } from "../kimi-engine.js";
 import { classifySetupFailure } from "../kimi-errors.js";
 import { KIMI_MODEL_PROBE_TIMEOUT_MS } from "../kimi-timeouts.js";
 import { resolveKimiHome } from "../kimi-home.js";
@@ -110,7 +115,7 @@ export async function runSetup(argv, context) {
         case "check": {
             const checked = await runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context);
             return parsed.probeModel
-                ? await applyModelProbe(checked, parsed.model, context)
+                ? await applyModelProbe(checked, { model: parsed.model, allowConcurrent: parsed.allowConcurrent }, context)
                 : withSkippedModelProbe(checked);
         }
         case "install":
@@ -127,7 +132,8 @@ function withSkippedModelProbe(result) {
 // the classified provider error. It costs a (very small) call against the quota, which is
 // why it is opt-in and never part of the plain --check.
 const MODEL_PROBE_PROMPT = "Reply with the single word READY.";
-async function applyModelProbe(checked, model, context) {
+async function applyModelProbe(checked, options, context) {
+    const { model, allowConcurrent } = options;
     if (checked.probe !== "ok") {
         return {
             ...checked,
@@ -135,12 +141,46 @@ async function applyModelProbe(checked, model, context) {
             modelProbeDetail: "the hook probe did not pass, so no model call was made",
         };
     }
+    // Review 0.7.0 (finding 5): the probe is a model call, so it goes through the same
+    // admission as ask/review/rescue. It refuses while a job runs (unless
+    // --allow-concurrent), and while it runs it holds a running row that other commands
+    // see; the row is released on every terminal path (see the finally below).
+    const store = new JobStore(resolvePluginPaths(context.env));
+    let probeJobId = null;
+    let probeError;
     try {
+        await sweepStaleJobs(store, resolvePluginPaths(context.env));
+        assertNoModelJobRunning(store, "setup", allowConcurrent);
         const executionPlan = await prepareKimiExecutionPlan({
             operationKind: "ask",
             cwd: context.cwd,
             env: context.env,
         });
+        const paths = resolvePluginPaths(context.env);
+        const repoIdentity = await resolveRepoIdentity(context.cwd);
+        const jobId = randomUUID();
+        store.createJob({
+            job_id: jobId,
+            repo_id: repoIdentity.repoId,
+            command_type: "ask",
+            cwd: context.cwd,
+            model: model ?? null,
+            thinking: null,
+            background: false,
+            pid: process.pid,
+            kimi_pid: null,
+            status: "running",
+            kimi_session_id: null,
+            ...persistedExecutionPlanFields(executionPlan),
+            agent_profile: "<cli-client>",
+            prompt_digest: digestPrompt(MODEL_PROBE_PROMPT),
+            summary: "Model probe (setup --check --probe-model).",
+            phase: "model-probe",
+            final_output_path: null,
+            stream_log_path: path.join(paths.logsDir, `setup-probe-${jobId}.jsonl`),
+            error: null,
+        }, { commandType: "setup", allowConcurrent });
+        probeJobId = jobId;
         const result = await runCliPromptWithBudget({
             cwd: context.cwd,
             env: context.env,
@@ -153,6 +193,7 @@ async function applyModelProbe(checked, model, context) {
         }, KIMI_MODEL_PROBE_TIMEOUT_MS, "setup.model-probe");
         assertCliResultSuccess(result, "setup.model-probe");
         if (reassembleProseFromRecords(result.records).trim().length === 0) {
+            probeError = new RuntimeError("SETUP_MODEL_PROBE_EMPTY", "the model answered with an empty reply", "setup.model-probe");
             return {
                 ...checked,
                 modelProbe: "failed",
@@ -160,15 +201,32 @@ async function applyModelProbe(checked, model, context) {
                 nextStep: "The model call returned nothing; retry, or pick another model with -m.",
             };
         }
+        store.markCompleted(probeJobId, {
+            summary: "Model probe answered.",
+            phase: "done",
+            final_output_path: null,
+            error: null,
+        });
+        probeJobId = null;
         return {
             ...checked,
             modelProbe: "ok",
             modelProbeDetail: model
-                ? `one minimal prompt was answered by model ${model}`
-                : "one minimal prompt was answered by the default model",
+                ? `one prompt was answered by model ${model}`
+                : "one prompt was answered by the default model",
         };
     }
     catch (error) {
+        probeError = error;
+        if (error instanceof RuntimeError && error.code.endsWith("_JOB_ALREADY_RUNNING")) {
+            return {
+                ...checked,
+                modelProbe: "failed",
+                modelProbeKind: "job_already_running",
+                modelProbeDetail: error.message,
+                nextStep: `Model probe refused: ${error.message}`,
+            };
+        }
         const classification = classifySetupFailure(error, { omitResumeHint: true });
         const detail = classification
             ? `${classification.summary} ${classification.nextStep}`
@@ -181,6 +239,21 @@ async function applyModelProbe(checked, model, context) {
             nextStep: `Model probe failed: ${detail}`,
         };
     }
+    finally {
+        try {
+            if (probeJobId !== null) {
+                // Every non-success terminal path (failure, timeout, exception) releases the row.
+                store.markFailed(probeJobId, {
+                    summary: "Model probe failed.",
+                    error: normalizeJobError(probeError ?? new Error("model probe ended without a result")),
+                    phase: "failed",
+                });
+            }
+        }
+        finally {
+            store.close();
+        }
+    }
 }
 function parseArgs(argv) {
     let mode = "install";
@@ -188,12 +261,16 @@ function parseArgs(argv) {
     let disableReviewGate = false;
     let removeAllHosts = false;
     let probeModel = false;
+    let allowConcurrent = false;
     let model;
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
         switch (token) {
             case "--probe-model":
                 probeModel = true;
+                break;
+            case "--allow-concurrent":
+                allowConcurrent = true;
                 break;
             case "-m":
             case "--model": {
@@ -227,7 +304,7 @@ function parseArgs(argv) {
                 disableReviewGate = true;
                 break;
             default:
-                throw new RuntimeError("INVALID_ARGS", `Unknown setup flag ${token}. Supported flags: --check, --probe-model [-m <model>] (with --check), --uninstall, --all (with --uninstall), --enable-review-gate, --disable-review-gate.`, "setup.parse");
+                throw new RuntimeError("INVALID_ARGS", `Unknown setup flag ${token}. Supported flags: --check, --probe-model [-m <model>] [--allow-concurrent] (with --check), --uninstall, --all (with --uninstall), --enable-review-gate, --disable-review-gate.`, "setup.parse");
         }
     }
     if (enableReviewGate && disableReviewGate) {
@@ -239,10 +316,13 @@ function parseArgs(argv) {
     if (probeModel && mode !== "check") {
         throw new RuntimeError("INVALID_ARGS", "--probe-model is only valid with --check (it sends one minimal prompt to the model).", "setup.parse");
     }
+    if (allowConcurrent && !probeModel) {
+        throw new RuntimeError("INVALID_ARGS", "--allow-concurrent is only valid with --check --probe-model for setup.", "setup.parse");
+    }
     if (model !== undefined && !probeModel) {
         throw new RuntimeError("INVALID_ARGS", "-m/--model is only valid with --check --probe-model for setup.", "setup.parse");
     }
-    return { mode, enableReviewGate, disableReviewGate, removeAllHosts, probeModel, model };
+    return { mode, enableReviewGate, disableReviewGate, removeAllHosts, probeModel, model, allowConcurrent };
 }
 async function runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context) {
     await assertHookScriptExists(hookScriptPath);

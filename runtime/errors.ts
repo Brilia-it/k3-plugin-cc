@@ -12,6 +12,22 @@ export class RuntimeError extends Error {
   }
 }
 
+/**
+ * BRILIA fork (review 0.7.0, finding 6): a waited background job ended `failed` or
+ * `cancelled`. The failure artifact is still the output (the companion prints it on
+ * stdout), but the process must exit non-zero like the foreground path, or a caller
+ * that keys on the exit code would start the next job.
+ */
+export class TerminalJobFailure extends RuntimeError {
+  readonly artifact: string;
+
+  constructor(code: string, message: string, stage: string, artifact: string) {
+    super(code, message, stage);
+    this.name = "TerminalJobFailure";
+    this.artifact = artifact;
+  }
+}
+
 export function formatError(error: unknown): string {
   if (error instanceof RuntimeError) {
     const base = `[${error.code}] [${error.stage}] ${error.message}`;

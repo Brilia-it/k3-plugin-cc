@@ -1,33 +1,31 @@
 import { RuntimeError } from "../errors.js";
-import { resolveFailedJobSession } from "../kimi-session-recovery.js";
+import { findUnverifiedSessionCandidate } from "../kimi-session-recovery.js";
+const ANNOUNCED_ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
 /**
  * BRILIA fork (2026-10-15): keep the kimi session id of a job that FAILED, so the
  * work already done (for example files read before a usage limit) can be resumed
  * with `--resume <job-id>` instead of restarting from zero.
  *
- * Uses the id kimi announced, else the conservative index recovery in
- * kimi-session-recovery.ts. Never throws: failing to keep the id must not hide the
- * original failure. Returns the id now stored on the job, or null.
+ * Review 0.7.0: ONLY an id that kimi announced for this child is stored. A session
+ * seen in kimi's index is returned separately as an unverified candidate for a human;
+ * it is never stored and never used for resume or lineage. Never throws: failing here
+ * must not hide the original failure.
  */
 export async function keepFailedJobSession(store, job, options) {
     if (job.kimi_session_id !== null) {
-        return job.kimi_session_id;
+        return { keptSessionId: job.kimi_session_id, unverifiedCandidate: null };
     }
     try {
-        const outcome = await resolveFailedJobSession({
-            announcedSessionId: options.announcedSessionId,
-            baseline: options.baseline,
-            env: options.env,
-            jobCwd: job.cwd,
-        });
-        if (outcome.sessionId === null) {
-            return null;
+        const announced = options.announcedSessionId;
+        if (announced !== undefined && ANNOUNCED_ID_RE.test(announced)) {
+            const updated = store.updateRunningJob(job.job_id, { kimi_session_id: announced });
+            return { keptSessionId: updated ? announced : null, unverifiedCandidate: null };
         }
-        const updated = store.updateRunningJob(job.job_id, { kimi_session_id: outcome.sessionId });
-        return updated ? outcome.sessionId : null;
+        const outcome = await findUnverifiedSessionCandidate(options.baseline, options.env, job.cwd);
+        return { keptSessionId: null, unverifiedCandidate: outcome.candidate };
     }
     catch {
-        return null;
+        return { keptSessionId: null, unverifiedCandidate: null };
     }
 }
 /**
