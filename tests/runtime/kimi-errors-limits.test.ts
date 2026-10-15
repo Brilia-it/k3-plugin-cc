@@ -117,7 +117,7 @@ describe("provider limits get their own classification", () => {
     for (const text of [CONTEXT_SIZE, CONTEXT_TOKENS, CONTEXT_256K]) {
       const err = classify(`400 ${text}`);
       expect(err.code).toBe("ASK_KIMI_CONTEXT_EXCEEDED");
-      expect(err.message).toContain("narrow the scope or split the work");
+      expect(err.message).toContain("Narrow the scope or split the work");
       expect(err.message).toContain("fixed at 256K");
     }
   });
