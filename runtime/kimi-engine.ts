@@ -29,7 +29,9 @@ export type KimiOperationKind =
   | "review_gate"
   | "pursue"
   | "swarm"
-  | "swarm-write";
+  | "swarm-write"
+  // Round 3: the setup --probe-model reservation row; never a user conversation.
+  | "model_probe";
 
 export type KimiPlanCertification = "certified" | "test-bypass";
 
@@ -91,6 +93,7 @@ const LEGACY_V1_MINIMUMS: Readonly<Record<KimiOperationKind, { major: number; mi
   pursue: { major: 0, minor: 8 },
   swarm: { major: 0, minor: 12 },
   "swarm-write": { major: 0, minor: 18 },
+  model_probe: { major: 0, minor: 1 },
 };
 
 /**

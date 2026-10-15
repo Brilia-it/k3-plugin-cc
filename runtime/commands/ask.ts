@@ -427,7 +427,7 @@ async function resolveAskSession(
   }
 
   if (resume) {
-    const latest = store.findLatestJob({ repoId, commandType: "ask" });
+    const latest = store.findLatestJob({ repoId, commandType: "ask", excludeOperationKind: "model_probe" });
     if (!latest) {
       throw new RuntimeError(
         "ASK_RESUME_NOT_FOUND",

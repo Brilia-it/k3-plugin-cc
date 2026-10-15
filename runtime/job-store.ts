@@ -91,6 +91,8 @@ export interface FindLatestJobOptions {
   commandType?: ManagedCommandType;
   terminalOnly?: boolean;
   runningOnly?: boolean;
+  /** Round 3: skip rows with this operation_kind (the model-probe reservation) when picking a latest conversation. */
+  excludeOperationKind?: string;
 }
 
 export interface HistoricalProvenancePatch {
@@ -345,6 +347,11 @@ export class JobStore {
     if (options.commandType) {
       conditions.push("command_type = @command_type");
       params.command_type = options.commandType;
+    }
+
+    if (options.excludeOperationKind) {
+      conditions.push("(operation_kind IS NULL OR operation_kind != @exclude_operation_kind)");
+      params.exclude_operation_kind = options.excludeOperationKind;
     }
 
     if (options.terminalOnly) {

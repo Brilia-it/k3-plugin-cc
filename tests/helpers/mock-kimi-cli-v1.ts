@@ -67,6 +67,7 @@ async function main(): Promise<void> {
       invocationPath,
       `${JSON.stringify({
         argv: process.argv.slice(2),
+        pid: process.pid,
         scenario,
         env: {
           K3_PLUGIN_CC_CMD: process.env.K3_PLUGIN_CC_CMD ?? null,

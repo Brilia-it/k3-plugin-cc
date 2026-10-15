@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { runAsk } from "../../runtime/commands/ask.js";
 import { renderSetupResult, runSetup } from "../../runtime/commands/setup.js";
 import { JobStore } from "../../runtime/job-store.js";
 import { resolvePluginPaths } from "../../runtime/paths.js";
@@ -192,6 +194,64 @@ describe("setup --check --probe-model", () => {
     expect(check.probe).toBe("ok");
     expect(check.modelProbe).toBe("skipped");
   }, 60_000);
+
+  // Round 3, item B.
+  test("cancelling a slow probe tears the kimi child down BEFORE the row is released", async () => {
+    const slow = await makeCase("probe-cancel", "ask-success");
+    slow.env.K3_PLUGIN_CC_MOCK_DELAY_MS = "20000";
+    await runSetup([], makeContext(slow.env));
+    const pending = runSetup(["--check", "--probe-model"], makeContext(slow.env));
+    let childPid = 0;
+    for (let i = 0; i < 100 && childPid === 0; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      if (existsSync(slow.invocationPath) && runningIds(slow.env).length === 1) {
+        try {
+          childPid = (JSON.parse(await readFile(slow.invocationPath, "utf8")) as { pid: number }).pid;
+        } catch {
+          childPid = 0;
+        }
+      }
+    }
+    expect(childPid).toBeGreaterThan(0);
+    // The cancellation handlers listen on SIGTERM; emit it in-process (a real signal kills the
+    // process outright on Windows, which would test nothing).
+    process.emit("SIGTERM");
+    const result = await pending;
+    expect(result.modelProbe).toBe("failed");
+    // Teardown is a settlement barrier: when the probe has returned, the child is gone.
+    let alive = true;
+    try {
+      process.kill(childPid, 0);
+    } catch {
+      alive = false;
+    }
+    expect(alive).toBe(false);
+    expect(runningIds(slow.env)).toEqual([]);
+    const db = new Database(resolvePluginPaths(slow.env).stateDbPath, { readonly: true });
+    try {
+      const row = db.query("SELECT status, operation_kind FROM jobs").get() as { status: string; operation_kind: string };
+      expect(row.status).toBe("cancelled");
+      expect(row.operation_kind).toBe("model_probe");
+    } finally {
+      db.close();
+    }
+  }, 90_000);
+
+  test("a probe does not replace the latest ask for bare --resume", async () => {
+    const { env } = await makeCase("probe-resume", "ask-success");
+    env.K3_PLUGIN_CC_SKIP_HOOK_CHECK = "1";
+    const sessionId = "33333333-3333-4333-8333-333333333333";
+    env.K3_PLUGIN_CC_MOCK_SESSION_ID = sessionId;
+    await runSetup([], makeContext(env));
+    await runAsk(["Seed", "question?"], makeContext(env));
+    const probed = await runSetup(["--check", "--probe-model"], makeContext(env));
+    expect(probed.modelProbe).toBe("ok");
+    const invocation = path.join(scratch, "probe-resume", "resume-invocation.json");
+    const answer = await runAsk(["-r", "continue"], makeContext({ ...env, K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocation }));
+    expect(answer).toBe("Ask answer from mock Kimi.");
+    const argv = (JSON.parse(await readFile(invocation, "utf8")) as { argv: string[] }).argv;
+    expect(argv[argv.indexOf("-r") + 1]).toBe(sessionId);
+  }, 90_000);
 
   test("while the probe runs it holds a running row; the row is released on success and on failure", async () => {
     const slow = await makeCase("adm-hold", "ask-success");
