@@ -1,6 +1,6 @@
 {
   "name": "k3",
-  "version": "2.0.7-brilia.0.6.0",
+  "version": "2.0.7-brilia.0.7.0",
   "description": "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc, developed and verified on Windows 11, running on macOS and Linux as well. Delegates review, challenge, ask, rescue, pursue, and swarm workflows to the local kimi-code CLI through the k3-plugin-cc companion runtime. Not affiliated with Moonshot AI.",
   "author": {
     "name": "BRILIA"

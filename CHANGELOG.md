@@ -8,6 +8,61 @@
 
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
 
+## 2.0.7-brilia.0.7.0 - 2026-10-15 (fork)
+
+**Quotas, waiting and long jobs. Three read-only analysis jobs, started one after another with
+`--background --wait`, ran in parallel because `--wait` gave up after 60 seconds, then all stopped
+together on Kimi's 5-hour usage limit, which the plugin blamed on a broken setup and which left no
+session to resume. From 0.7.0 `--wait` waits for the job, a usage limit is named as such, only one
+model job runs at a time, a stopped job can be resumed, and a new opt-in probe tests the model
+itself.**
+
+No setup run is needed after updating.
+
+- **`--wait` waits for the job.** It was bounded by a fixed 60 seconds
+  (`waitForTerminalJob`'s default) while an `ask` job has a 15-minute budget and a `rescue` job 30
+  minutes. It now waits for the job's own budget plus 60 seconds. If it still stops, the
+  `JOB_WAIT_TIMEOUT` message says the job is STILL RUNNING, that starting another job now would run
+  in parallel, and points to `/k3:status <id>` and `/k3:result <id>`. (`review`, `challenge`,
+  `pursue` and `swarm` are foreground-only and have no `--wait`.)
+- **Provider limits have their own classification.** They fell into the generic "the Kimi CLI
+  exited before completing the requested operation. Run `/k3:setup`" branch, advice that cannot fix
+  a quota. Four kinds are recognised from kimi's stderr, in front of that branch, with the codes
+  `<CMD>_KIMI_QUOTA_EXHAUSTED` (5-hour rolling window, weekly 7-day, billing cycle; says it is call
+  volume and not the context window, that `/k3:setup` does not fix it, that `kimi-code/k3-256k`
+  uses about half the quota of `k3` at 1M for long read-heavy jobs, and to run jobs one at a time),
+  `<CMD>_KIMI_CONCURRENCY_LIMITED` (risk control, not quota), `<CMD>_KIMI_PLAN_UNAVAILABLE`
+  (the plan does not include the model or Kimi Code; `kimi-for-coding` for `k3`) and
+  `<CMD>_KIMI_CONTEXT_EXCEEDED` (narrow the scope; `k3-256k` is fixed at 256K). The limit type is in
+  `details.limit`. The Stop-hook review gate stays fail-open for all four. An unrelated non-zero
+  exit still maps to `STARTUP_FAILED`.
+- **One model job at a time, refused and never queued.** `ask`, `review`, `challenge`, `rescue`,
+  `pursue` and `swarm` check, after the stale-job sweep, whether a job is still running; if so they
+  stop with `<CMD>_JOB_ALREADY_RUNNING`, naming the job, why (the quota is call volume in a rolling
+  window, and Kimi's guidelines describe the subscription as personal interactive use and may limit
+  concurrent access) and how to proceed. `--allow-concurrent` overrides one call. The review gate,
+  `status`, `result`, `replay`, `cancel` and `setup` are not affected, and a swarm's own fan-out is
+  still one job. Resuming a session that is itself running keeps its more specific
+  `ASK_ALREADY_RUNNING` / `RESCUE_ALREADY_RUNNING`.
+- **A job stopped by a limit can be resumed.** The failed jobs had `kimi_session_id: null`: the
+  commands threw on the non-zero exit before saving the session id kimi had announced. They now
+  save it first. If kimi announced nothing, the id is recovered from kimi's own
+  `session_index.jsonl` (home resolved as everywhere else), only when exactly one new entry appeared
+  for the job's folder (Windows paths compared by separator and case); several candidates mean none
+  is guessed, and nothing else in kimi's home is read. `ask --resume <job-id>` and
+  `rescue --resume <job-id>` accept a failed source job, and the quota message prints the exact
+  command. Not verified against a real kimi 403: whether kimi announces or indexes the session
+  before the first model call is covered by tests with a fake binary only, and a native-v2 resume
+  still requires proven engine provenance of the source job.
+- **`/k3:setup --check --probe-model [-m <model>]`.** The plain `--check` probe exercises the hook
+  and printed `Probe: ok` minutes before the quota refused everything. The new opt-in flag sends one
+  minimal prompt ("Reply with the single word READY.", 120 second budget) through the same
+  read-only path as `ask` and reports `Model probe: ok | failed | skipped`, with the classified
+  error. Without the flag no model call is made and the output says the probe tests the hook, not
+  model access or quota. A failed model probe exits non-zero.
+- **Docs.** README section "Quotas, context and long jobs" with the vendor's own words and the
+  practical rules; command, agent and Codex skill texts mention `--allow-concurrent`.
+
 ## 2.0.7-brilia.0.6.0 — 2026-09-29 (fork)
 
 **K3 everywhere. Up to 0.5.x this fork renamed its commands and agents but still used upstream's

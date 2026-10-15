@@ -55,7 +55,7 @@ const PLUGINS = {
     marker: "kimi-plugin-cc-managed:claude-code",
   },
   ours: {
-    root: path.join(home, ".claude", "plugins", "cache", "brilia-k3-marketplace", "k3", "2.0.7-brilia.0.6.0"),
+    root: path.join(home, ".claude", "plugins", "cache", "brilia-k3-marketplace", "k3", "2.0.7-brilia.0.7.0"),
     data: path.join(home, ".claude", "plugins", "data", "k3-brilia-k3-marketplace"),
     prefix: "K3_PLUGIN_CC_",
     marker: "k3-plugin-cc-managed:claude-code",

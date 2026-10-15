@@ -100,7 +100,9 @@ What we can tell you plainly:
 - If the answer matters for your account, ask Moonshot support before installing, or use an API plan
   whose terms cover programmatic use.
 
-Checked against the live page on 2026-09-28. Terms change; check them yourself.
+Checked against the live page on 2026-09-28. Terms change; check them yourself. Since 0.7.0 the
+plugin also refuses to start a second model job while one is running, for exactly this reason; see
+"Quotas, context and long jobs" below.
 
 ## Install
 
@@ -198,6 +200,73 @@ equally true of every plugin of this kind, including the official Codex one.
 **So: point it at a working directory, not at a tree that holds secrets or client data.**
 
 See [SECURITY.md](./SECURITY.md) for the details and for what we did verify.
+
+## Quotas, context and long jobs
+
+Added in 0.7.0 after an incident on 2026-10-15. Three read-only `ask` jobs, each reading a 55,000
+character document plus 200,000 to 450,000 characters of code, were launched one after another with
+`ask --background --wait`. Three things went wrong at once, and the plugin made each of them worse:
+
+1. `--wait` gave up after a fixed 60 seconds while the job had a 15-minute budget. The caller took
+   the timeout for the end of the job and started the next one, so the three ran **in parallel**
+   instead of in sequence.
+2. After 6 to 9 minutes all three failed together with Kimi's
+   `403 You've reached your 5-hour usage limit`. The plugin reported it as "the Kimi CLI exited
+   before completing the requested operation. Run `/k3:setup`", which is wrong: setup cannot fix a
+   quota, and a person reading it suspected the context window.
+3. The failed jobs kept no Kimi session id, although Kimi had created the sessions on disk, so once
+   the window rolled over the work could not be resumed and a retry started from zero.
+
+What Moonshot documents (checked on 2026-10-15; limits change, check them yourself):
+
+- Error reference, <https://www.kimi.com/code/docs/en/kimi-code/error-reference.html>. HTTP 403:
+  "You've reached your 5-hour usage limit", caused by "The call volume within the current 5-hour
+  rolling window has reached its limit."; "You've reached your weekly (7-day) usage limit" (legacy
+  plans only); "You've reached your monthly usage limit for this billing cycle"; and "You've reached
+  your concurrent request limit", which is risk control and unrelated to the remaining quota.
+  HTTP 400, context: "total message size N exceeds limit 2097152" and "Your request exceeded model
+  token limit: 262144 (requested: N)". HTTP 401: "Your current subscription does not have access to
+  k3" (upgrade, or use `kimi-for-coding`). We have also seen "403 Your current subscription does
+  not have access to Kimi Code right now"; it is not in that table, and the plugin treats it as a
+  plan error.
+- Models, <https://www.kimi.com/code/docs/en/kimi-code/models.html>. `k3` has a 1M context on Pro /
+  Allegretto and above (256K on Plus / Moderato); `k3-256k` has a fixed 256K. "`k3` (1M) consumes
+  about twice as much quota as `k3-256k`", and "switching models invalidates the context cache
+  you've built up."
+- Community guidelines, <https://www.kimi.com/code/docs/en/kimi-code/community-guidelines.html>.
+  "Kimi Code subscriptions are for personal interactive use only." Non-interactive use "such as
+  scripted batch execution or data annotation pipelines" "goes beyond normal use", and enforcement
+  may include "limiting concurrent access". This is why the plugin below refuses to run model jobs
+  in parallel; it is the same terms question as in "Before you install".
+
+Practical rules:
+
+- **A usage limit is call volume, not the context window.** A long read-heavy job spends quota
+  quickly. For those, `-m kimi-code/k3-256k` uses about half the quota of `k3` at 1M, at the price
+  of a 256K context. If a request really exceeds the context, narrow the scope or split the work.
+- **One model job at a time.** Before `ask`, `review`, `challenge`, `rescue`, `pursue` or `swarm`
+  starts a new job, the plugin checks for a job that is still running. If there is one it refuses
+  with `<COMMAND>_JOB_ALREADY_RUNNING`, names the running job and tells you how to follow it
+  (`/k3:status <id>`, `/k3:result <id>`). It never queues or schedules anything: refusing is the whole
+  behaviour. `--allow-concurrent` overrides the refusal for that one call, and you take the quota
+  and terms consequences. A swarm's own internal fan-out counts as one job, and the Stop-hook review
+  gate is not affected.
+- **`--wait` now really waits.** It waits for the job's own budget (ask 15 minutes, rescue 30
+  minutes) plus 60 seconds. If it still stops waiting, the message says in capitals that the job is
+  STILL RUNNING and that starting another now would run in parallel. `review`, `challenge`, `pursue`
+  and `swarm` run in the foreground and do not take `--wait`.
+- **Resume after a limit.** A failed `ask` or `rescue` job now keeps the Kimi session id when Kimi
+  created one (from what Kimi announced, or, failing that, from exactly one new entry in Kimi's own
+  `session_index.jsonl` for the same folder; never guessed when there are several). When the window
+  has reset, `/k3:ask --resume <job-id>` or `/k3:rescue --resume <job-id>` continues that session
+  instead of starting over. The quota error prints the exact command, or says that a retry starts
+  from zero when no session could be recovered.
+- **Test the model before a long run.** `/k3:setup --check` prints `Probe: ok` but tests the hook,
+  not model access, your plan, or your quota. `/k3:setup --check --probe-model [-m <model>]` sends
+  one minimal prompt and reports `Model probe: ok | failed | skipped` with the classified error. It
+  uses a very small amount of quota, so it is opt-in.
+- **Extra usage is Moonshot's paid option.** If you need more calls than the plan gives, buy extra
+  usage from Moonshot; this plugin has no way around a limit and does not try to find one.
 
 ## What to expect in practice
 
