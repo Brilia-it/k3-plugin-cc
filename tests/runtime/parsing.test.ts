@@ -47,6 +47,7 @@ describe("argument parsing", () => {
     const parsed = parseAskArgs(["--resume", "foo"]);
 
     expect(parsed).toEqual({
+      allowConcurrent: false,
       background: false,
       wait: false,
       resume: true,
@@ -62,6 +63,7 @@ describe("argument parsing", () => {
     const parsed = parseAskArgs(["-r", "my question"]);
 
     expect(parsed).toEqual({
+      allowConcurrent: false,
       background: false,
       wait: false,
       resume: true,

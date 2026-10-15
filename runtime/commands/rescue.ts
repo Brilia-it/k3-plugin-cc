@@ -14,7 +14,13 @@ import {
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
-import { digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
+import {
+  assertNoModelJobRunning,
+  digestPrompt,
+  markJobCancelled,
+  markJobFailed,
+  sweepStaleJobs,
+} from "../jobs.js";
 import { JobStore, type JobRecord } from "../job-store.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { KIMI_RESCUE_PROMPT_TIMEOUT_MS } from "../kimi-timeouts.js";
@@ -88,6 +94,10 @@ export async function runRescue(argv: string[], context: CommandContext): Promis
       parsed.resume,
       parsed.resumeTarget,
     );
+    // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue).
+    // After the session resolution on purpose: resuming a session that is itself
+    // still running keeps its more specific RESCUE_ALREADY_RUNNING.
+    assertNoModelJobRunning(store, "rescue", parsed.allowConcurrent);
     const prompt = buildRescuePrompt(parsed.prompt, sessionResolution.reusedSession);
     const executionPlan = await prepareKimiExecutionPlan({
       operationKind: "rescue",

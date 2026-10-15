@@ -13,7 +13,13 @@ import {
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
-import { digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
+import {
+  assertNoModelJobRunning,
+  digestPrompt,
+  markJobCancelled,
+  markJobFailed,
+  sweepStaleJobs,
+} from "../jobs.js";
 import { JobStore, type JobRecord } from "../job-store.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { KIMI_PURSUE_DEFAULT_BUDGET_MS } from "../kimi-timeouts.js";
@@ -169,6 +175,8 @@ export async function runPursue(argv: string[], context: CommandContext): Promis
 
   try {
     await sweepStaleJobs(store, paths);
+    // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue).
+    assertNoModelJobRunning(store, "pursue", parsed.allowConcurrent);
     const executionPlan = await prepareKimiExecutionPlan({
       operationKind: "pursue",
       cwd: context.cwd,

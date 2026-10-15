@@ -1,6 +1,6 @@
 ---
 description: Run a read-only Kimi challenge review that challenges assumptions and surfaces safer alternatives.
-argument-hint: "[--base <ref>] [-m <model>] [extra prose]"
+argument-hint: "[--base <ref>] [--allow-concurrent] [-m <model>] [extra prose]"
 disable-model-invocation: true
 ---
 
@@ -12,6 +12,7 @@ Supported flags:
 
 - `--base <ref>` — challenge against a branch/commit diff instead of the working tree
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `CHALLENGE_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 - trailing text — adversarial focus or framing to steer the challenge
 
 Reasoning behavior follows the selected model and Kimi configuration. The plugin does not force a thinking mode. Budget is 30 min so adversarial review has time to dig. Challenge runs foreground-synchronously; it does not support `--background` or `--wait`.

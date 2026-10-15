@@ -37,24 +37,24 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: ".claude-plugin/plugin.json", sha256: "ef5ae57196d27d976d144cbde2ded35991f280f8d83f11c8251bb7d5cfc16e0c" },
   { path: ".claude-plugin/marketplace.json", sha256: "548e4f93b18f018b546c53151199c0374efb705508abe88fefb8e0abd80ac886" },
   { path: "commands/README.md", sha256: "f6928fbefd8fd615fe1a450717c2c144f5a019b0c4c249d8abcc20f119cf3b84" },
-  { path: "commands/ask.md", sha256: "b9f9440f9e12b65ee01611e1540cbdbcc5c7704303e83219ac3a3b91ce52d35a" },
+  { path: "commands/ask.md", sha256: "f74607385eb0c9f8fe15c72a8f6437de031348c2808971e0006b3241046f8e7b" },
   { path: "commands/cancel.md", sha256: "4d1c1e9d0534fac113fea18e2c8993d99f3ada1335186f66cd995a45f1057db4" },
-  { path: "commands/challenge.md", sha256: "4173eeddf41280daf88635212248e43d4f81b6a0ebe08719fdce06d18bc1964d" },
-  { path: "commands/pursue.md", sha256: "b8de5b7a5f3a60aa95d8f8170daea21f3533de6ef74861a6fc9e6fb8b0e4edcd" },
+  { path: "commands/challenge.md", sha256: "8cb95613d43256e009e49cc1b0079c7022875013b307c071ed30d8b3a2660799" },
+  { path: "commands/pursue.md", sha256: "790d92394b54e9d995c4da16660657be5429451cd0a25aad8409857568eef654" },
   { path: "commands/replay.md", sha256: "84e46faa17b032f43dccb37190e461d1da3f807226f3814a9e5cd302afcf12e3" },
-  { path: "commands/rescue.md", sha256: "35b23af14b50a9d6cd9604ec5b233bdd30d03aa4ea86f58469562c1e3857bbe5" },
+  { path: "commands/rescue.md", sha256: "f48f336121a451b582e41004d4f5de3974c7a18d144e929db5fd6598f3737b67" },
   { path: "commands/result.md", sha256: "d5ae361ea6c95f139e4bf1d2f23cb69e14c23c9e0e2b6e8084274e8245016db5" },
-  { path: "commands/review.md", sha256: "5588a4ca6aca4fa9bf1bcc696df1e1801d212b5261f68978f935c43d35864dc2" },
+  { path: "commands/review.md", sha256: "8685625c96314e1653021c7c246fb481bad971c8b0916ba1b65fb74fcddc37ee" },
   { path: "commands/setup.md", sha256: "ede6fb64d0a8b9876a2405b3685483d4db5ce9505dd724ad903cdf1b048abc44" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
-  { path: "commands/swarm.md", sha256: "1b553e246993c6a35d91233ec3d642371164812a92fb24363ebd596ca1d42acd" },
-  { path: "agents/k3-ask.md", sha256: "24bf18e6f43f0667f7180449b95d53b8fc4009edf1482cb6261cdb2b8404e57f" },
-  { path: "agents/k3-challenge.md", sha256: "c59c21117851bb326da0842c5df203cb3550386d6776df7dfce7d52d82db2d14" },
-  { path: "agents/k3-pursue.md", sha256: "7f75c90062c830a6e064232caecb7f3a76ec4e1eae1417597f30c88b7db0e7c6" },
-  { path: "agents/k3-rescue.md", sha256: "213da4da57a9a64324b9f18dacfe8fde1f1ed7e1659a0cf068d9c86f60a39200" },
-  { path: "agents/k3-review.md", sha256: "57a9fbd37901469a9472d00a1338f0ea551e3a82bd1f1bacce3378b9880c6e53" },
-  { path: "agents/k3-swarm-write.md", sha256: "87b362d44057ba31ec7f17f9056609562a3260684d8f6d13682ab4c3708f5f66" },
-  { path: "agents/k3-swarm.md", sha256: "762dcb29d33add210bf6cab9478fd956959d977af965666b54fc77a0f5d8dd65" },
+  { path: "commands/swarm.md", sha256: "1d15d26e50514915f3d9796a2f64ac04f8827c96e628f6ef975be9af4783d3aa" },
+  { path: "agents/k3-ask.md", sha256: "58a50e1a84b3a50a27744b21da95b4365e8b1071c86f444f19128f889d4593f9" },
+  { path: "agents/k3-challenge.md", sha256: "2ce8527886dc04104a33498ce0459c5b99df055c7d847797b7ae48c267157b0a" },
+  { path: "agents/k3-pursue.md", sha256: "e7c4b271df24e34d32144e0cd5a5a27faf0bd6957d090783cf354bb485187684" },
+  { path: "agents/k3-rescue.md", sha256: "383e3db940a7a31cd9187fc505b4cd5dc6fbaea5f2f870b8d4dfca439620e0ae" },
+  { path: "agents/k3-review.md", sha256: "aeaeb7be01e2d718a34de50f0c374e1e814e74754e487b99d7a62ac6718c48cc" },
+  { path: "agents/k3-swarm-write.md", sha256: "2188b54005f216528891353288f48547e8d3cb336155573c784d0f3203f32038" },
+  { path: "agents/k3-swarm.md", sha256: "416200aec364867da2443a3e758f6c5f68436bf0a91bae99f33fcfcaf21a3f86" },
 ];
 
 export const CODEX_PLUGIN_MANIFEST = {
@@ -109,6 +109,10 @@ export const CODEX_MARKETPLACE = {
   ],
 } as const;
 
+// BRILIA fork (2026-10-15): one model job at a time.
+const CONCURRENCY_GUIDANCE =
+  "The plugin runs one model job at a time and refuses a second with a *_JOB_ALREADY_RUNNING error; it never queues. Surface that refusal as it is, point the user to the status skill, and do not add `--allow-concurrent` or start the job again unless the user explicitly asks to run in parallel.";
+
 const MODEL_SELECTION_GUIDANCE = [
   "Without an explicit model request, omit `-m`: fresh sessions use Kimi's configured default (including its environment overlay), and resumed sessions keep their session model. Never change the saved default for a one-off request.",
   "Preserve an explicit `-m`/`--model` alias. For a natural-language model/provider request, first run the same companion entrypoint with `setup --models --json`; match the requested alias, model ID or provider to exactly one configured model. If ambiguous, ask the user to choose; if missing or incomplete, stop and guide native provider setup. Never guess an alias or silently fall back after a model/auth error. A model merely mentioned as the subject of a question is not a selection request.",
@@ -125,11 +129,12 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     defaultPrompt: "Use $k3-ask to explain the current repository flow.",
     implicit: true,
     command: "ask",
-    argumentSummary: "[--background] [--wait] [-r | --resume <id>] [--fresh] [-m <model>] <prompt>",
+    argumentSummary: "[--background] [--wait] [-r | --resume <id>] [--fresh] [--allow-concurrent] [-m <model>] <prompt>",
     description:
       "Ask Kimi a read-only free-form question about the current repository. Use for prose explanations, flow tracing, module comparisons, or conceptual reasoning where Codex should delegate the answer to local kimi-code rather than perform implementation.",
     guidance: [
       ...MODEL_SELECTION_GUIDANCE,
+      CONCURRENCY_GUIDANCE,
       "Preserve the user's question and supplied flags exactly; use `-r` only for explicit resume intent unless `--fresh` is requested.",
       "Choose `--background` for broad or long-running questions and return the job id that the companion prints.",
       "If the companion reports ASK_HOOK_NOT_INSTALLED, tell the user to run Claude Code /k3:setup or Codex $k3-setup, then retry; do not suggest the skip env.",
@@ -144,11 +149,12 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     defaultPrompt: "Use $k3-review to review the current working tree.",
     implicit: true,
     command: "review",
-    argumentSummary: "[--base <ref>] [-m <model>] [extra prose]",
+    argumentSummary: "[--base <ref>] [--allow-concurrent] [-m <model>] [extra prose]",
     description:
       "Run an independent read-only Kimi review over the current working tree or a branch diff. Use when the user wants a second reviewer for defects, regressions, or implementation risks, not edits.",
     guidance: [
       ...MODEL_SELECTION_GUIDANCE,
+      CONCURRENCY_GUIDANCE,
       "Forward `--base <ref>`, `-m`/`--model <name>`, and any trailing focus text only.",
       "Do not invent file/path flags; review's payload is the git diff plus optional focus text.",
       "If the companion reports REVIEW_HOOK_NOT_INSTALLED, tell the user to run Claude Code /k3:setup or Codex $k3-setup, then retry; do not suggest the skip env.",
@@ -163,11 +169,12 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     defaultPrompt: "Use $k3-challenge to stress-test this approach.",
     implicit: true,
     command: "task challenge",
-    argumentSummary: "[--base <ref>] [-m <model>] [extra prose]",
+    argumentSummary: "[--base <ref>] [--allow-concurrent] [-m <model>] [extra prose]",
     description:
       "Run a read-only adversarial Kimi challenge review that questions assumptions, design choices, and tradeoffs. Use when the user wants pushback on whether the approach is right, not a defect-only review.",
     guidance: [
       ...MODEL_SELECTION_GUIDANCE,
+      CONCURRENCY_GUIDANCE,
       "Preserve the user's adversarial framing as trailing focus text.",
       "Do not pass background/wait flags; the runtime rejects them for challenge.",
       "If the companion reports CHALLENGE_HOOK_NOT_INSTALLED, tell the user to run Claude Code /k3:setup or Codex $k3-setup, then retry; do not suggest the skip env.",
@@ -182,11 +189,12 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     defaultPrompt: "Use $k3-rescue to delegate this bounded implementation task.",
     implicit: false,
     command: "task rescue",
-    argumentSummary: "[--background] [--wait] [-r | --resume <id>] [--fresh] [-m <model>] <prompt>",
+    argumentSummary: "[--background] [--wait] [-r | --resume <id>] [--fresh] [--allow-concurrent] [-m <model>] <prompt>",
     description:
       "Delegate a bounded write-capable investigation or implementation task to Kimi through the companion runtime. Use only when explicitly invoked or when the user clearly asks to hand off a substantial fix to Kimi.",
     guidance: [
       ...MODEL_SELECTION_GUIDANCE,
+      CONCURRENCY_GUIDANCE,
       "Preserve the task text and constraints with minimal reframing.",
       "Use background mode for long-running investigations and report the job id for status/result/cancel.",
       "Do not inspect or edit the repository yourself as part of the skill; the companion result is the source of truth.",
@@ -200,11 +208,12 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     defaultPrompt: "Use $k3-pursue to let Kimi pursue this objective with a budget.",
     implicit: false,
     command: "task pursue",
-    argumentSummary: "[--budget <30m|1h>] [--turns <N>] [-m <model>] <objective>",
+    argumentSummary: "[--budget <30m|1h>] [--turns <N>] [--allow-concurrent] [-m <model>] <objective>",
     description:
       "Run Kimi's autonomous goal mode for an explicitly requested hands-off multi-turn objective. This is write-capable and budget-bounded; use only when the user explicitly asks Kimi to pursue an objective autonomously.",
     guidance: [
       ...MODEL_SELECTION_GUIDANCE,
+      CONCURRENCY_GUIDANCE,
       "Require explicit hands-off autonomy intent; single bounded fixes belong to `k3-rescue`.",
       "Always keep a finite `--budget` — it is the sole hard bound on the loop. The runtime rejects `--background`, but detaching your own shell call is expected: a goal loop routinely outlives a foreground timeout, and the hook, allowlist, and budget do not depend on a human watching. Cancel with `companion.sh cancel` (no id — it targets the latest running job for the repo); note that a cancel stops further work but does not roll back edits already made to the real tree.",
       "Surface terminal goal statuses exactly as the companion reports them.",
@@ -218,11 +227,12 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     defaultPrompt: "Use $k3-swarm to fan out a read-only review across these targets.",
     implicit: false,
     command: "task swarm",
-    argumentSummary: "[--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [-m <model>] <objective>",
+    argumentSummary: "[--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [--allow-concurrent] [-m <model>] <objective>",
     description:
       "Run a read-only parallel Kimi review fan-out across many independent targets. Use only for explicit broad fan-out requests where one subagent per target is the point.",
     guidance: [
       ...MODEL_SELECTION_GUIDANCE,
+      CONCURRENCY_GUIDANCE,
       "Require many independent review targets plus explicit fan-out intent.",
       "Pass finite budget and concurrency bounds; default to foreground unless the user explicitly asks to detach.",
       "If the companion reports SWARM_HOOK_NOT_INSTALLED, tell the user to run Claude Code /k3:setup or Codex $k3-setup, then retry.",
@@ -237,11 +247,12 @@ export const CODEX_SKILLS: readonly CodexSkillSpec[] = [
     defaultPrompt: "Use $k3-swarm-write to fan out these disjoint edits into a patch.",
     implicit: false,
     command: "task swarm --write",
-    argumentSummary: "[--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [-m <model>] <objective>",
+    argumentSummary: "[--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [--allow-concurrent] [-m <model>] <objective>",
     description:
       "Run a write-capable Kimi swarm that edits many disjoint targets in a throwaway worktree and returns a reviewable patch. Use only for explicit parallel edit fan-out requests; the plugin never applies or commits the patch.",
     guidance: [
       ...MODEL_SELECTION_GUIDANCE,
+      CONCURRENCY_GUIDANCE,
       "Require both many disjoint write targets and explicit parallel fan-out intent.",
       "Keep `--max-concurrency` conservative, normally 1, unless the user explicitly asks to widen it.",
       "The runtime rejects `--background`, but detaching your own shell call is expected: a fan-out routinely outlives a foreground timeout, and the run is patch-only and worktree-confined. Keep `--budget` and `--max-concurrency` finite. To stop a run, use `companion.sh cancel` with NO id — it targets the latest running job for the repo, and no UUID crosses you or the user (a detached run prints nothing at launch; the id first arrives with the final report). Prefer that over an interrupt: an interrupt gives the companion only ~1.35s before SIGKILL, less than its teardown plus `git diff --binary` patch capture, so interrupting can lose the patch.",

@@ -6,7 +6,7 @@ import { runCliPromptWithBudget } from "../cli-client.js";
 import { executionPlanFromPersisted, observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, } from "../kimi-engine.js";
 import { RuntimeError } from "../errors.js";
 import { captureWorktreePatch, createEphemeralWorktree, hasBornHead, isWorkingTreeDirty, pruneWorktrees, removeWorktree, resolveRepoIdentity, } from "../git.js";
-import { digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
+import { assertNoModelJobRunning, digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs, } from "../jobs.js";
 import { JobStore } from "../job-store.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { KIMI_SWARM_DEFAULT_BUDGET_MS } from "../kimi-timeouts.js";
@@ -192,6 +192,9 @@ async function runReadSwarm(parsed, objective, context) {
     const store = new JobStore(paths);
     try {
         await sweepStaleJobs(store, paths);
+        // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue).
+        // The swarm's own internal fan-out is one job and is not affected.
+        assertNoModelJobRunning(store, "swarm", parsed.allowConcurrent);
         const executionPlan = await prepareKimiExecutionPlan({
             operationKind: "swarm",
             cwd: context.cwd,
@@ -260,6 +263,8 @@ async function runWriteSwarm(parsed, objective, context) {
     const store = new JobStore(paths);
     try {
         await sweepStaleJobs(store, paths);
+        // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue).
+        assertNoModelJobRunning(store, "swarm", parsed.allowConcurrent);
         // Write mode needs a real git repo and a born HEAD before any job state is
         // created. Its execution plan is certified below from the actual throwaway
         // worktree cwd, not from the user's tree.

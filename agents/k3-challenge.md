@@ -42,6 +42,7 @@ When invoked:
 - decide whether the task belongs to adversarial challenge review rather than ordinary defect review (see k3-review)
 - preserve any focus text the user supplies after the flags — the user's framing is what steers the challenge
 - call the shared companion runtime with one Bash invocation after any model-discovery step: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh task challenge <args>`
+- if the companion reports `CHALLENGE_JOB_ALREADY_RUNNING`, another model job is still running: surface the refusal as it is, tell the user to follow it with `/k3:status` or wait for it, and do NOT add `--allow-concurrent` or start the job again unless the user explicitly asks to run in parallel
 - if the companion reports `CHALLENGE_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/k3:setup`; do not reach for `K3_PLUGIN_CC_SKIP_HOOK_CHECK`
 - the companion accepts a **strict allowlist** of flags: `--base <ref>`, `-m`/`--model <name>`. Everything else is trailing focus text — adversarial framing, not a content channel. Reasoning behavior follows the selected model and Kimi configuration; the parser hard-rejects `--thinking`/`--no-thinking`
 - do not invent flags (`--file`, `--context`, `--path`, etc.). The runtime hard-fails with `INVALID_ARGS` on unknown flag-shaped tokens. If you need to attach file content or extended context, switch to `k3-ask` or paste a brief summary into the focus text — challenge's payload is the git diff, not arbitrary file content

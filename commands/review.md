@@ -1,6 +1,6 @@
 ---
 description: Run a read-only Kimi review over the current working tree changes or a base ref diff.
-argument-hint: "[--base <ref>] [-m <model>] [extra prose]"
+argument-hint: "[--base <ref>] [--allow-concurrent] [-m <model>] [extra prose]"
 disable-model-invocation: true
 ---
 
@@ -12,6 +12,7 @@ Supported flags:
 
 - `--base <ref>` — review against a branch/commit diff instead of the working tree
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `REVIEW_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 - trailing text — optional focus hint for the review
 
 Reasoning behavior follows the selected model and Kimi configuration. The plugin does not force a thinking mode. Budget is 30 min so a real workspace-wide analysis has headroom. Review runs foreground-synchronously; it does not support `--background` or `--wait`.

@@ -1,6 +1,6 @@
 ---
 description: Ask Kimi a read-only question in free-form prose mode.
-argument-hint: "[--background] [--wait] [-r | --resume <id>] [--fresh] [-m <model>] <prompt>"
+argument-hint: "[--background] [--wait] [-r | --resume <id>] [--fresh] [--allow-concurrent] [-m <model>] <prompt>"
 disable-model-invocation: true
 ---
 
@@ -11,11 +11,12 @@ Run the companion with any user-supplied flags appended after `ask`:
 Supported flags:
 
 - `--background` — spawn as a background job and return `{job_id}` immediately
-- `--wait` — combined with `--background`, block until terminal state and return the rendered answer
+- `--wait` - combined with `--background`, block until terminal state and return the rendered answer. It waits for the job's own budget plus a 60 s grace period, not a fixed minute; if it still stops waiting it says the job is STILL RUNNING, and starting another job then would run in parallel
 - `-r` — resume the latest ask session for the current repo; any trailing text becomes the next prompt
 - `--resume <job-id-or-session-id>` — resume a specific prior ask session without a new prompt payload
 - `--fresh` — force a new ask session id instead of reusing a prior session
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `ASK_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 
 Reasoning behavior follows the selected model and Kimi configuration. The plugin does not force a thinking mode. The 15-minute budget leaves room for extended reasoning.
 

@@ -1,6 +1,6 @@
 ---
 description: Run a write-capable Kimi rescue against the current repository with optional background execution and resume behavior.
-argument-hint: "[--background] [--wait] [-r | --resume <id>] [--fresh] [-m <model>] <prompt>"
+argument-hint: "[--background] [--wait] [-r | --resume <id>] [--fresh] [--allow-concurrent] [-m <model>] <prompt>"
 disable-model-invocation: true
 ---
 
@@ -11,11 +11,12 @@ Run the companion with any user-supplied flags appended after `task rescue`:
 Supported flags:
 
 - `--background` — spawn as a detached background job and return `{job_id}` immediately
-- `--wait` — combined with `--background`, block until terminal state and return the rendered result
+- `--wait` - combined with `--background`, block until terminal state and return the rendered result. It waits for the job's own budget plus a 60 s grace period, not a fixed minute; if it still stops waiting it says the job is STILL RUNNING, and starting another job then would run in parallel
 - `-r` — resume the latest rescue session for the current repo; any trailing text becomes the next prompt
 - `--resume <job-id-or-session-id>` — resume a specific prior rescue session without a new prompt payload
 - `--fresh` — force a new rescue session id instead of reusing a prior session
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `RESCUE_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 
 Reasoning behavior follows the selected model and Kimi configuration. The plugin does not force a thinking mode. Budget is 30 min for multi-step apply/test/verify loops; use `--background` to return control while the task runs. Backgrounding does not extend the runtime budget.
 

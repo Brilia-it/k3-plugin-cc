@@ -1,6 +1,6 @@
 ---
 description: Fan out a parallel review across the workspace using Kimi's AgentSwarm tool, bounded by a hard wall-clock budget. Read-only by default (enforced by the same PreToolUse hook as review, applied to every subagent); --write fans out edits in a throwaway worktree and returns a patch.
-argument-hint: "[--write] [--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [-m <model>] <objective>"
+argument-hint: "[--write] [--budget <30m|1h>] [--cap <N>] [--max-concurrency <N>] [--allow-concurrent] [-m <model>] <objective>"
 disable-model-invocation: true
 ---
 
@@ -19,6 +19,7 @@ Supported flags:
 - `--cap <N>` — SOFT cap on TOTAL subagent count: injected into the prompt as a model instruction. Advisory, not hook-enforced (the hook is stateless and can't count subagents), so the model may exceed it. Bounds lifetime total, not peak parallelism.
 - `--max-concurrency <N>` — HARD ceiling on how many subagents run AT ONCE, on kimi-code **0.18.0+** (exported as `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY`; older binaries ignore it). **Defaults to 4 for read, 1 for `--write`** (writes serialize by default since disjoint-target partitioning is prompt-only) — pass a value to widen or throttle. Distinct from `--cap`: concurrency (simultaneous) ≠ total count (lifetime).
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `SWARM_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 
 Prototype limitations:
 

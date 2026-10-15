@@ -6,7 +6,7 @@ import { runCliPromptWithBudget } from "../cli-client.js";
 import { observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, } from "../kimi-engine.js";
 import { getManagedCommandConfig } from "./registry.js";
 import { collectReviewContext } from "../git.js";
-import { digestPrompt, markJobCancelled, markJobFailed } from "../jobs.js";
+import { assertNoModelJobRunning, digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs, } from "../jobs.js";
 import { JobStore } from "../job-store.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { KIMI_REVIEW_PROMPT_TIMEOUT_MS } from "../kimi-timeouts.js";
@@ -65,6 +65,16 @@ export async function runReview(argv, context, commandType) {
         env: context.env,
     });
     const store = new JobStore(paths);
+    // BRILIA fork (2026-10-15): one model job at a time. review never swept stale
+    // jobs before; a dead job must not block, so sweep first.
+    try {
+        await sweepStaleJobs(store, paths);
+        assertNoModelJobRunning(store, commandType, parsed.allowConcurrent);
+    }
+    catch (error) {
+        store.close();
+        throw error;
+    }
     const jobId = randomUUID();
     // kimi-code mints the actual session id and announces it on stderr;
     // we leave the row's kimi_session_id NULL until the call returns to

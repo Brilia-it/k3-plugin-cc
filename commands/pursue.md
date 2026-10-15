@@ -1,6 +1,6 @@
 ---
 description: Hand Kimi an objective to pursue AUTONOMOUSLY across multiple turns (experimental goal mode), bounded by a hard wall-clock budget. Write-capable, gated by the same PreToolUse hook as rescue.
-argument-hint: "[--budget <30m|1h>] [--turns <N>] [-m <model>] <objective>"
+argument-hint: "[--budget <30m|1h>] [--turns <N>] [--allow-concurrent] [-m <model>] <objective>"
 disable-model-invocation: true
 ---
 
@@ -15,6 +15,7 @@ Supported flags:
 - `--budget <duration>` — HARD wall-clock ceiling (e.g. `30m`, `1h`, `90s`; bare number = minutes). Default 45m. This is the only guaranteed bound on an autonomous run.
 - `--turns <N>` — SOFT cap: injected into the objective as a model instruction to call `SetGoalBudget`. Advisory, not enforced.
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `PURSUE_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 
 Prototype limitations (experimental):
 

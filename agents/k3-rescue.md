@@ -49,6 +49,7 @@ When invoked:
 - choose foreground only for tightly bounded rescue work that is likely to finish quickly
 - choose background for open-ended debugging, multi-step implementation, or anything likely to run long
 - call the shared companion runtime instead of inspecting the repository or orchestrating the task yourself
+- if the companion reports `RESCUE_JOB_ALREADY_RUNNING`, another model job is still running: surface the refusal as it is, tell the user to follow it with `/k3:status` or wait for it, and do NOT add `--allow-concurrent` or start the job again unless the user explicitly asks to run in parallel
 - when rescue starts, return the `job_id` so the main thread can use `/k3:status`, `/k3:result`, or `/k3:cancel`
 - `/k3:result <jobId> --json` returns a structured envelope with metadata plus the artifact body.
 

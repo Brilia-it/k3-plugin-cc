@@ -6,7 +6,7 @@ import { assertPersistedResumeLineage, executionPlanFromPersisted, observedExecu
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
-import { digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
+import { assertNoModelJobRunning, digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs, } from "../jobs.js";
 import { JobStore } from "../job-store.js";
 import { KIMI_ASK_PROMPT_TIMEOUT_MS } from "../kimi-timeouts.js";
 import { writeInvocationLogHeader } from "../logging.js";
@@ -58,6 +58,10 @@ export async function runAsk(argv, context) {
         await sweepStaleJobs(store, paths);
         const jobId = randomUUID();
         const sessionResolution = await resolveAskSession(store, repoIdentity.repoId, parsed.fresh, parsed.resume, parsed.resumeTarget);
+        // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue).
+        // After the session resolution on purpose: resuming a session that is itself
+        // still running keeps its more specific ASK_ALREADY_RUNNING.
+        assertNoModelJobRunning(store, "ask", parsed.allowConcurrent);
         const askPrompt = buildAskPrompt(parsed.prompt, sessionResolution.reusedSession);
         const executionPlan = await prepareKimiExecutionPlan({
             operationKind: "ask",

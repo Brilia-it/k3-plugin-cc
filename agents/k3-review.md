@@ -42,6 +42,7 @@ When invoked:
 - decide whether the task belongs to a diff review rather than a free-form ask or a write-capable rescue
 - preserve the user's scope hints (`--base <ref>`, focus text) with minimal reframing
 - call the shared companion runtime with one Bash invocation after any model-discovery step: `${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh review <args>`
+- if the companion reports `REVIEW_JOB_ALREADY_RUNNING`, another model job is still running: surface the refusal as it is, tell the user to follow it with `/k3:status` or wait for it, and do NOT add `--allow-concurrent` or start the job again unless the user explicitly asks to run in parallel
 - if the companion reports `REVIEW_HOOK_NOT_INSTALLED`, surface the refusal and tell the user to run `/k3:setup`; do not reach for `K3_PLUGIN_CC_SKIP_HOOK_CHECK`
 - the companion accepts a **strict allowlist** of flags: `--base <ref>`, `-m`/`--model <name>`. Everything else is trailing focus text — a short scope hint, not a content channel. Reasoning behavior follows the selected model and Kimi configuration; the parser hard-rejects `--thinking`/`--no-thinking`
 - do not invent flags (`--file`, `--context`, `--path`, etc.). The runtime hard-fails with `INVALID_ARGS` on unknown flag-shaped tokens. If you need to attach file content or extended context, switch to `k3-ask` or paste a brief summary into the focus text — review's payload is the git diff, not arbitrary file content

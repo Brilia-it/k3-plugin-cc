@@ -106,6 +106,45 @@ export async function markJobCancelled(
   );
 }
 
+/**
+ * BRILIA fork (2026-10-15 incident): one model job at a time, REFUSE never queue.
+ *
+ * Three read-only analysis jobs ran in parallel and ended together on the same
+ * Kimi 5-hour usage limit. The quota is call volume in a rolling window, so
+ * parallel jobs burn it together, and Kimi's community guidelines describe the
+ * subscription as personal interactive use and say enforcement may include
+ * limiting concurrent access. Call this AFTER sweepStaleJobs (a dead job must
+ * not block) and BEFORE creating the new job. The Stop-hook review gate does not
+ * call it. `--allow-concurrent` skips the refusal for that one call.
+ */
+export function assertNoModelJobRunning(
+  store: JobStore,
+  commandType: string,
+  allowConcurrent: boolean | undefined,
+): void {
+  if (allowConcurrent) {
+    return;
+  }
+  const running = store.listRunningJobs();
+  if (running.length === 0) {
+    return;
+  }
+  const list = running
+    .map((job) => `${job.job_id} (${job.command_type}, started ${job.created_at})`)
+    .join("; ");
+  throw new RuntimeError(
+    `${commandType.toUpperCase()}_JOB_ALREADY_RUNNING`,
+    `Not starting ${commandType}: ${running.length === 1 ? "another Kimi model job is" : `${running.length} other Kimi model jobs are`} already running: ${list}. ` +
+      "Why: the Kimi subscription quota is call volume in a rolling 5-hour window, so parallel jobs burn it together, " +
+      "and Kimi's community guidelines describe the subscription as personal interactive use and say enforcement may include limiting concurrent access. " +
+      "This plugin refuses instead of queueing: nothing was started or scheduled. " +
+      "Follow the running job with /k3:status <job-id>, wait for it and read /k3:result <job-id>, " +
+      "or pass --allow-concurrent to override this refusal for this one call.",
+    `${commandType}.concurrency`,
+    { details: { running_job_ids: running.map((job) => job.job_id) } },
+  );
+}
+
 export async function sweepStaleJobs(store: JobStore, paths: PluginPaths): Promise<void> {
   for (const job of store.listRunningJobsWithProcessHints()) {
     if (!isStaleEnoughToSweep(job)) {

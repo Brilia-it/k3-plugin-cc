@@ -21,8 +21,8 @@ function looksLikeFlag(token) {
     // Short flag: a single dash followed by exactly one letter (`-r`, `-m`).
     return /^-[a-zA-Z]$/.test(token);
 }
-const ASK_SUPPORTED_FLAGS = "-m/--model <name>, --background, --wait, --fresh, -r, --resume <job-id|session-id>";
-const RESCUE_SUPPORTED_FLAGS = "-m/--model <name>, --background, --wait, --fresh, -r, --resume <job-id|session-id>";
+const ASK_SUPPORTED_FLAGS = "-m/--model <name>, --background, --wait, --fresh, -r, --resume <job-id|session-id>, --allow-concurrent";
+const RESCUE_SUPPORTED_FLAGS = "-m/--model <name>, --background, --wait, --fresh, -r, --resume <job-id|session-id>, --allow-concurrent";
 // Thinking-on is always-on for user-facing commands in v1.0. review-gate
 // pins thinking=false via the cli-client options bag instead of an argv
 // flag (see runtime/cli-client.ts::CliClientOptions). The parser rejects
@@ -39,8 +39,8 @@ function isRemovedThinkingFlag(token) {
         token.startsWith("--thinking=") ||
         token.startsWith("--no-thinking="));
 }
-const PURSUE_SUPPORTED_FLAGS = "-m/--model <name>, --budget <30m|1h|90s>, --turns <N>";
-const SWARM_SUPPORTED_FLAGS = "-m/--model <name>, --budget <30m|1h|90s>, --cap <N>, --max-concurrency <N>, --write";
+const PURSUE_SUPPORTED_FLAGS = "-m/--model <name>, --budget <30m|1h|90s>, --turns <N>, --allow-concurrent";
+const SWARM_SUPPORTED_FLAGS = "-m/--model <name>, --budget <30m|1h|90s>, --cap <N>, --max-concurrency <N>, --write, --allow-concurrent";
 /**
  * Parser for /k3:swarm (read-only parallel fan-out). Foreground-only:
  * no --background/--fresh/--resume. Trailing tokens are the objective.
@@ -52,6 +52,7 @@ export function parseSwarmArgs(argv) {
     let cap;
     let maxConcurrency;
     let write = false;
+    let allowConcurrent = false;
     let trailingTokens;
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
@@ -79,6 +80,9 @@ export function parseSwarmArgs(argv) {
             }
             case "--write":
                 write = true;
+                break;
+            case "--allow-concurrent":
+                allowConcurrent = true;
                 break;
             case "--budget": {
                 const value = argv[index + 1];
@@ -118,6 +122,7 @@ export function parseSwarmArgs(argv) {
         write,
         model,
         thinking,
+        allowConcurrent,
         objective: trailingTokens?.join(" "),
     };
 }
@@ -181,6 +186,7 @@ export function parsePursueArgs(argv) {
     const thinking = true;
     let budgetMs;
     let turns;
+    let allowConcurrent = false;
     let trailingTokens;
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
@@ -215,6 +221,9 @@ export function parsePursueArgs(argv) {
                 index += 1;
                 break;
             }
+            case "--allow-concurrent":
+                allowConcurrent = true;
+                break;
             case "--turns": {
                 const value = argv[index + 1];
                 if (!value || value.startsWith("-")) {
@@ -245,6 +254,7 @@ export function parsePursueArgs(argv) {
         turns,
         model,
         thinking,
+        allowConcurrent,
         objective: trailingTokens?.join(" "),
     };
 }
@@ -256,6 +266,7 @@ export function parseAskArgs(argv) {
     let thinking = true;
     let background = false;
     let wait = false;
+    let allowConcurrent = false;
     let fresh = false;
     let resume = false;
     let resumeTarget;
@@ -290,6 +301,9 @@ export function parseAskArgs(argv) {
                 break;
             case "--wait":
                 wait = true;
+                break;
+            case "--allow-concurrent":
+                allowConcurrent = true;
                 break;
             case "--fresh":
                 fresh = true;
@@ -334,17 +348,19 @@ export function parseAskArgs(argv) {
         resumeTarget,
         model,
         thinking,
+        allowConcurrent,
         prompt: trailingTokens?.join(" "),
     };
 }
 export function parseReviewArgs(argv, commandName = "review") {
-    const parsed = parseKnownFlags(argv, new Set(["--base", "--background", "--wait", "-m", "--model"]), commandName);
+    const parsed = parseKnownFlags(argv, new Set(["--base", "--background", "--wait", "-m", "--model", "--allow-concurrent"]), commandName);
     return {
         base: parsed.base,
         background: parsed.background,
         wait: parsed.wait,
         model: parsed.model,
         thinking: parsed.thinking,
+        allowConcurrent: parsed.allowConcurrent,
         focus: parsed.trailingText,
     };
 }
@@ -353,6 +369,7 @@ export function parseRescueArgs(argv) {
     let thinking = true;
     let background = false;
     let wait = false;
+    let allowConcurrent = false;
     let fresh = false;
     let resume = false;
     let resumeTarget;
@@ -387,6 +404,9 @@ export function parseRescueArgs(argv) {
                 break;
             case "--wait":
                 wait = true;
+                break;
+            case "--allow-concurrent":
+                allowConcurrent = true;
                 break;
             case "--fresh":
                 fresh = true;
@@ -431,6 +451,7 @@ export function parseRescueArgs(argv) {
         resumeTarget,
         model,
         thinking,
+        allowConcurrent,
         prompt: trailingTokens?.join(" "),
     };
 }
@@ -480,6 +501,7 @@ function parseKnownFlags(argv, knownFlags, commandName) {
     let base;
     let background = false;
     let wait = false;
+    let allowConcurrent = false;
     let trailingTokens;
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
@@ -497,7 +519,7 @@ function parseKnownFlags(argv, knownFlags, commandName) {
                 // slurping them into focus text produced a bloated prompt that
                 // looked like a hang. Hard-fail with the supported list inline so
                 // the error message itself is the correction.
-                throw new RuntimeError("INVALID_ARGS", `Unknown flag ${token} for ${commandName}. Supported flags: --base <ref>, -m/--model <name>. Use \`--\` before flag-shaped focus text to pass it through.`, "args.parse");
+                throw new RuntimeError("INVALID_ARGS", `Unknown flag ${token} for ${commandName}. Supported flags: --base <ref>, -m/--model <name>, --allow-concurrent. Use \`--\` before flag-shaped focus text to pass it through.`, "args.parse");
             }
             trailingTokens = argv.slice(index);
             break;
@@ -534,6 +556,9 @@ function parseKnownFlags(argv, knownFlags, commandName) {
             case "--wait":
                 wait = true;
                 break;
+            case "--allow-concurrent":
+                allowConcurrent = true;
+                break;
             // The early `if (!knownFlags.has(token))` gate above means we only
             // reach this switch with tokens that ARE in knownFlags, and every
             // member is handled above. A `default` arm would be unreachable.
@@ -548,6 +573,7 @@ function parseKnownFlags(argv, knownFlags, commandName) {
         wait,
         model,
         thinking,
+        allowConcurrent,
         trailingText: trailingTokens?.join(" "),
     };
 }
