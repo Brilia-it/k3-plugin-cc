@@ -382,14 +382,15 @@ export async function executeRescueJob(
       );
     }
 
-    const keptSessionId = await keepFailedJobSession(store, job, {
+    const kept = await keepFailedJobSession(store, job, {
       announcedSessionId,
       baseline: sessionBaseline,
       env: context.env,
     });
     const classified = classifyManagedCommandFailure(error, "rescue", job.job_id, {
       preserveStage: true,
-      resumeCommand: keptSessionId ? `/k3:rescue --resume ${job.job_id}` : null,
+      resumeCommand: kept.keptSessionId ? `/k3:rescue --resume ${job.job_id}` : null,
+      unverifiedSessionCandidate: kept.unverifiedCandidate,
     });
     return await markJobFailed(store, paths, job, classified, cancel.failedSummary, { phase: "failed" });
   } finally {

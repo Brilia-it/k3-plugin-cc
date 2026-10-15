@@ -2,26 +2,25 @@
 //
 // 2026-10-15 incident: three read-only ask jobs stopped on Kimi's 5-hour usage limit
 // after reading a lot of material. Their job rows had kimi_session_id = null, although
-// kimi had created the sessions on disk, so the work could not be resumed once the
-// window rolled over: a retry started from zero.
+// kimi had created the sessions on disk.
 //
-// Two causes are handled here and in the commands' failure path:
-//   1. kimi may announce the session id (stdout meta record on native v2, stderr
-//      "To resume this session" on legacy) and exit non-zero afterwards. The commands
-//      used to throw on the exit code BEFORE persisting the announced id. They now
-//      persist it first (that is the commands' part, not this file).
-//   2. If kimi announced nothing, the id is recovered from kimi's own session index,
-//      conservatively, and only then.
+// Review 0.7.0 (finding 1): a session found in kimi's session index is NOT evidence that
+// this job's child created it. An interactive kimi in the same folder, another plugin job,
+// or an index rebuild produce the same single "new entry". So an indexed id is never
+// stored on the job row, never used for --resume and never used for lineage. It is only
+// offered to a human as an UNVERIFIED candidate in the quota message.
 //
-// Safety rules of the index recovery (nothing else is ever read from kimi's home):
-//   - only `<kimi home>/session_index.jsonl` is read, never a session directory,
-//     never credentials or config.toml; the home comes from resolveKimiHome;
-//   - only the `sessionId` and `workDir` fields of each line are looked at;
-//   - an id is accepted ONLY if exactly one entry appeared between the snapshot taken
-//     before the spawn and the one taken after the failure, and its workDir equals the
-//     job's cwd (separators and, on Windows paths, case normalised);
-//   - zero or several candidates leave the id null (a parallel interactive kimi in the
-//     same folder makes it ambiguous, and guessing would resume someone else's session).
+// What is persisted is only what kimi itself ANNOUNCED for this child (stdout meta record
+// on native v2, stderr "To resume this session" on legacy); that is done by the commands
+// (see keepFailedJobSession in commands/cli-helpers.ts).
+//
+// This module is read-only and reads one file, `<kimi home>/session_index.jsonl`
+// (home from resolveKimiHome); nothing else in kimi's home, no session directory.
+// A candidate is offered ONLY if:
+//   - the baseline (before the spawn) and the later snapshot were both read COMPLETELY:
+//     a malformed, oversized or unsafe line, or an unreadable file, means no candidate;
+//   - exactly one entry is new and its workDir equals the job's cwd (separators and, on
+//     Windows paths, case normalised).
 import { open, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -29,17 +28,18 @@ import { resolveKimiHome } from "./kimi-home.js";
 
 const SESSION_INDEX_MAX_BYTES = 16 * 1024 * 1024;
 const SESSION_INDEX_LINE_MAX_BYTES = 1024 * 1024;
+const CANDIDATE_ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
 
 export interface SessionIndexSnapshot {
-  /** False when the index could not be read at all (missing, too large, unreadable). */
-  readable: boolean;
+  /** True only when the whole index was read and every line was well formed. */
+  complete: boolean;
   /** sessionId -> normalised workDir, for every well-formed line. */
   entries: Map<string, string>;
 }
 
-export type SessionRecoveryOutcome =
-  | { sessionId: string; source: "announced" | "index" }
-  | { sessionId: null; reason: "no-baseline" | "index-unreadable" | "none-new" | "ambiguous" };
+export type SessionCandidateOutcome =
+  | { candidate: string }
+  | { candidate: null; reason: "no-baseline" | "incomplete-index" | "none-new" | "ambiguous" };
 
 /** Normalise a folder path for comparison: separators, trailing slash, and case for Windows-style paths. */
 export function normalizeWorkDir(input: string): string {
@@ -52,16 +52,6 @@ export function normalizeWorkDir(input: string): string {
   return windowsStyle || process.platform === "win32" ? value.toLowerCase() : value;
 }
 
-function isSafeSessionId(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length > 0 &&
-    value !== "." &&
-    value !== ".." &&
-    !/[/\\\p{Cc}]/u.test(value)
-  );
-}
-
 export async function snapshotSessionIndex(env: NodeJS.ProcessEnv, cwd: string): Promise<SessionIndexSnapshot> {
   const indexPath = path.join(resolveKimiHome(env, cwd), "session_index.jsonl");
   const entries = new Map<string, string>();
@@ -69,7 +59,7 @@ export async function snapshotSessionIndex(env: NodeJS.ProcessEnv, cwd: string):
   try {
     const info = await stat(indexPath);
     if (!info.isFile() || info.size > SESSION_INDEX_MAX_BYTES) {
-      return { readable: false, entries };
+      return { complete: false, entries };
     }
     const handle = await open(indexPath, "r");
     try {
@@ -79,61 +69,56 @@ export async function snapshotSessionIndex(env: NodeJS.ProcessEnv, cwd: string):
     }
   } catch (error) {
     // A missing index is a normal state before kimi has ever created a session.
-    return { readable: (error as NodeJS.ErrnoException).code === "ENOENT", entries };
+    return { complete: (error as NodeJS.ErrnoException).code === "ENOENT", entries };
   }
 
+  let complete = true;
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim();
-    if (!trimmed || Buffer.byteLength(trimmed, "utf8") > SESSION_INDEX_LINE_MAX_BYTES) continue;
+    if (!trimmed) continue;
+    if (Buffer.byteLength(trimmed, "utf8") > SESSION_INDEX_LINE_MAX_BYTES) {
+      complete = false;
+      continue;
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(trimmed) as unknown;
     } catch {
+      complete = false;
       continue;
     }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) continue;
-    const candidate = parsed as { sessionId?: unknown; workDir?: unknown };
-    if (!isSafeSessionId(candidate.sessionId) || typeof candidate.workDir !== "string") continue;
-    entries.set(candidate.sessionId, normalizeWorkDir(candidate.workDir));
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      complete = false;
+      continue;
+    }
+    const entry = parsed as { sessionId?: unknown; workDir?: unknown };
+    if (typeof entry.sessionId !== "string" || !CANDIDATE_ID_RE.test(entry.sessionId) || typeof entry.workDir !== "string") {
+      complete = false;
+      continue;
+    }
+    entries.set(entry.sessionId, normalizeWorkDir(entry.workDir));
   }
-  return { readable: true, entries };
+  return { complete, entries };
 }
 
 /**
- * Pick the session this job created, or null. `before` is the snapshot taken just
- * before the spawn; the snapshot after the failure is taken here.
+ * The one session that appeared in the index for the job's folder since `before`, as a
+ * hint for a human. NEVER proof of ownership; callers must not store or resume it.
  */
-export async function recoverSessionFromIndex(
+export async function findUnverifiedSessionCandidate(
   before: SessionIndexSnapshot | null,
   env: NodeJS.ProcessEnv,
   jobCwd: string,
-): Promise<SessionRecoveryOutcome> {
-  if (before === null) return { sessionId: null, reason: "no-baseline" };
-  if (!before.readable) return { sessionId: null, reason: "index-unreadable" };
+): Promise<SessionCandidateOutcome> {
+  if (before === null) return { candidate: null, reason: "no-baseline" };
+  if (!before.complete) return { candidate: null, reason: "incomplete-index" };
   const after = await snapshotSessionIndex(env, jobCwd);
-  if (!after.readable) return { sessionId: null, reason: "index-unreadable" };
+  if (!after.complete) return { candidate: null, reason: "incomplete-index" };
   const wanted = normalizeWorkDir(jobCwd);
-  const candidates: string[] = [];
+  const fresh: string[] = [];
   for (const [sessionId, workDir] of after.entries) {
-    if (before.entries.has(sessionId)) continue;
-    if (workDir === wanted) candidates.push(sessionId);
+    if (!before.entries.has(sessionId) && workDir === wanted) fresh.push(sessionId);
   }
-  if (candidates.length === 1) return { sessionId: candidates[0]!, source: "index" };
-  return { sessionId: null, reason: candidates.length === 0 ? "none-new" : "ambiguous" };
-}
-
-/**
- * Decide the kimi session id a FAILED job should keep: the announced one if kimi
- * announced one, else the index recovery. Pure policy; the caller persists it.
- */
-export async function resolveFailedJobSession(options: {
-  announcedSessionId: string | undefined;
-  baseline: SessionIndexSnapshot | null;
-  env: NodeJS.ProcessEnv;
-  jobCwd: string;
-}): Promise<SessionRecoveryOutcome> {
-  if (options.announcedSessionId !== undefined && isSafeSessionId(options.announcedSessionId)) {
-    return { sessionId: options.announcedSessionId, source: "announced" };
-  }
-  return recoverSessionFromIndex(options.baseline, options.env, options.jobCwd);
+  if (fresh.length === 1) return { candidate: fresh[0]! };
+  return { candidate: null, reason: fresh.length === 0 ? "none-new" : "ambiguous" };
 }

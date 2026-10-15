@@ -340,13 +340,14 @@ export async function executeAskJob(
       await markJobFailed(store, paths, job, error, cancel.failedSummary, { phase: "failed" });
       throw error;
     }
-    const keptSessionId = await keepFailedJobSession(store, job, {
+    const kept = await keepFailedJobSession(store, job, {
       announcedSessionId,
       baseline: sessionBaseline,
       env: context.env,
     });
     const classified = classifyManagedCommandFailure(error, "ask", job.job_id, {
-      resumeCommand: keptSessionId ? `/k3:ask --resume ${job.job_id}` : null,
+      resumeCommand: kept.keptSessionId ? `/k3:ask --resume ${job.job_id}` : null,
+      unverifiedSessionCandidate: kept.unverifiedCandidate,
     });
     await markJobFailed(store, paths, job, classified, cancel.failedSummary, { phase: "failed" });
     throw classified;

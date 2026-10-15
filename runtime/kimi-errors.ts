@@ -35,6 +35,12 @@ export interface ClassifyFailureOptions {
    * absent means no resumable session, so a retry starts from zero.
    */
   resumeCommand?: string | null;
+  /**
+   * Review 0.7.0: a session that appeared in kimi's index for this folder. NOT verified
+   * as this job's; the message offers it to a human as `kimi -r <id>`, never as a
+   * `/k3:` resume command.
+   */
+  unverifiedSessionCandidate?: string | null;
   /** The failure is not a resumable job (the setup model probe): leave the resume sentence out. */
   omitResumeHint?: boolean;
 }
@@ -207,7 +213,10 @@ function classifyProviderLimit(
       ? ""
       : options?.resumeCommand
         ? `The work already done is kept in the Kimi session: once the limit resets, continue with \`${options.resumeCommand}\`.`
-        : "No resumable Kimi session was recovered, so a retry starts from zero.";
+        : "No resumable Kimi session was announced for this job, so a retry starts from zero." +
+          (options?.unverifiedSessionCandidate
+            ? ` Kimi may have created session ${options.unverifiedSessionCandidate} (not verified as this job's); if it is yours, \`kimi -r ${options.unverifiedSessionCandidate}\` in a terminal resumes it interactively.`
+            : "");
     return {
       kind: "quota_exhausted",
       summary: `the Kimi subscription refused the call: the ${which} usage limit is reached. This is call volume on your plan, NOT the context window.`,

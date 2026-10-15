@@ -5,8 +5,8 @@ import path from "node:path";
 import { runAsk } from "../../runtime/commands/ask.js";
 import { JobStore } from "../../runtime/job-store.js";
 import {
+  findUnverifiedSessionCandidate,
   normalizeWorkDir,
-  recoverSessionFromIndex,
   snapshotSessionIndex,
 } from "../../runtime/kimi-session-recovery.js";
 import { resolvePluginPaths } from "../../runtime/paths.js";
@@ -37,73 +37,87 @@ function indexLine(sessionId: string, workDir: string): string {
   return JSON.stringify({ sessionId, sessionDir: `/kimi/sessions/${sessionId}`, workDir, extra: "ignored" });
 }
 
-describe("session index recovery (unit)", () => {
+describe("session index candidate (unit, read-only, never adopted)", () => {
   test("normalizeWorkDir folds separators, trailing slash and Windows case", () => {
     expect(normalizeWorkDir("C:\\Users\\Me\\Repo\\")).toBe(normalizeWorkDir("c:/users/me/repo"));
     expect(normalizeWorkDir("C:\\Users\\Me\\Repo")).not.toBe(normalizeWorkDir("C:\\Users\\Me\\Other"));
   });
 
-  test("accepts exactly one new entry whose workDir is the job cwd", async () => {
-    const home = await createTestPluginDataRoot("recovery-one");
+  test("exactly one new entry for the job cwd is offered as a candidate", async () => {
+    const home = await createTestPluginDataRoot("candidate-one");
     try {
       await writeFile(path.join(home, "session_index.jsonl"), `${indexLine("old-1", "/w/a")}\n`, "utf8");
       const env = { KIMI_CODE_HOME: home };
       const before = await snapshotSessionIndex(env, "/w/a");
+      expect(before.complete).toBe(true);
       await writeFile(
         path.join(home, "session_index.jsonl"),
         [indexLine("old-1", "/w/a"), indexLine("new-1", "/w/a"), indexLine("new-elsewhere", "/w/other")].join("\n") + "\n",
         "utf8",
       );
-      const outcome = await recoverSessionFromIndex(before, env, "/w/a");
-      expect(outcome).toEqual({ sessionId: "new-1", source: "index" });
+      expect(await findUnverifiedSessionCandidate(before, env, "/w/a")).toEqual({ candidate: "new-1" });
     } finally {
       await cleanupTestPath(home);
     }
   });
 
-  test("two new entries for the cwd are ambiguous: nothing is guessed", async () => {
-    const home = await createTestPluginDataRoot("recovery-two");
+  test("two new entries (another plugin job or an interactive kimi) give no candidate", async () => {
+    const home = await createTestPluginDataRoot("candidate-two");
     try {
       const env = { KIMI_CODE_HOME: home };
       const before = await snapshotSessionIndex(env, "/w/a");
-      expect(before.readable).toBe(true);
       await writeFile(
         path.join(home, "session_index.jsonl"),
         [indexLine("new-1", "/w/a"), indexLine("new-2", "/w/a")].join("\n") + "\n",
         "utf8",
       );
-      expect(await recoverSessionFromIndex(before, env, "/w/a")).toEqual({ sessionId: null, reason: "ambiguous" });
+      expect(await findUnverifiedSessionCandidate(before, env, "/w/a")).toEqual({
+        candidate: null,
+        reason: "ambiguous",
+      });
     } finally {
       await cleanupTestPath(home);
     }
   });
 
-  test("no new entry for the cwd, or no baseline, or an unsafe id: null", async () => {
-    const home = await createTestPluginDataRoot("recovery-none");
+  test("a malformed line in the baseline makes the baseline incomplete: no candidate (index rebuild)", async () => {
+    const home = await createTestPluginDataRoot("candidate-partial");
+    try {
+      await writeFile(
+        path.join(home, "session_index.jsonl"),
+        [indexLine("old-1", "/w/a"), "{not json", indexLine("../evil", "/w/a")].join("\n") + "\n",
+        "utf8",
+      );
+      const env = { KIMI_CODE_HOME: home };
+      const before = await snapshotSessionIndex(env, "/w/a");
+      expect(before.complete).toBe(false);
+      await writeFile(
+        path.join(home, "session_index.jsonl"),
+        [indexLine("old-1", "/w/a"), indexLine("old-2-rebuilt", "/w/a")].join("\n") + "\n",
+        "utf8",
+      );
+      expect(await findUnverifiedSessionCandidate(before, env, "/w/a")).toEqual({
+        candidate: null,
+        reason: "incomplete-index",
+      });
+    } finally {
+      await cleanupTestPath(home);
+    }
+  });
+
+  test("no baseline, or no new entry for the cwd: no candidate", async () => {
+    const home = await createTestPluginDataRoot("candidate-none");
     try {
       const env = { KIMI_CODE_HOME: home };
       const before = await snapshotSessionIndex(env, "/w/a");
-      await writeFile(
-        path.join(home, "session_index.jsonl"),
-        [indexLine("new-elsewhere", "/w/other"), indexLine("../evil", "/w/a"), "not json"].join("\n") + "\n",
-        "utf8",
-      );
-      expect(await recoverSessionFromIndex(before, env, "/w/a")).toEqual({ sessionId: null, reason: "none-new" });
-      expect(await recoverSessionFromIndex(null, env, "/w/a")).toEqual({ sessionId: null, reason: "no-baseline" });
-    } finally {
-      await cleanupTestPath(home);
-    }
-  });
-
-  test("Windows paths match across separator and case differences", async () => {
-    const home = await createTestPluginDataRoot("recovery-win");
-    try {
-      const env = { KIMI_CODE_HOME: home };
-      const before = await snapshotSessionIndex(env, "C:\\Work\\Repo");
-      await writeFile(path.join(home, "session_index.jsonl"), `${indexLine("w-1", "c:/work/repo")}\n`, "utf8");
-      expect(await recoverSessionFromIndex(before, env, "C:\\Work\\Repo\\")).toEqual({
-        sessionId: "w-1",
-        source: "index",
+      await writeFile(path.join(home, "session_index.jsonl"), `${indexLine("elsewhere", "/w/other")}\n`, "utf8");
+      expect(await findUnverifiedSessionCandidate(before, env, "/w/a")).toEqual({
+        candidate: null,
+        reason: "none-new",
+      });
+      expect(await findUnverifiedSessionCandidate(null, env, "/w/a")).toEqual({
+        candidate: null,
+        reason: "no-baseline",
       });
     } finally {
       await cleanupTestPath(home);
@@ -111,8 +125,8 @@ describe("session index recovery (unit)", () => {
   });
 });
 
-describe("a job stopped by a usage limit keeps its session and can be resumed", () => {
-  async function readStoredSession(runEnv: NodeJS.ProcessEnv, jobId: string) {
+describe("a job stopped by a usage limit: announced sessions only", () => {
+  async function readStoredJob(runEnv: NodeJS.ProcessEnv, jobId: string) {
     const store = new JobStore(resolvePluginPaths(runEnv));
     try {
       return store.getJob(jobId);
@@ -127,7 +141,17 @@ describe("a job stopped by a usage limit keeps its session and can be resumed", 
     return match![1]!;
   }
 
-  test("announced id: stored on the failed job, quota error gives the exact resume command, resume continues it", async () => {
+  async function failWith(runEnv: NodeJS.ProcessEnv, repoRoot: string) {
+    let caught: unknown;
+    try {
+      await runAsk(["read the big document"], makeContext(repoRoot, runEnv));
+    } catch (error) {
+      caught = error;
+    }
+    return caught as Error & { code?: string };
+  }
+
+  test("announced id: stored on the failed job, the quota error gives the exact resume command, resume continues it", async () => {
     const root = await createTestPluginDataRoot("recovery-announced");
     const kimiHome = await createTestPluginDataRoot("recovery-announced-home");
     const repoRoot = await createGitRepoFixture("recovery-announced-repo");
@@ -139,27 +163,16 @@ describe("a job stopped by a usage limit keeps its session and can be resumed", 
       K3_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
     };
     try {
-      let caught: unknown;
-      try {
-        await runAsk(["read the big document"], makeContext(repoRoot, failEnv));
-      } catch (error) {
-        caught = error;
-      }
-      const err = caught as Error & { code?: string };
+      const err = await failWith(failEnv, repoRoot);
       expect(err.code).toBe("ASK_KIMI_QUOTA_EXHAUSTED");
       const jobId = jobIdFromMessage(err.message);
       expect(err.message).toContain(`/k3:ask --resume ${jobId}`);
       expect(err.message).not.toContain("a retry starts from zero");
-
-      const failed = await readStoredSession(failEnv, jobId);
+      const failed = await readStoredJob(failEnv, jobId);
       expect(failed?.status).toBe("failed");
       expect(failed?.kimi_session_id).toBe(sessionId);
 
-      // The window rolled over: resume the failed job's kimi session.
-      const okEnv = {
-        ...makeMockEnv(root, kimiHome, "ask-success"),
-        K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-      };
+      const okEnv = { ...makeMockEnv(root, kimiHome, "ask-success"), K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath };
       const answer = await runAsk(["--resume", jobId], makeContext(repoRoot, okEnv));
       expect(answer).toBe("Ask answer from mock Kimi.");
       const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as { argv: string[] };
@@ -171,10 +184,10 @@ describe("a job stopped by a usage limit keeps its session and can be resumed", 
     }
   }, 60_000);
 
-  test("nothing announced: the id is recovered from kimi's session index (one new entry for this cwd)", async () => {
-    const root = await createTestPluginDataRoot("recovery-index");
-    const kimiHome = await createTestPluginDataRoot("recovery-index-home");
-    const repoRoot = await createGitRepoFixture("recovery-index-repo");
+  test("nothing announced, one new index entry (could be an interactive kimi): never adopted, only a human hint", async () => {
+    const root = await createTestPluginDataRoot("recovery-hint");
+    const kimiHome = await createTestPluginDataRoot("recovery-hint-home");
+    const repoRoot = await createGitRepoFixture("recovery-hint-repo");
     const sessionId = "22222222-2222-4222-8222-222222222222";
     const failEnv = {
       ...makeMockEnv(root, kimiHome, "quota-fail"),
@@ -184,17 +197,19 @@ describe("a job stopped by a usage limit keeps its session and can be resumed", 
     try {
       await mkdir(kimiHome, { recursive: true });
       await writeFile(path.join(kimiHome, "session_index.jsonl"), `${indexLine("older", "/somewhere/else")}\n`, "utf8");
-      let caught: unknown;
-      try {
-        await runAsk(["read the big document"], makeContext(repoRoot, failEnv));
-      } catch (error) {
-        caught = error;
-      }
-      const err = caught as Error & { code?: string };
+      const err = await failWith(failEnv, repoRoot);
       expect(err.code).toBe("ASK_KIMI_QUOTA_EXHAUSTED");
       const jobId = jobIdFromMessage(err.message);
-      expect(err.message).toContain(`/k3:ask --resume ${jobId}`);
-      expect((await readStoredSession(failEnv, jobId))?.kimi_session_id).toBe(sessionId);
+      expect((await readStoredJob(failEnv, jobId))?.kimi_session_id).toBeNull();
+      expect(err.message).not.toContain("/k3:ask --resume");
+      expect(err.message).toContain(`Kimi may have created session ${sessionId} (not verified as this job's)`);
+      expect(err.message).toContain(`\`kimi -r ${sessionId}\` in a terminal resumes it interactively`);
+      expect(err.message).toContain("a retry starts from zero");
+      // And the job cannot be resumed through the plugin.
+      const okEnv = makeMockEnv(root, kimiHome, "ask-success");
+      await expect(runAsk(["--resume", jobId], makeContext(repoRoot, okEnv))).rejects.toMatchObject({
+        code: "ASK_RESUME_NOT_FOUND",
+      });
     } finally {
       await cleanupTestPath(root);
       await cleanupTestPath(kimiHome);
@@ -202,7 +217,7 @@ describe("a job stopped by a usage limit keeps its session and can be resumed", 
     }
   }, 60_000);
 
-  test("two new entries for this cwd: the id stays null and the message says a retry starts from zero", async () => {
+  test("two new entries for this cwd: no adoption and no hint", async () => {
     const root = await createTestPluginDataRoot("recovery-ambiguous");
     const kimiHome = await createTestPluginDataRoot("recovery-ambiguous-home");
     const repoRoot = await createGitRepoFixture("recovery-ambiguous-repo");
@@ -212,16 +227,28 @@ describe("a job stopped by a usage limit keeps its session and can be resumed", 
       K3_PLUGIN_CC_MOCK_INDEX_EXTRA: "1",
     };
     try {
-      let caught: unknown;
-      try {
-        await runAsk(["read the big document"], makeContext(repoRoot, failEnv));
-      } catch (error) {
-        caught = error;
-      }
-      const err = caught as Error & { code?: string };
+      const err = await failWith(failEnv, repoRoot);
       expect(err.code).toBe("ASK_KIMI_QUOTA_EXHAUSTED");
       expect(err.message).toContain("a retry starts from zero");
-      expect((await readStoredSession(failEnv, jobIdFromMessage(err.message)))?.kimi_session_id).toBeNull();
+      expect(err.message).not.toContain("Kimi may have created session");
+      expect((await readStoredJob(failEnv, jobIdFromMessage(err.message)))?.kimi_session_id).toBeNull();
+    } finally {
+      await cleanupTestPath(root);
+      await cleanupTestPath(kimiHome);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 60_000);
+
+  test("a baseline index with a malformed line (rebuilt index): no adoption and no hint", async () => {
+    const root = await createTestPluginDataRoot("recovery-rebuilt");
+    const kimiHome = await createTestPluginDataRoot("recovery-rebuilt-home");
+    const repoRoot = await createGitRepoFixture("recovery-rebuilt-repo");
+    const failEnv = { ...makeMockEnv(root, kimiHome, "quota-fail"), K3_PLUGIN_CC_MOCK_INDEX_ENTRY: "1" };
+    try {
+      await writeFile(path.join(kimiHome, "session_index.jsonl"), "{broken line\n", "utf8");
+      const err = await failWith(failEnv, repoRoot);
+      expect(err.message).not.toContain("Kimi may have created session");
+      expect((await readStoredJob(failEnv, jobIdFromMessage(err.message)))?.kimi_session_id).toBeNull();
     } finally {
       await cleanupTestPath(root);
       await cleanupTestPath(kimiHome);
