@@ -1,17 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { runAsk } from "../../runtime/commands/ask.js";
+import { executeAskJob, runAsk } from "../../runtime/commands/ask.js";
+import { runCancel } from "../../runtime/commands/cancel.js";
 import { runPursue } from "../../runtime/commands/pursue.js";
 import { runRescue } from "../../runtime/commands/rescue.js";
 import { runReview } from "../../runtime/commands/review.js";
 import { runSwarm } from "../../runtime/commands/swarm.js";
 import { resolveRepoIdentity } from "../../runtime/git.js";
 import { JobStore } from "../../runtime/job-store.js";
-import { assertNoModelJobRunning } from "../../runtime/jobs.js";
+import { assertNoModelJobRunning, waitForTerminalJob } from "../../runtime/jobs.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../../runtime/paths.js";
 import { parseAskArgs, parsePursueArgs, parseRescueArgs, parseReviewArgs, parseSwarmArgs } from "../../runtime/parsing.js";
 import type { CommandContext } from "../../runtime/types.js";
@@ -40,7 +42,7 @@ function makeMockEnv(pluginDataRoot: string, scenario: string): NodeJS.ProcessEn
 async function seedRunningJob(
   runEnv: NodeJS.ProcessEnv,
   repoRoot: string,
-  options: { jobId: string; commandType?: "ask" | "review" | "rescue" | "review_gate"; pid?: number | null; staleSince?: string },
+  options: { jobId: string; commandType?: "ask" | "review" | "rescue" | "review_gate"; pid?: number | null; staleSince?: string; background?: boolean },
 ): Promise<void> {
   const paths = resolvePluginPaths(runEnv);
   await ensurePluginPaths(paths);
@@ -54,7 +56,7 @@ async function seedRunningJob(
       cwd: repoRoot,
       model: null,
       thinking: null,
-      background: false,
+      background: options.background ?? false,
       // This test process is alive, so the sweep leaves the job running.
       pid: options.pid === undefined ? process.pid : options.pid,
       kimi_pid: null,
@@ -256,40 +258,45 @@ describe("one model job at a time (2026-10-15 incident)", () => {
 
 const OLD = "2026-04-14T10:00:00.000Z";
 
-describe("admission (review 0.7.0, findings 2 and 3)", () => {
-  test("a null-PID row older than the startup grace does not block, and the refusal names it as stale", async () => {
-    const root = await createTestPluginDataRoot("adm-stale-null");
-    const repoRoot = await createGitRepoFixture("adm-stale-null-repo");
+describe("admission (review 0.7.0; round 3: launcher ownership)", () => {
+
+  // Round 3, item A: launcher ownership instead of time-based expiry.
+  test("a background row whose LAUNCHER crashed before the transfer is swept; the guard is free", async () => {
+    const root = await createTestPluginDataRoot("adm-launcher-crash");
+    const repoRoot = await createGitRepoFixture("adm-launcher-crash-repo");
     const runEnv = makeMockEnv(root, "ask-success");
     try {
-      await seedRunningJob(runEnv, repoRoot, { jobId: "job-orphan", pid: null, staleSince: OLD });
+      await seedRunningJob(runEnv, repoRoot, {
+        jobId: "job-launcher-dead",
+        pid: findDefinitelyDeadPid(),
+        background: true,
+        staleSince: OLD,
+      });
       const answer = await runAsk(["a question"], makeContext(repoRoot, runEnv));
       expect(answer).toBe("Ask answer from mock Kimi.");
-
-      // With a live job running too, the refusal names the orphan as "stale, not counted".
-      await seedRunningJob(runEnv, repoRoot, { jobId: "job-live" });
-      let caught: unknown;
+      const store = new JobStore(resolvePluginPaths(runEnv));
       try {
-        await runAsk(["another"], makeContext(repoRoot, runEnv));
-      } catch (error) {
-        caught = error;
+        expect(store.getJob("job-launcher-dead")?.status).toBe("failed");
+      } finally {
+        store.close();
       }
-      const err = caught as Error & { code?: string };
-      expect(err.code).toBe("ASK_JOB_ALREADY_RUNNING");
-      expect(err.message).toContain("job-live");
-      expect(err.message).toContain("job-orphan (stale, not counted)");
     } finally {
       await cleanupTestPath(root);
       await cleanupTestPath(repoRoot);
     }
   }, 60_000);
 
-  test("a fresh null-PID row (a job still starting) does block", async () => {
-    const root = await createTestPluginDataRoot("adm-fresh-null");
-    const repoRoot = await createGitRepoFixture("adm-fresh-null-repo");
+  test("a stalled but ALIVE launcher keeps the guard closed, however old its row is (no time-based expiry)", async () => {
+    const root = await createTestPluginDataRoot("adm-launcher-alive");
+    const repoRoot = await createGitRepoFixture("adm-launcher-alive-repo");
     const runEnv = makeMockEnv(root, "ask-success");
     try {
-      await seedRunningJob(runEnv, repoRoot, { jobId: "job-starting", pid: null });
+      await seedRunningJob(runEnv, repoRoot, {
+        jobId: "job-launcher-alive",
+        pid: process.pid,
+        background: true,
+        staleSince: OLD,
+      });
       await expect(runAsk(["q"], makeContext(repoRoot, runEnv))).rejects.toMatchObject({
         code: "ASK_JOB_ALREADY_RUNNING",
       });
@@ -298,6 +305,104 @@ describe("admission (review 0.7.0, findings 2 and 3)", () => {
       await cleanupTestPath(repoRoot);
     }
   }, 60_000);
+
+  test("a background launch records the LAUNCHER pid at creation and hands the pid to the worker before it returns", async () => {
+    const root = await createTestPluginDataRoot("adm-launcher-transfer");
+    const repoRoot = await createGitRepoFixture("adm-launcher-transfer-repo");
+    const runEnv = { ...makeMockEnv(root, "ask-success"), K3_PLUGIN_CC_MOCK_DELAY_MS: "3000" };
+    try {
+      // Observe the row AS INSERTED: a trigger copies the creation-time pid into an audit table.
+      const paths = resolvePluginPaths(runEnv);
+      await ensurePluginPaths(paths);
+      new JobStore(paths).close();
+      const audit = new Database(paths.stateDbPath);
+      audit.exec("CREATE TABLE inserted_pids (job_id TEXT, pid INTEGER)");
+      audit.exec("CREATE TRIGGER audit_insert AFTER INSERT ON jobs BEGIN INSERT INTO inserted_pids VALUES (NEW.job_id, NEW.pid); END");
+      audit.close();
+
+      const started = JSON.parse(await runAsk(["--background", "q"], makeContext(repoRoot, runEnv))) as {
+        job_id: string;
+      };
+      const reader = new Database(paths.stateDbPath, { readonly: true });
+      try {
+        const inserted = reader.query("SELECT pid FROM inserted_pids WHERE job_id = ?").get(started.job_id) as { pid: number | null };
+        expect(inserted.pid).toBe(process.pid);
+      } finally {
+        reader.close();
+      }
+      // The launcher returned (non-wait mode): the transfer already happened.
+      const store = new JobStore(resolvePluginPaths(runEnv));
+      try {
+        const row = store.getJob(started.job_id);
+        expect(row?.status).toBe("running");
+        expect(row?.pid).not.toBeNull();
+        expect(row?.pid).not.toBe(process.pid);
+      } finally {
+        store.close();
+      }
+      await waitForTerminalJob(() => new JobStore(resolvePluginPaths(runEnv)), started.job_id, 30_000);
+    } finally {
+      await cleanupTestPath(root);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 60_000);
+
+  test("the worker's compare-and-set refuses a row that was swept or cancelled: no model call", async () => {
+    const root = await createTestPluginDataRoot("adm-cas-refuse");
+    const repoRoot = await createGitRepoFixture("adm-cas-refuse-repo");
+    const invocationPath = path.join(root, "invocation.json");
+    const runEnv = { ...makeMockEnv(root, "ask-success"), K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath };
+    try {
+      await seedRunningJob(runEnv, repoRoot, { jobId: "job-cancelled-start", pid: process.pid, background: true });
+      const paths = resolvePluginPaths(runEnv);
+      const store = new JobStore(paths);
+      try {
+        expect(store.claimRunningJobPid("job-cancelled-start", [process.pid + 1], 4242, "x")).toBe(false);
+        store.markCancelled("job-cancelled-start", { summary: "cancelled", error: null });
+        expect(store.claimRunningJobPid("job-cancelled-start", [process.pid], 4242, "x")).toBe(false);
+      } finally {
+        store.close();
+      }
+      const result = await executeAskJob("job-cancelled-start", "prompt", makeContext(repoRoot, runEnv), {
+        workerPid: 4242,
+        launcherPid: process.pid,
+      });
+      expect(result.status).toBe("cancelled");
+      expect(existsSync(invocationPath)).toBe(false);
+    } finally {
+      await cleanupTestPath(root);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 60_000);
+
+  test("/k3:cancel works on a row that is still starting (it has a pid now)", async () => {
+    const root = await createTestPluginDataRoot("adm-cancel-starting");
+    const repoRoot = await createGitRepoFixture("adm-cancel-starting-repo");
+    const runEnv = makeMockEnv(root, "ask-success");
+    const launcher = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { stdio: "ignore" });
+    try {
+      await seedRunningJob(runEnv, repoRoot, {
+        jobId: "job-starting-cancel",
+        pid: launcher.pid ?? null,
+        background: true,
+      });
+      const out = JSON.parse(await runCancel(["job-starting-cancel"], makeContext(repoRoot, runEnv))) as {
+        status: string;
+      };
+      expect(out.status).toBe("cancelled");
+      const store = new JobStore(resolvePluginPaths(runEnv));
+      try {
+        expect(store.getJob("job-starting-cancel")?.status).toBe("cancelled");
+      } finally {
+        store.close();
+      }
+    } finally {
+      launcher.kill("SIGKILL");
+      await cleanupTestPath(root);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 60_000);
+
 
   test("review-gate rows never count, even fresh with no PID", async () => {
     const root = await createTestPluginDataRoot("adm-gate-row");

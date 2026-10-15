@@ -129,6 +129,9 @@ export async function startBackgroundJob(
     env: {
       ...context.env,
       K3_PLUGIN_CC_WORKSPACE_CWD: context.cwd,
+      // Round 3: the row is owned by this launcher until the worker (or this process,
+      // right after spawning) transfers it by compare-and-set.
+      K3_PLUGIN_CC_LAUNCHER_PID: String(process.pid),
       [options.promptEnvVar]: b64,
       [options.reusedSessionEnvVar]: options.reusedSession ? "1" : "0",
       ...(options.extraEnv ?? {}),
@@ -190,10 +193,28 @@ export async function startBackgroundJob(
 
   const store = new JobStore(paths);
   try {
-    store.updateRunningJob(job.job_id, {
-      pid: child.pid ?? null,
-      phase: "worker-spawned",
-    });
+    // Round 3: hand the row from this launcher to the worker with a compare-and-set, and
+    // finish it BEFORE returning (a non-wait launcher exits right after). If the worker
+    // already claimed it, the row's pid is already the worker's. If the row was swept or
+    // cancelled while starting, the worker will refuse its own claim; stop it here too.
+    const childPid = child.pid;
+    const handedOver =
+      childPid !== undefined &&
+      (store.claimRunningJobPid(job.job_id, [process.pid], childPid, "worker-spawned") ||
+        store.getJob(job.job_id)?.pid === childPid);
+    if (!handedOver) {
+      try {
+        if (childPid !== undefined) process.kill(childPid, "SIGTERM");
+      } catch {
+        // already gone
+      }
+      const current = store.getJob(job.job_id);
+      throw new RuntimeError(
+        options.earlyExitErrorCode,
+        `Background ${options.workerKind} job ${job.job_id} is no longer running (${current?.status ?? "missing"}); the worker was not started.`,
+        options.spawnStage,
+      );
+    }
   } finally {
     store.close();
   }

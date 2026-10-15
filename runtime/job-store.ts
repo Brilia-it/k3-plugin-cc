@@ -277,7 +277,7 @@ export class JobStore {
       // RESCUE_ALREADY_RUNNING) keeps its more specific error. If other counted jobs
       // are running, the throw rolls the insert back.
       const created = this.insertJob(input);
-      assertNoModelJobRunning(this, admission.commandType, false, Date.now(), input.job_id);
+      assertNoModelJobRunning(this, admission.commandType, false, input.job_id);
       return created;
     });
   }
@@ -414,6 +414,21 @@ export class JobStore {
       throw translateSqliteError(error);
     }
     return result;
+  }
+
+  // BRILIA fork (round 3): compare-and-set of the owner pid of a RUNNING job. It succeeds
+  // only if the row is still running and its pid is one of `expectedPids`; otherwise
+  // (swept, cancelled, already owned by someone else) it changes nothing and returns false.
+  // The launcher uses it to hand the row to the worker, the worker to claim it.
+  claimRunningJobPid(jobId: string, expectedPids: readonly number[], newPid: number, phase: string): boolean {
+    return this.withWriteLock(() => {
+      const current = this.getJob(jobId);
+      if (!current || current.status !== "running" || current.pid === null || !expectedPids.includes(current.pid)) {
+        return false;
+      }
+      this.updateRunningJob(jobId, { pid: newPid, phase });
+      return true;
+    });
   }
 
   // BRILIA fork (2026-10-15): every running job, oldest first, so the

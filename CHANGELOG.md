@@ -67,10 +67,16 @@ so a script that keys on the exit code went on to the next job).
   kimi's own provider error line (`provider.<kind>_error: ...`, the last one), so a local error
   that mentions "does not have access to" or a quota sentence echoed in a log no longer becomes
   account advice. The official "Your current plan supports only k3 up to 256K context" denial is a
-  `context_exceeded` with `details.reason` `plan-256k`. The one-job guard counts a running row with
-  no process only within two minutes (older ones are reported as "stale, not counted" and never
-  block), never counts review-gate rows, and its final check runs in the same write-locked
-  transaction as the job insert so two launches cannot both pass. The guard's scope is one job
+  `context_exceeded` with `details.reason` `plan-256k`. The one-job guard counts every running row
+  except review-gate rows, with no time-based expiry: a background row now starts owned by its
+  launcher's pid and is handed to the worker by a compare-and-set before the launcher returns, so
+  the existing sweeper (dead owner, failed) and `/k3:cancel` work on a starting row, and a worker
+  whose row was swept or cancelled makes no model call. Its final check runs in the same
+  write-locked transaction as the job insert so two launches cannot both pass. The model probe
+  now forwards cancellation to the kimi child before releasing its row, and its row has its own
+  identity (`model_probe`) so a probe never becomes the latest ask for a bare `--resume`.
+  Provider classification reads only the error's own text and only lines that START with the
+  provider marker, and the review-gate warning comes from the recorded classification. The guard's scope is one job
   store (one plugin data directory): it does not see Codex, another data directory or a native
   interactive `kimi`.
 - **`/k3:setup --check --probe-model [-m <model>]`.** The plain `--check` probe exercises the hook

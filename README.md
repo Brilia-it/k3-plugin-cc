@@ -252,8 +252,10 @@ Practical rules:
   behaviour. `--allow-concurrent` overrides the refusal for that one call, and you take the quota
   and terms consequences. A swarm's own internal fan-out counts as one job, and the Stop-hook review
   gate is not affected. The check and the job insert happen in one database transaction, so two
-  launches cannot both slip through. A running row with no process that is older than two minutes
-  is an orphan and is not counted (the refusal names it as "stale, not counted"). **Scope:** the
+  launches cannot both slip through. There is no time-based expiry: every running row has an owner
+  process (a background row starts owned by the launcher and is handed to the worker by a
+  compare-and-set), so a dead owner is swept before the check, `/k3:cancel` works on a starting
+  job, and a worker whose row was swept or cancelled makes no model call. **Scope:** the
   guard sees one job store, that is one plugin data directory. It does not see Codex or Claude Code
   running against another data directory, nor a native interactive `kimi`.
 - **`--wait` now really waits.** It waits for the job's own budget (ask 15 minutes, rescue 30
