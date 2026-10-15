@@ -11,6 +11,7 @@ import { runReview } from "../../runtime/commands/review.js";
 import { runSwarm } from "../../runtime/commands/swarm.js";
 import { resolveRepoIdentity } from "../../runtime/git.js";
 import { JobStore } from "../../runtime/job-store.js";
+import { assertNoModelJobRunning } from "../../runtime/jobs.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../../runtime/paths.js";
 import { parseAskArgs, parsePursueArgs, parseRescueArgs, parseReviewArgs, parseSwarmArgs } from "../../runtime/parsing.js";
 import type { CommandContext } from "../../runtime/types.js";
@@ -39,7 +40,7 @@ function makeMockEnv(pluginDataRoot: string, scenario: string): NodeJS.ProcessEn
 async function seedRunningJob(
   runEnv: NodeJS.ProcessEnv,
   repoRoot: string,
-  options: { jobId: string; commandType?: "ask" | "review" | "rescue"; pid?: number | null; staleSince?: string },
+  options: { jobId: string; commandType?: "ask" | "review" | "rescue" | "review_gate"; pid?: number | null; staleSince?: string },
 ): Promise<void> {
   const paths = resolvePluginPaths(runEnv);
   await ensurePluginPaths(paths);
@@ -73,7 +74,7 @@ async function seedRunningJob(
   if (options.staleSince) {
     const db = new Database(paths.stateDbPath);
     try {
-      db.query("UPDATE jobs SET updated_at = ? WHERE job_id = ?").run(options.staleSince, options.jobId);
+      db.query("UPDATE jobs SET updated_at = ?, created_at = ? WHERE job_id = ?").run(options.staleSince, options.staleSince, options.jobId);
     } finally {
       db.close();
     }
@@ -247,6 +248,113 @@ describe("one model job at a time (2026-10-15 incident)", () => {
         db.close();
       }
     } finally {
+      await cleanupTestPath(root);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 60_000);
+});
+
+const OLD = "2026-04-14T10:00:00.000Z";
+
+describe("admission (review 0.7.0, findings 2 and 3)", () => {
+  test("a null-PID row older than the startup grace does not block, and the refusal names it as stale", async () => {
+    const root = await createTestPluginDataRoot("adm-stale-null");
+    const repoRoot = await createGitRepoFixture("adm-stale-null-repo");
+    const runEnv = makeMockEnv(root, "ask-success");
+    try {
+      await seedRunningJob(runEnv, repoRoot, { jobId: "job-orphan", pid: null, staleSince: OLD });
+      const answer = await runAsk(["a question"], makeContext(repoRoot, runEnv));
+      expect(answer).toBe("Ask answer from mock Kimi.");
+
+      // With a live job running too, the refusal names the orphan as "stale, not counted".
+      await seedRunningJob(runEnv, repoRoot, { jobId: "job-live" });
+      let caught: unknown;
+      try {
+        await runAsk(["another"], makeContext(repoRoot, runEnv));
+      } catch (error) {
+        caught = error;
+      }
+      const err = caught as Error & { code?: string };
+      expect(err.code).toBe("ASK_JOB_ALREADY_RUNNING");
+      expect(err.message).toContain("job-live");
+      expect(err.message).toContain("job-orphan (stale, not counted)");
+    } finally {
+      await cleanupTestPath(root);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 60_000);
+
+  test("a fresh null-PID row (a job still starting) does block", async () => {
+    const root = await createTestPluginDataRoot("adm-fresh-null");
+    const repoRoot = await createGitRepoFixture("adm-fresh-null-repo");
+    const runEnv = makeMockEnv(root, "ask-success");
+    try {
+      await seedRunningJob(runEnv, repoRoot, { jobId: "job-starting", pid: null });
+      await expect(runAsk(["q"], makeContext(repoRoot, runEnv))).rejects.toMatchObject({
+        code: "ASK_JOB_ALREADY_RUNNING",
+      });
+    } finally {
+      await cleanupTestPath(root);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 60_000);
+
+  test("review-gate rows never count, even fresh with no PID", async () => {
+    const root = await createTestPluginDataRoot("adm-gate-row");
+    const repoRoot = await createGitRepoFixture("adm-gate-row-repo");
+    const runEnv = makeMockEnv(root, "ask-success");
+    try {
+      await seedRunningJob(runEnv, repoRoot, { jobId: "job-gate", commandType: "review_gate", pid: null });
+      const answer = await runAsk(["q"], makeContext(repoRoot, runEnv));
+      expect(answer).toBe("Ask answer from mock Kimi.");
+    } finally {
+      await cleanupTestPath(root);
+      await cleanupTestPath(repoRoot);
+    }
+  }, 60_000);
+
+  test("two launches racing between the early check and the insert: the second is refused atomically", async () => {
+    const root = await createTestPluginDataRoot("adm-race");
+    const repoRoot = await createGitRepoFixture("adm-race-repo");
+    const runEnv = makeMockEnv(root, "ask-success");
+    const paths = resolvePluginPaths(runEnv);
+    await ensurePluginPaths(paths);
+    const repoIdentity = await resolveRepoIdentity(repoRoot);
+    const input = (jobId: string) => ({
+      job_id: jobId,
+      repo_id: repoIdentity.repoId,
+      command_type: "ask" as const,
+      cwd: repoRoot,
+      model: null,
+      thinking: null,
+      background: false,
+      pid: process.pid,
+      kimi_pid: null,
+      status: "running" as const,
+      kimi_session_id: null,
+      agent_profile: "read-only",
+      prompt_digest: "digest",
+      summary: "Running.",
+      phase: "starting",
+      final_output_path: null,
+      stream_log_path: path.join(paths.logsDir, `${jobId}.jsonl`),
+      error: null,
+    });
+    const a = new JobStore(paths);
+    const b = new JobStore(paths);
+    try {
+      // Both early checks see an empty store: this is the window the race lives in.
+      assertNoModelJobRunning(a, "ask", false);
+      assertNoModelJobRunning(b, "ask", false);
+      a.createJob(input("job-a"), { commandType: "ask" });
+      expect(() => b.createJob(input("job-b"), { commandType: "ask" })).toThrow(/ASK_JOB_ALREADY_RUNNING|already running/);
+      expect(b.getJob("job-b")).toBeNull();
+      // --allow-concurrent applies to the final check too.
+      b.createJob(input("job-c"), { commandType: "ask", allowConcurrent: true });
+      expect(b.getJob("job-c")?.status).toBe("running");
+    } finally {
+      a.close();
+      b.close();
       await cleanupTestPath(root);
       await cleanupTestPath(repoRoot);
     }

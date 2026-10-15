@@ -136,7 +136,7 @@ export async function runRescue(argv: string[], context: CommandContext): Promis
       final_output_path: null,
       stream_log_path: logPath,
       error: null,
-    });
+    }, { commandType: "rescue", allowConcurrent: parsed.allowConcurrent });
 
     try {
       await writeInvocationLogHeader(logPath, {

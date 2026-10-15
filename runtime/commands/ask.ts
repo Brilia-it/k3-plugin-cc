@@ -138,7 +138,7 @@ export async function runAsk(argv: string[], context: CommandContext): Promise<s
       final_output_path: null,
       stream_log_path: logPath,
       error: null,
-    });
+    }, { commandType: "ask", allowConcurrent: parsed.allowConcurrent });
 
     try {
       await writeInvocationLogHeader(logPath, {

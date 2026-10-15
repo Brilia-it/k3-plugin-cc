@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 import { RuntimeError, formatError } from "./errors.js";
 import type { JobError, JobStatus, ManagedCommandType } from "./types.js";
 import type { PluginPaths } from "./paths.js";
+import { assertNoModelJobRunning, type Admission } from "./admission.js";
 import type {
   KimiEngine,
   KimiOperationKind,
@@ -259,7 +260,27 @@ export class JobStore {
     this.db.close();
   }
 
-  createJob(input: CreateJobInput): JobRecord {
+  /**
+   * BRILIA fork (review 0.7.0, finding 3): with `admission`, the one-model-job guard and
+   * the insert happen in ONE write-locked transaction, so two launches that both passed
+   * the early check cannot both start. `allowConcurrent` skips the check. Without
+   * `admission` (review gate, tests, repairs) this is the plain insert.
+   */
+  createJob(input: CreateJobInput, admission?: Admission): JobRecord {
+    if (!admission || admission.allowConcurrent) {
+      return this.insertJob(input);
+    }
+    return this.withWriteLock(() => {
+      // Insert first: a same-session uniqueness violation (ASK_ALREADY_RUNNING /
+      // RESCUE_ALREADY_RUNNING) keeps its more specific error. If other counted jobs
+      // are running, the throw rolls the insert back.
+      const created = this.insertJob(input);
+      assertNoModelJobRunning(this, admission.commandType, false, Date.now(), input.job_id);
+      return created;
+    });
+  }
+
+  private insertJob(input: CreateJobInput): JobRecord {
     const now = new Date().toISOString();
     try {
       this.db.run(
