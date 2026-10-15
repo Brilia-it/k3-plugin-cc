@@ -61,6 +61,7 @@ import { collectLegacyEnvWarnings, describeDataDirMigration, describeLegacyDataD
 import { formatVersionOutOfRangeWarning, probeKimiVersion, } from "../kimi-version-probe.js";
 import { isNativeV2CertifiedVersion, prepareKimiExecutionPlan } from "../kimi-engine.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
+import { createCliCancellationHandlers } from "../cli-cancellation.js";
 import { randomUUID } from "node:crypto";
 import { resolveRepoIdentity } from "../git.js";
 import { JobStore } from "../job-store.js";
@@ -148,6 +149,10 @@ async function applyModelProbe(checked, options, context) {
     const store = new JobStore(resolvePluginPaths(context.env));
     let probeJobId = null;
     let probeError;
+    // Round 3 (item B): cancellation reaches the kimi child. `/k3:cancel` SIGTERMs the
+    // companion; these handlers abort the CLI client, whose teardown is a settlement
+    // barrier, and only then (finally below) is the reservation row released.
+    const handlers = createCliCancellationHandlers();
     try {
         await sweepStaleJobs(store, resolvePluginPaths(context.env));
         assertNoModelJobRunning(store, "setup", allowConcurrent);
@@ -172,6 +177,8 @@ async function applyModelProbe(checked, options, context) {
             status: "running",
             kimi_session_id: null,
             ...persistedExecutionPlanFields(executionPlan),
+            // Distinct identity: visible to admission, never picked as a user's latest ask.
+            operation_kind: "model_probe",
             agent_profile: "<cli-client>",
             prompt_digest: digestPrompt(MODEL_PROBE_PROMPT),
             summary: "Model probe (setup --check --probe-model).",
@@ -190,6 +197,7 @@ async function applyModelProbe(checked, options, context) {
             prompt: MODEL_PROBE_PROMPT,
             commandLabel: "ask",
             model,
+            signal: handlers.signal,
         }, KIMI_MODEL_PROBE_TIMEOUT_MS, "setup.model-probe");
         assertCliResultSuccess(result, "setup.model-probe");
         if (reassembleProseFromRecords(result.records).trim().length === 0) {
@@ -242,15 +250,23 @@ async function applyModelProbe(checked, options, context) {
     finally {
         try {
             if (probeJobId !== null) {
-                // Every non-success terminal path (failure, timeout, exception) releases the row.
-                store.markFailed(probeJobId, {
-                    summary: "Model probe failed.",
+                // Every non-success terminal path (failure, timeout, exception, cancellation)
+                // releases the row, after the child has been torn down.
+                const patch = {
+                    summary: handlers.cancelling ? "Model probe cancelled." : "Model probe failed.",
                     error: normalizeJobError(probeError ?? new Error("model probe ended without a result")),
-                    phase: "failed",
-                });
+                    phase: handlers.cancelling ? "cancelled" : "failed",
+                };
+                if (handlers.cancelling) {
+                    store.markCancelled(probeJobId, patch);
+                }
+                else {
+                    store.markFailed(probeJobId, patch);
+                }
             }
         }
         finally {
+            handlers.dispose();
             store.close();
         }
     }

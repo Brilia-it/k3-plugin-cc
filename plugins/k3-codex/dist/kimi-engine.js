@@ -20,6 +20,7 @@ const LEGACY_V1_MINIMUMS = {
     pursue: { major: 0, minor: 8 },
     swarm: { major: 0, minor: 12 },
     "swarm-write": { major: 0, minor: 18 },
+    model_probe: { major: 0, minor: 1 },
 };
 /**
  * Exact kimi-code releases certified for native v2 under

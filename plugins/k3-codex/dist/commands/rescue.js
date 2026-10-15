@@ -73,7 +73,10 @@ export async function runRescue(argv, context) {
             model: parsed.model ?? null,
             thinking: parsed.thinking ?? null,
             background: parsed.background,
-            pid: parsed.background ? null : process.pid,
+            // Round 3: a background row starts owned by the LAUNCHER (this process); the pid is
+            // handed to the worker by a compare-and-set (see background-spawn.ts). A pid is
+            // always present, so the sweeper and /k3:cancel can act on a starting row.
+            pid: process.pid,
             kimi_pid: null,
             status: "running",
             kimi_session_id: sessionResolution.kimiSessionId,
@@ -134,6 +137,16 @@ export async function executeRescueJob(jobId, prompt, context, options) {
         store.close();
         throw new RuntimeError("JOB_NOT_FOUND", `Rescue job ${jobId} was not found.`, "rescue.worker");
     }
+    // Round 3: a detached worker claims the row by compare-and-set BEFORE doing anything.
+    // If the row was swept or cancelled while it was starting, no model call is made.
+    if (options?.workerPid !== undefined) {
+        const claimed = store.claimRunningJobPid(job.job_id, [options.workerPid, ...(options.launcherPid !== undefined ? [options.launcherPid] : [])], options.workerPid, "worker-running");
+        if (!claimed) {
+            const current = store.getJob(job.job_id) ?? job;
+            store.close();
+            return current;
+        }
+    }
     const rescueConfig = getManagedCommandConfig("rescue");
     const cancel = rescueConfig.cancellation;
     // Rescue writes directly to the workspace. Without the PreToolUse hook,
@@ -175,9 +188,6 @@ export async function executeRescueJob(jobId, prompt, context, options) {
         // lineage check. Fresh sessions (no resumedFromJobId) are exempt.
         if (job.kimi_session_id !== null) {
             await assertPersistedResumeLineage(store, executionPlan, job.kimi_session_id, "rescue");
-        }
-        if (options?.workerPid) {
-            store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
         }
         store.updateRunningJob(job.job_id, { phase: "turn-running" });
         if (job.kimi_session_id === null) {

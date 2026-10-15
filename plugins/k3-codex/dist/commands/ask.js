@@ -81,7 +81,10 @@ export async function runAsk(argv, context) {
             model: parsed.model ?? null,
             thinking: parsed.thinking ?? null,
             background: parsed.background,
-            pid: parsed.background ? null : process.pid,
+            // Round 3: a background row starts owned by the LAUNCHER (this process); the pid is
+            // handed to the worker by a compare-and-set (see background-spawn.ts). A pid is
+            // always present, so the sweeper and /k3:cancel can act on a starting row.
+            pid: process.pid,
             kimi_pid: null,
             status: "running",
             kimi_session_id: sessionResolution.kimiSessionId,
@@ -142,6 +145,16 @@ export async function executeAskJob(jobId, prompt, context, options) {
         store.close();
         throw new RuntimeError("JOB_NOT_FOUND", `Ask job ${jobId} was not found.`, "ask.worker");
     }
+    // Round 3: a detached worker claims the row by compare-and-set BEFORE doing anything.
+    // If the row was swept or cancelled while it was starting, no model call is made.
+    if (options?.workerPid !== undefined) {
+        const claimed = store.claimRunningJobPid(job.job_id, [options.workerPid, ...(options.launcherPid !== undefined ? [options.launcherPid] : [])], options.workerPid, "worker-running");
+        if (!claimed) {
+            const current = store.getJob(job.job_id) ?? job;
+            store.close();
+            return current;
+        }
+    }
     const askConfig = getManagedCommandConfig("ask");
     const cancel = askConfig.cancellation;
     let handlers;
@@ -163,9 +176,6 @@ export async function executeAskJob(jobId, prompt, context, options) {
         // lineage check. Fresh sessions (no resumedFromJobId) are exempt.
         if (job.kimi_session_id !== null) {
             await assertPersistedResumeLineage(store, executionPlan, job.kimi_session_id, "ask");
-        }
-        if (options?.workerPid) {
-            store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
         }
         if (job.kimi_session_id === null) {
             sessionBaseline = await snapshotSessionIndex(context.env, job.cwd);
@@ -306,7 +316,7 @@ async function resolveAskSession(store, repoId, fresh, resume, resumeTarget) {
         };
     }
     if (resume) {
-        const latest = store.findLatestJob({ repoId, commandType: "ask" });
+        const latest = store.findLatestJob({ repoId, commandType: "ask", excludeOperationKind: "model_probe" });
         if (!latest) {
             throw new RuntimeError("ASK_RESUME_NOT_FOUND", "No prior ask session exists for this repository.", "ask.resume");
         }

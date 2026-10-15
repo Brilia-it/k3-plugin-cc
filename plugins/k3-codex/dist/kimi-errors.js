@@ -41,7 +41,13 @@ function truncateCauseMessageForDetails(message) {
     return `…${message.slice(-CAUSE_MESSAGE_DETAILS_MAX)}`;
 }
 export function summarizeKimiAvailabilityWarning(error, commandType) {
-    const classification = classifyKimiAvailability(error);
+    // Round 3: an error that classifyManagedCommandFailure already classified carries its
+    // kind in details.availability; summarise THAT instead of reclassifying the formatted
+    // text (which would re-read serialized details and could reverse last-record precedence).
+    const recorded = error instanceof RuntimeError ? error.details.availability : undefined;
+    const classification = typeof recorded === "string"
+        ? { kind: recorded }
+        : classifyKimiAvailability(error);
     if (!classification) {
         return null;
     }
@@ -92,8 +98,11 @@ export function classifySetupFailure(error, options) {
  */
 export function extractProviderPayload(message) {
     let payload = null;
-    for (const line of message.split(/\r?\n/)) {
-        const match = /provider\.[a-z0-9_]*_error:\s*(.*)$/i.exec(line);
+    for (const rawLine of message.split(/\r?\n/)) {
+        // Round 3: the marker must START the line (after trimming), optionally behind kimi's
+        // own `error: failed to run prompt:` prefix. A provider line quoted in the middle of
+        // echoed text is not kimi's error record.
+        const match = /^(?:error: failed to run prompt: )?provider\.[a-z_]+_error:\s*(.*)$/i.exec(rawLine.trim());
         if (match) {
             payload = match[1] ?? "";
         }
@@ -213,7 +222,9 @@ function classifyKimiAvailability(error, options) {
     // A provider limit arrives inside the same CLI_NONZERO_EXIT message and must not
     // fall into the generic startup_failed branch, whose "/k3:setup" advice cannot
     // fix a quota, a plan, or a context window.
-    const providerPayload = extractProviderPayload(message);
+    // Round 3: only the error's OWN text (kimi's stderr tail as carried by the CLI error),
+    // never formatError output, which appends serialized details such as cause_message.
+    const providerPayload = extractProviderPayload(error instanceof Error ? error.message : String(error));
     const providerLimit = providerPayload === null ? null : classifyProviderLimit(providerPayload, options);
     if (providerLimit) {
         return providerLimit;

@@ -7,62 +7,43 @@
 // does not see Codex or Claude Code running against another data directory, nor a
 // native interactive `kimi`.
 //
-// Review 0.7.0:
-//   - which rows count (finding 2): a running row with a pid or kimi_pid counts, the
-//     sweeper handles dead ones; a running row with NEITHER (a job still starting)
-//     counts only within a startup grace, otherwise it is an orphan that can never be
-//     swept or cancelled and must not block forever ("stale, not counted"); review-gate
-//     rows never count;
-//   - atomic admission (finding 3): the early check in the commands is only a fast path;
-//     the final check runs inside the same write-locked transaction as the row insert
+// Review 0.7.0 and round 3:
+//   - which rows count: EVERY running row except review-gate rows. There is no time-based
+//     expiry. A row cannot strand the guard because it always has an owner pid: foreground
+//     rows carry the command's pid, background rows start owned by the LAUNCHER and are
+//     handed to the worker by compare-and-set (JobStore.claimRunningJobPid). The stale-job
+//     sweep, which runs before every check, fails a row whose owner is dead, and
+//     `/k3:cancel` can act on a starting row. A worker that loses the compare-and-set
+//     (row swept or cancelled) makes no model call.
+//   - atomic admission: the early check in the commands is only a fast path; the final
+//     check runs inside the same write-locked transaction as the row insert
 //     (JobStore.createJob with an `admission` argument).
 import { RuntimeError } from "./errors.js";
-/** A running row with no pid and no kimi_pid blocks only this long after its last sign of life. */
-export const STARTUP_GRACE_MS = 120_000;
-export function partitionRunningJobs(running, nowMs = Date.now()) {
-    const blocking = [];
-    const stale = [];
-    for (const job of running) {
-        if (job.command_type === "review_gate") {
-            continue;
-        }
-        if (job.pid !== null || job.kimi_pid !== null) {
-            blocking.push(job);
-            continue;
-        }
-        const lastSeen = Math.max(Date.parse(job.created_at) || 0, Date.parse(job.updated_at) || 0);
-        if (nowMs - lastSeen <= STARTUP_GRACE_MS) {
-            blocking.push(job);
-        }
-        else {
-            stale.push(job);
-        }
-    }
-    return { blocking, stale };
+/** The running rows that block a new model job: every one except review-gate rows. */
+export function blockingJobs(running) {
+    return running.filter((job) => job.command_type !== "review_gate");
 }
-export function buildAlreadyRunningError(commandType, blocking, stale) {
-    const list = blocking.map((job) => `${job.job_id} (${job.command_type}, started ${job.created_at})`).join("; ");
-    const staleNote = stale.length > 0
-        ? ` Also marked running but with no process and older than ${STARTUP_GRACE_MS / 1000} s: ${stale
-            .map((job) => `${job.job_id} (stale, not counted)`)
-            .join("; ")}.`
-        : "";
-    return new RuntimeError(`${commandType.toUpperCase()}_JOB_ALREADY_RUNNING`, `Not starting ${commandType}: ${blocking.length === 1 ? "another Kimi model job is" : `${blocking.length} other Kimi model jobs are`} already running: ${list}.${staleNote} ` +
+export function buildAlreadyRunningError(commandType, blocking) {
+    const describe = (job) => `${job.job_id} (${job.command_type}, started ${job.created_at}${job.pid === null && job.kimi_pid === null
+        ? "; no recorded process, probably left by an older plugin version, so it cannot be swept or cancelled: --allow-concurrent ignores it"
+        : ""})`;
+    const list = blocking.map(describe).join("; ");
+    return new RuntimeError(`${commandType.toUpperCase()}_JOB_ALREADY_RUNNING`, `Not starting ${commandType}: ${blocking.length === 1 ? "another Kimi model job is" : `${blocking.length} other Kimi model jobs are`} already running: ${list}. ` +
         "Why: the Kimi subscription quota is call volume in a rolling 5-hour window, so parallel jobs burn it together, " +
         "and Kimi's community guidelines describe the subscription as personal interactive use and say enforcement may include limiting concurrent access. " +
         "This plugin refuses instead of queueing: nothing was started or scheduled. " +
         "Follow the running job with /k3:status <job-id>, wait for it and read /k3:result <job-id>, " +
         "or pass --allow-concurrent to override this refusal for this one call. " +
-        "Scope: this only sees jobs in this plugin data directory, not Codex, another data directory, or a native interactive kimi.", `${commandType}.concurrency`, { details: { running_job_ids: blocking.map((job) => job.job_id), stale_job_ids: stale.map((job) => job.job_id) } });
+        "Scope: this only sees jobs in this plugin data directory, not Codex, another data directory, or a native interactive kimi.", `${commandType}.concurrency`, { details: { running_job_ids: blocking.map((job) => job.job_id) } });
 }
 /** Throws when a counted job is running. Used for the early fast check and inside the insert transaction. */
-export function assertNoModelJobRunning(store, commandType, allowConcurrent, nowMs = Date.now(), exceptJobId) {
+export function assertNoModelJobRunning(store, commandType, allowConcurrent, exceptJobId) {
     if (allowConcurrent) {
         return;
     }
-    const { blocking, stale } = partitionRunningJobs(store.listRunningJobs().filter((job) => job.job_id !== exceptJobId), nowMs);
+    const blocking = blockingJobs(store.listRunningJobs().filter((job) => job.job_id !== exceptJobId));
     if (blocking.length === 0) {
         return;
     }
-    throw buildAlreadyRunningError(commandType, blocking, stale);
+    throw buildAlreadyRunningError(commandType, blocking);
 }

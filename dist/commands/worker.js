@@ -3,6 +3,9 @@ import { executeRescueJob } from "./rescue.js";
 import { executeAskJob } from "./ask.js";
 export async function runWorker(argv, context) {
     const [kind, jobId] = argv;
+    // Round 3: the launcher that spawned this worker; the row is still owned by it until claimed.
+    const launcherPidRaw = Number(context.env.K3_PLUGIN_CC_LAUNCHER_PID);
+    const launcherPid = Number.isInteger(launcherPidRaw) && launcherPidRaw > 0 ? launcherPidRaw : undefined;
     if (!jobId || (kind !== "rescue" && kind !== "ask")) {
         throw new RuntimeError("INVALID_COMMAND", "worker expects the form: worker rescue <job-id> or worker ask <job-id>.", "worker");
     }
@@ -13,7 +16,7 @@ export async function runWorker(argv, context) {
         }
         const prompt = Buffer.from(encodedPrompt, "base64").toString("utf8");
         const reusedSession = context.env.K3_PLUGIN_CC_RESCUE_REUSED_SESSION === "1";
-        await executeRescueJob(jobId, prompt, context, { workerPid: process.pid, reusedSession });
+        await executeRescueJob(jobId, prompt, context, { workerPid: process.pid, launcherPid, reusedSession });
         return;
     }
     // kind === "ask"
@@ -27,5 +30,5 @@ export async function runWorker(argv, context) {
         throw new RuntimeError("MISSING_ASK_PROMPT", "Background ask prompt is missing.", "worker");
     }
     const prompt = Buffer.from(encodedPrompt, "base64").toString("utf8");
-    await executeAskJob(jobId, prompt, context, { workerPid: process.pid });
+    await executeAskJob(jobId, prompt, context, { workerPid: process.pid, launcherPid });
 }
