@@ -75,7 +75,10 @@ so a script that keys on the exit code went on to the next job).
   write-locked transaction as the job insert so two launches cannot both pass. The model probe
   now forwards cancellation to the kimi child before releasing its row, and its row has its own
   identity (`model_probe`) so a probe never becomes the latest ask for a bare `--resume`.
-  Provider classification reads only the error's own text and only lines that START with the
+  Opening the job store now fails any `running` non-review-gate row with no pid and no kimi_pid
+  (`JOB_STORE_ORPHANED_ON_UPGRADE`): from 0.7.0 every such row is born with an owner pid, so
+  only a row left by an older plugin version can look like that, and nothing could sweep or cancel
+  it. Provider classification reads only the error's own text and only lines that START with the
   provider marker, and the review-gate warning comes from the recorded classification. The guard's scope is one job
   store (one plugin data directory): it does not see Codex, another data directory or a native
   interactive `kimi`.

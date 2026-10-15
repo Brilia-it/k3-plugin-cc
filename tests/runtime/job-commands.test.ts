@@ -183,7 +183,7 @@ describe("job-backed ask/status/result", () => {
           model: null,
           thinking: null,
           background: false,
-          pid: null,
+          pid: process.pid,
           kimi_pid: null,
           status: "running",
           kimi_session_id: "session-running",
@@ -253,9 +253,9 @@ describe("job-backed ask/status/result", () => {
         `);
         const insert = seed.query(`
           INSERT INTO jobs (
-            job_id, repo_id, command_type, created_at, updated_at, cwd, background,
+            job_id, repo_id, command_type, created_at, updated_at, cwd, background, pid,
             status, kimi_session_id, agent_profile, prompt_digest, summary, stream_log_path
-          ) VALUES (?, ?, 'ask', ?, ?, '/tmp/fake', 0, 'running', ?, 'read-only', 'digest', 'summary', '/tmp/fake.log')
+          ) VALUES (?, ?, 'ask', ?, ?, '/tmp/fake', 0, ${process.pid}, 'running', ?, 'read-only', 'digest', 'summary', '/tmp/fake.log')
         `);
         // Older row (should be reconciled)
         insert.run("job-older", "repo-x", "2026-04-14T10:00:00.000Z", "2026-04-14T10:00:00.000Z", "session-dup");

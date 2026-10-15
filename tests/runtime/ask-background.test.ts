@@ -147,7 +147,7 @@ describe("ask background", () => {
           model: null,
           thinking: null,
           background: true,
-          pid: null,
+          pid: process.pid,
           kimi_pid: null,
           status: "running",
           kimi_session_id: null,

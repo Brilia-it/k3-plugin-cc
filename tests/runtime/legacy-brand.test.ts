@@ -362,7 +362,7 @@ describe("the data directory", () => {
       model: null,
       thinking: null,
       background: false,
-      pid: null,
+      pid: status === "running" ? process.pid : null,
       kimi_pid: null,
       status,
       kimi_session_id: null,

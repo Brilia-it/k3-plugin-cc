@@ -32,12 +32,7 @@ export function blockingJobs(running: readonly JobRecord[]): JobRecord[] {
 }
 
 export function buildAlreadyRunningError(commandType: string, blocking: readonly JobRecord[]): RuntimeError {
-  const describe = (job: JobRecord): string =>
-    `${job.job_id} (${job.command_type}, started ${job.created_at}${
-      job.pid === null && job.kimi_pid === null
-        ? "; no recorded process, probably left by an older plugin version, so it cannot be swept or cancelled: --allow-concurrent ignores it"
-        : ""
-    })`;
+  const describe = (job: JobRecord): string => `${job.job_id} (${job.command_type}, started ${job.created_at})`;
   const list = blocking.map(describe).join("; ");
   return new RuntimeError(
     `${commandType.toUpperCase()}_JOB_ALREADY_RUNNING`,

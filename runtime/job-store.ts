@@ -245,6 +245,33 @@ export class JobStore {
       -- 0.1.6 migration: rename adversarial_review to challenge
       UPDATE jobs SET command_type = 'challenge' WHERE command_type = 'adversarial_review';
     `);
+      // BRILIA fork (round 3), same precedent as the 0.1.4 reconciliation above. From
+      // 0.7.0 every non-review-gate running row is born with an owner pid (foreground:
+      // the command's pid; background: the launcher's, handed to the worker by
+      // compare-and-set). A running row with BOTH pids null can therefore only be left by
+      // an older plugin version; nothing can sweep or cancel it, and it would block the
+      // one-job guard forever. Fail it, inside the write lock. Idempotent and cheap: it
+      // matches nothing once reconciled. Review-gate rows (always pid-less) and rows with
+      // any pid are never touched.
+      this.withWriteLock(() => {
+        this.db.exec(`
+          UPDATE jobs
+          SET status = 'failed',
+              phase = 'failed',
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              pid = NULL,
+              kimi_pid = NULL,
+              summary = 'Left without a process by an older plugin version; reconciled on upgrade.',
+              error = COALESCE(
+                error,
+                '{"code":"JOB_STORE_ORPHANED_ON_UPGRADE","message":"Running job left without a process by an older plugin version, reconciled on upgrade to 0.7.0","stage":"job-store.migrate"}'
+              )
+          WHERE status = 'running'
+            AND command_type != 'review_gate'
+            AND pid IS NULL
+            AND kimi_pid IS NULL;
+        `);
+      });
     } catch (error) {
       // Migration failed — close the adapter so the OS handle is released
       // before propagating. Wrap close() in its own try so a double-fault

@@ -24,9 +24,7 @@ export function blockingJobs(running) {
     return running.filter((job) => job.command_type !== "review_gate");
 }
 export function buildAlreadyRunningError(commandType, blocking) {
-    const describe = (job) => `${job.job_id} (${job.command_type}, started ${job.created_at}${job.pid === null && job.kimi_pid === null
-        ? "; no recorded process, probably left by an older plugin version, so it cannot be swept or cancelled: --allow-concurrent ignores it"
-        : ""})`;
+    const describe = (job) => `${job.job_id} (${job.command_type}, started ${job.created_at})`;
     const list = blocking.map(describe).join("; ");
     return new RuntimeError(`${commandType.toUpperCase()}_JOB_ALREADY_RUNNING`, `Not starting ${commandType}: ${blocking.length === 1 ? "another Kimi model job is" : `${blocking.length} other Kimi model jobs are`} already running: ${list}. ` +
         "Why: the Kimi subscription quota is call volume in a rolling 5-hour window, so parallel jobs burn it together, " +
