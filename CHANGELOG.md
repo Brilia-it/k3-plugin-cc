@@ -60,6 +60,11 @@ No setup run is needed after updating.
   read-only path as `ask` and reports `Model probe: ok | failed | skipped`, with the classified
   error. Without the flag no model call is made and the output says the probe tests the hook, not
   model access or quota. A failed model probe exits non-zero.
+- **Dependency audit.** The `smol-toml` development dependency is bumped to 1.9.1 for
+  GHSA-r4xh-jqrq-34v2 (quadratic `parse()`, <= 1.8.0). The vendored parser subset in
+  `runtime/vendor/smol-toml/` (from 1.6.1) is also in the advisory range; the upstream fix is a
+  rewrite of `parseKey` with a new internal interface, so it is not ported. The runtime parses
+  only the user's own `~/.kimi-code/config.toml`; re-vendoring is tracked as a follow-up.
 - **Docs.** README section "Quotas, context and long jobs" with the vendor's own words and the
   practical rules; command, agent and Codex skill texts mention `--allow-concurrent`.
 
