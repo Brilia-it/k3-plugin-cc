@@ -1,6 +1,6 @@
 import { K3_PLUGIN_CC_VERSION } from "../runtime/version.js";
 
-export const PLUGIN_NAME = "kimi";
+export const PLUGIN_NAME = "k3";
 export const MARKETPLACE_NAME = "brilia-k3-marketplace";
 // Single source of truth: the Codex manifest/marketplace version derives from the
 // runtime version, so a release bump in runtime/version.ts propagates here without
@@ -34,28 +34,28 @@ export interface CodexSkillSpec {
 }
 
 export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
-  { path: ".claude-plugin/plugin.json", sha256: "30170126bb346b26f3c2e1847016eff656eb6f6e573d05b73f3cfbbc8e8476c8" },
-  { path: ".claude-plugin/marketplace.json", sha256: "9cdfb2b9a19c3d800c7f64e1ea4ce04892980352ecbff44d6156ab1087f6c76c" },
-  { path: ".mcp.json", sha256: "a48d8f07eed5d99bafba5b11a0fdb681ab4960b59c53ea68c7c04e350f618ded" },
-  { path: "commands/README.md", sha256: "321e420aa0d71e6c312c7e634c5e9d9e484f28a5ac244483e052c25c1b03bf5e" },
+  { path: ".claude-plugin/plugin.json", sha256: "fd85547251b15b0fdb93b26f48534ae32ea3280a393fe740884cc8f052a72dec" },
+  { path: ".claude-plugin/marketplace.json", sha256: "3514bb78953268ff0b5e03004aa64461dadedd801d1a3503e11e719709e762ec" },
+  { path: ".mcp.json", sha256: "dba1307b22ec1028bed811412f27a96d4889a496ca41fa87280bc756465137c6" },
+  { path: "commands/README.md", sha256: "ac4a8949425089b71b476c7d262682561b0930fafa46dc04520380c7cfbd3150" },
   { path: "commands/ask.md", sha256: "1f4c1c5c012cf8f66981106101b6873ae15de44316ff5135e1438b72450c9956" },
   { path: "commands/cancel.md", sha256: "4d1c1e9d0534fac113fea18e2c8993d99f3ada1335186f66cd995a45f1057db4" },
   { path: "commands/challenge.md", sha256: "38682e8ee73af6838ff01dabe589e4a1c70cf3df467e25d8b846a06f8d2fd1b3" },
-  { path: "commands/pursue.md", sha256: "5708ee0e8767de36f0d65abd1871e09c7de97a0d3da41173a735c3be2079dafc" },
+  { path: "commands/pursue.md", sha256: "fb318bec783b9a40571cc992f8ea11de2f0f8064e698fc8224b463a8e2209317" },
   { path: "commands/replay.md", sha256: "84e46faa17b032f43dccb37190e461d1da3f807226f3814a9e5cd302afcf12e3" },
   { path: "commands/rescue.md", sha256: "6f4599c1999bd9d5ad3be7781abb634cbb9e7622901f37e8e844659a8f878800" },
   { path: "commands/result.md", sha256: "d5ae361ea6c95f139e4bf1d2f23cb69e14c23c9e0e2b6e8084274e8245016db5" },
   { path: "commands/review.md", sha256: "a528a763c643f26ff9a1674c8a6c11dcea59121320d43dd4306ef9f168280604" },
   { path: "commands/setup.md", sha256: "ede6fb64d0a8b9876a2405b3685483d4db5ce9505dd724ad903cdf1b048abc44" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
-  { path: "commands/swarm.md", sha256: "3814bfe2bfa19336429286d1db4645c08209eba46081f36e3874274b5a1e70ad" },
-  { path: "agents/k3-ask.md", sha256: "0d913d25f62cb98dce35022ada3215982828eba180b9f1e9780b2ca78116d595" },
-  { path: "agents/k3-challenge.md", sha256: "1bcd0807f770c2f6b0fa0aad4166a6cec9036e6f1c3fb792223e8db8231c3b1b" },
-  { path: "agents/k3-pursue.md", sha256: "e78747200ad51ddda29af97178308173bc82c945f8283fce74c2531ebc18fd7f" },
-  { path: "agents/k3-rescue.md", sha256: "4fe17d6522cc7891310679e25a319ab14adf1d69442a447d333232864d05db2d" },
-  { path: "agents/k3-review.md", sha256: "7134c66158f16e65e82f2d1a9ca1a755cd1d792c297171c60946f0170edbc1f1" },
-  { path: "agents/k3-swarm-write.md", sha256: "05bb84bf12367637eb1d776c9102ae3caac6c148d7cb98565101847ccb5f7cb8" },
-  { path: "agents/k3-swarm.md", sha256: "0a9306c344cc8eac1d504a213c0096884a41203c8a310e4c516986b79de23165" },
+  { path: "commands/swarm.md", sha256: "815dee61c341ae99621883dbc10f6046252a9b074b9d263508ade5a5a5524a93" },
+  { path: "agents/k3-ask.md", sha256: "807e2ed62ba885ed3cf3596aaadcaa2e34d8f31c05996c96d3c3006a2acef5ac" },
+  { path: "agents/k3-challenge.md", sha256: "96b22d427ac943d401e4e7c1c7edb73af6739ef29b9efeb5c6372d12501d46c5" },
+  { path: "agents/k3-pursue.md", sha256: "6f0ea169696ef892de8eade478fbda91538cbc56b5707392e50da2357c59f3e6" },
+  { path: "agents/k3-rescue.md", sha256: "0e17bf20dd5e45156a5bf8a429fd83f889f3933e3fbf4b338d6be65755965892" },
+  { path: "agents/k3-review.md", sha256: "958186b68a6d97fc0bf7f8a086410ee8f73e2e8192ce5a8bc0f7de246937df47" },
+  { path: "agents/k3-swarm-write.md", sha256: "5cc7799e8a557247544f4fcfbd7d22916c4ef270450c1e4813c8e8662b228977" },
+  { path: "agents/k3-swarm.md", sha256: "00ff5ad2a4128ec81395305871d37643bd61f6be6e868671a3b2b84550457a9f" },
 ];
 
 export const CODEX_MCP_CONFIG = {
@@ -89,25 +89,25 @@ export const CODEX_PLUGIN_MANIFEST = {
   name: PLUGIN_NAME,
   version: PLUGIN_VERSION,
   description:
-    "Kimi for Codex: code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP job controls through the local Kimi Code CLI.",
+    "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc, developed and verified on Windows 11, running on macOS and Linux as well. Code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP job controls through the local kimi-code CLI and the k3-plugin-cc companion runtime. Not affiliated with Moonshot AI.",
   author: {
-    name: "linxule",
+    name: "BRILIA",
   },
-  homepage: "https://github.com/linxule/kimi-plugin-cc",
-  repository: "https://github.com/linxule/kimi-plugin-cc",
+  homepage: "https://github.com/Brilia-it/k3-plugin-cc",
+  repository: "https://github.com/Brilia-it/k3-plugin-cc",
   license: "Apache-2.0",
   keywords: ["kimi", "kimi-code", "review", "code-review", "delegation", "multi-model", "mcp", "model-context-protocol"],
   skills: "./skills/",
   mcpServers: "./.mcp.json",
   interface: {
-    displayName: "Kimi",
+    displayName: "K3",
     shortDescription: "Ask, review, and build with Kimi",
     longDescription:
       "Kimi Code workflows for Codex: read-only explanations and reviews, bounded workspace fixes, autonomous goals, and parallel tasks. Codex skills call a self-contained shell runtime, with MCP tools provided by the bundled server.",
-    developerName: "linxule",
+    developerName: "BRILIA",
     category: "Developer Tools",
     capabilities: ["Code Review", "Local Shell", "Write"],
-    websiteURL: "https://github.com/linxule/kimi-plugin-cc",
+    websiteURL: "https://github.com/Brilia-it/k3-plugin-cc",
     defaultPrompt: [
       "Use $k3-review to review my current diff.",
       "Use $k3-ask to explain this repository flow.",
@@ -120,7 +120,7 @@ export const CODEX_PLUGIN_MANIFEST = {
 export const CODEX_MARKETPLACE = {
   name: MARKETPLACE_NAME,
   interface: {
-    displayName: "Kimi Marketplace",
+    displayName: "K3 Marketplace (BRILIA)",
   },
   plugins: [
     {

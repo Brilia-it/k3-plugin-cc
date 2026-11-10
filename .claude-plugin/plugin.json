@@ -1,22 +1,13 @@
 {
-  "name": "kimi",
-  "description": "Kimi for Claude Code: code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP tasks through the local Kimi Code CLI, with PreToolUse safety hooks.",
-  "version": "2.5.6",
-  "homepage": "https://github.com/linxule/kimi-plugin-cc",
-  "repository": "https://github.com/linxule/kimi-plugin-cc",
+  "name": "k3",
+  "description": "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc (Apache-2.0), developed and verified on Windows 11, and running on macOS and Linux as well. On Windows, which upstream does not support, the safety hook launches under cmd.exe, setup needs no path override, and the shell probe really runs. Use Kimi K3 from Claude Code for reviews or delegated tasks through your own Kimi Code subscription. Not affiliated with or endorsed by Moonshot AI.",
+  "version": "2.5.6-brilia.0.1.0",
+  "homepage": "https://github.com/Brilia-it/k3-plugin-cc",
+  "repository": "https://github.com/Brilia-it/k3-plugin-cc",
   "license": "Apache-2.0",
-  "keywords": [
-    "kimi",
-    "kimi-code",
-    "review",
-    "code-review",
-    "delegation",
-    "multi-model",
-    "mcp",
-    "model-context-protocol"
-  ],
+  "keywords": ["k3", "kimi-code", "review", "code-review", "delegation", "multi-model", "mcp", "model-context-protocol", "unofficial-fork"],
   "author": {
-    "name": "linxule"
+    "name": "BRILIA"
   },
   "commands": [
     "./commands/ask.md",

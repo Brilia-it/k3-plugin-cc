@@ -34,7 +34,7 @@ export async function runCancel(argv, context) {
         }
         if (store.getMcpTask(job.job_id) &&
             (context.mcpCompanionIdentity === undefined || context.mcpKimiIdentity === undefined)) {
-            throw new RuntimeError("MCP_CANCEL_REQUIRES_BINDING", `MCP job ${job.job_id} requires MCP job-control cancellation with recorded identities; use tasks/cancel or kimi_job_cancel.`, "mcp.cancel");
+            throw new RuntimeError("MCP_CANCEL_REQUIRES_BINDING", `MCP job ${job.job_id} requires MCP job-control cancellation with recorded identities; use tasks/cancel or k3_job_cancel.`, "mcp.cancel");
         }
         const recovery = store.getSwarmRecovery(job.job_id)?.record;
         if (recovery) {

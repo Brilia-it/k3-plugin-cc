@@ -1,12 +1,12 @@
 {
-  "name": "kimi",
-  "version": "2.5.6",
-  "description": "Kimi for Codex: code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP job controls through the local Kimi Code CLI.",
+  "name": "k3",
+  "version": "2.5.6-brilia.0.1.0",
+  "description": "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc, developed and verified on Windows 11, running on macOS and Linux as well. Code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP job controls through the local kimi-code CLI and the k3-plugin-cc companion runtime. Not affiliated with Moonshot AI.",
   "author": {
-    "name": "linxule"
+    "name": "BRILIA"
   },
-  "homepage": "https://github.com/linxule/kimi-plugin-cc",
-  "repository": "https://github.com/linxule/kimi-plugin-cc",
+  "homepage": "https://github.com/Brilia-it/k3-plugin-cc",
+  "repository": "https://github.com/Brilia-it/k3-plugin-cc",
   "license": "Apache-2.0",
   "keywords": [
     "kimi",
@@ -21,17 +21,17 @@
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "Kimi",
+    "displayName": "K3",
     "shortDescription": "Ask, review, and build with Kimi",
     "longDescription": "Kimi Code workflows for Codex: read-only explanations and reviews, bounded workspace fixes, autonomous goals, and parallel tasks. Codex skills call a self-contained shell runtime, with MCP tools provided by the bundled server.",
-    "developerName": "linxule",
+    "developerName": "BRILIA",
     "category": "Developer Tools",
     "capabilities": [
       "Code Review",
       "Local Shell",
       "Write"
     ],
-    "websiteURL": "https://github.com/linxule/kimi-plugin-cc",
+    "websiteURL": "https://github.com/Brilia-it/k3-plugin-cc",
     "defaultPrompt": [
       "Use $k3-review to review my current diff.",
       "Use $k3-ask to explain this repository flow.",

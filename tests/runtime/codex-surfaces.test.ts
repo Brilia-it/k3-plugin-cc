@@ -63,7 +63,7 @@ describe("Codex sidecar surfaces", () => {
     ) as Record<string, unknown>;
 
     expect(manifest).toEqual(CODEX_PLUGIN_MANIFEST);
-    expect(manifest.name).toBe("kimi");
+    expect(manifest.name).toBe("k3");
     expect(manifest.skills).toBe("./skills/");
     expect(manifest.mcpServers).toBe("./.mcp.json");
     expect(manifest).not.toHaveProperty("hooks");
@@ -155,7 +155,7 @@ describe("Codex sidecar surfaces", () => {
 
     expect(marketplace).toEqual(CODEX_MARKETPLACE);
     expect(marketplace.name).toBe("brilia-k3-marketplace");
-    expect(marketplace.plugins[0].name).toBe("kimi");
+    expect(marketplace.plugins[0].name).toBe("k3");
     expect(marketplace.plugins[0].source.path).toBe("./plugins/k3-codex");
     expect(marketplace.plugins[0].policy.installation).toBe("AVAILABLE");
     expect(marketplace.plugins[0].policy.authentication).toBe("ON_INSTALL");
