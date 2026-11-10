@@ -2,7 +2,8 @@
 // Changes, on every platform: `--background --wait` waits for the job's own
 // budget; one model job at a time (runtime/admission.ts); a background row is
 // created owned by the launcher and claimed by the worker; a job that fails on a
-// non-zero exit keeps its session. See NOTICE and README.md.
+// non-zero exit keeps its session; bare -r skips the setup model probe. See NOTICE
+// and README.md.
 // Section 4(b) of the License requires this notice.
 import { companionHelp } from "../help.js";
 import { allocateJobId } from "../job-id.js";
@@ -329,7 +330,8 @@ async function resolveAskSession(store, repoId, fresh, resume, resumeTarget) {
         };
     }
     if (resume) {
-        const latest = store.findLatestJob({ repoId, commandType: "ask" });
+        // BRILIA fork: a setup model probe is never the conversation that bare -r resumes.
+        const latest = store.findLatestJob({ repoId, commandType: "ask", excludeOperationKind: "model_probe" });
         if (!latest) {
             throw new RuntimeError("ASK_RESUME_NOT_FOUND", "No prior ask session exists for this repository.", "ask.resume");
         }

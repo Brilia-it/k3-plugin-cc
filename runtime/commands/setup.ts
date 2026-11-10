@@ -6,7 +6,9 @@
 // a pre-0.6 install left under upstream's names: it removes this fork's own
 // hook blocks marked `kimi-plugin-cc-managed` (never another plugin's), moves
 // the data directory to its new name, and reports KIMI_PLUGIN_CC_* variables it
-// no longer reads. See NOTICE and README.md.
+// no longer reads. Also on every platform, `--check --probe-model [-m <model>]` sends
+// one minimal prompt to the model, under the one-model-job admission, and reports
+// the classified provider error. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 
 import { SETUP_SUPPORTED_FLAGS } from "../parsing.js";
@@ -39,7 +41,7 @@ import {
   unlink,
 } from "node:fs/promises";
 import { constants as fsConstants, existsSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { readPluginConfig, writePluginConfig } from "../config.js";
@@ -79,7 +81,21 @@ import {
   formatVersionOutOfRangeWarning,
   probeKimiVersion,
 } from "../kimi-version-probe.js";
-import { isNativeV2CertifiedVersion, NATIVE_V2_CERTIFIED_VERSIONS } from "../kimi-engine.js";
+import {
+  isNativeV2CertifiedVersion,
+  NATIVE_V2_CERTIFIED_VERSIONS,
+  persistedExecutionPlanFields,
+  prepareKimiExecutionPlan,
+} from "../kimi-engine.js";
+// BRILIA fork: what the opt-in model probe (setup --check --probe-model) needs.
+import { createCliCancellationHandlers } from "../cli-cancellation.js";
+import { runCliPromptWithBudget } from "../cli-client.js";
+import { resolveRepoIdentity } from "../git.js";
+import { JobStore } from "../job-store.js";
+import { assertNoModelJobRunning, digestPrompt, normalizeJobError, sweepStaleJobs } from "../jobs.js";
+import { classifySetupFailure } from "../kimi-errors.js";
+import { KIMI_MODEL_PROBE_TIMEOUT_MS } from "../kimi-timeouts.js";
+import { assertCliResultSuccess, reassembleProseFromRecords } from "./cli-helpers.js";
 import { resolveKimiHome } from "../kimi-home.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import type { CommandContext } from "../types.js";
@@ -119,6 +135,16 @@ export interface SetupResult {
   probe: "ok" | "failed" | "skipped";
   /** Failure detail when probe === "failed". */
   probeError?: string;
+  /**
+   * BRILIA fork (2026-10-15): outcome of the opt-in `--probe-model` call. `"skipped"`
+   * (the default) means NO model call was made. The plain `probe` above tests the
+   * hook, not model access, plan, or quota.
+   */
+  modelProbe?: "ok" | "failed" | "skipped";
+  /** Why the model probe failed or was skipped (classified provider error when there is one). */
+  modelProbeDetail?: string;
+  /** Classified kind of a failed model probe (quota_exhausted, plan_unavailable, ...). */
+  modelProbeKind?: string;
   /** Warnings about user-side config that may interfere. */
   warnings: string[];
   reviewGateEnabled: boolean;
@@ -132,6 +158,12 @@ interface ParsedArgs {
   disableReviewGate: boolean;
   /** `--uninstall --all`: remove EVERY host's managed block + orphan cruft. */
   removeAllHosts: boolean;
+  /** BRILIA fork: `--check --probe-model` also sends one tiny prompt to the model. */
+  probeModel: boolean;
+  /** BRILIA fork: `-m/--model <name>` for the model probe. */
+  model?: string;
+  /** BRILIA fork: `--allow-concurrent` (only with the model probe): skip the one-job refusal. */
+  allowConcurrent: boolean;
 }
 
 export async function runSetup(argv: string[], context: CommandContext): Promise<SetupResult> {
@@ -164,7 +196,7 @@ export async function runSetup(argv: string[], context: CommandContext): Promise
 
   switch (parsed.mode) {
     case "uninstall":
-      return await runUninstall(
+      return withSkippedModelProbe(await runUninstall(
         configPath,
         hookScriptPath,
         hostId,
@@ -172,11 +204,183 @@ export async function runSetup(argv: string[], context: CommandContext): Promise
         reviewGateEnabled,
         warnings,
         context,
-      );
-    case "check":
-      return await runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context);
+      ));
+    case "check": {
+      const checked = await runCheck(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context);
+      return parsed.probeModel
+        ? await applyModelProbe(checked, { model: parsed.model, allowConcurrent: parsed.allowConcurrent }, context)
+        : withSkippedModelProbe(checked);
+    }
     case "install":
-      return await runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context);
+      return withSkippedModelProbe(await runInstall(configPath, hookScriptPath, hostId, reviewGateEnabled, warnings, context));
+  }
+}
+
+function withSkippedModelProbe(result: SetupResult): SetupResult {
+  return { ...result, modelProbe: "skipped" };
+}
+
+// BRILIA fork (2026-10-15 incident): `setup --check` printed "Probe: ok" minutes before
+// three jobs were refused by the plan's usage limit, because that probe exercises the
+// PreToolUse hook and never touches the model. This opt-in probe sends ONE short
+// prompt through the same CLI path as `ask` (read-only label, hook enforced, thinking
+// requested off) and reports the classified provider error. It costs a (very small)
+// call against the quota, which is why it is opt-in and never part of the plain --check.
+const MODEL_PROBE_PROMPT = "Reply with the single word READY.";
+// The probe asks for thinking off (upstream 2.2.1 `--thinking`, passed to the child as
+// KIMI_MODEL_THINKING_EFFORT): honoured by Kimi's own providers on models that can turn
+// thinking off, ignored silently by the others; the plugin cannot observe it.
+const MODEL_PROBE_THINKING_EFFORT = "off";
+
+async function applyModelProbe(
+  checked: SetupResult,
+  options: { model?: string; allowConcurrent: boolean },
+  context: CommandContext,
+): Promise<SetupResult> {
+  const { model, allowConcurrent } = options;
+  if (checked.probe !== "ok") {
+    return {
+      ...checked,
+      modelProbe: "skipped",
+      modelProbeDetail: "the hook probe did not pass, so no model call was made",
+    };
+  }
+  // The probe is a model call, so it goes through the same admission as
+  // ask/review/rescue: it refuses while a job runs (unless --allow-concurrent), and
+  // while it runs it holds a running row that other commands see; the row is
+  // released on every terminal path (the finally below).
+  const paths = resolvePluginPaths(context.env);
+  const store = new JobStore(paths);
+  let probeJobId: string | null = null;
+  let probeError: unknown;
+  // Cancellation reaches the kimi child: `/k3:cancel` SIGTERMs the companion; these
+  // handlers abort the CLI client, whose teardown is a settlement barrier, and only
+  // then (finally below) is the reservation row released.
+  const handlers = createCliCancellationHandlers();
+  try {
+    await sweepStaleJobs(store, paths);
+    assertNoModelJobRunning(store, "setup", allowConcurrent);
+    const executionPlan = await prepareKimiExecutionPlan({
+      operationKind: "ask",
+      cwd: context.cwd,
+      env: context.env,
+    });
+    const repoIdentity = await resolveRepoIdentity(context.cwd);
+    const jobId = randomUUID();
+    store.createJob(
+      {
+        job_id: jobId,
+        repo_id: repoIdentity.repoId,
+        command_type: "ask",
+        cwd: context.cwd,
+        model: model ?? null,
+        thinking: null,
+        thinking_effort: MODEL_PROBE_THINKING_EFFORT,
+        background: false,
+        budget_ms: KIMI_MODEL_PROBE_TIMEOUT_MS,
+        budget_source: "default",
+        pid: process.pid,
+        kimi_pid: null,
+        status: "running",
+        kimi_session_id: null,
+        ...persistedExecutionPlanFields(executionPlan),
+        // Distinct identity: visible to admission, never picked as a user's latest ask.
+        operation_kind: "model_probe",
+        agent_profile: "<cli-client>",
+        prompt_digest: digestPrompt(MODEL_PROBE_PROMPT),
+        summary: "Model probe (setup --check --probe-model).",
+        phase: "model-probe",
+        final_output_path: null,
+        stream_log_path: path.join(paths.logsDir, `setup-probe-${jobId}.jsonl`),
+        error: null,
+      },
+      { commandType: "setup", allowConcurrent },
+    );
+    probeJobId = jobId;
+    const result = await runCliPromptWithBudget(
+      {
+        cwd: context.cwd,
+        env: context.env,
+        command: executionPlan.command,
+        prefixArgs: [...executionPlan.prefixArgs],
+        executionPlan,
+        prompt: MODEL_PROBE_PROMPT,
+        commandLabel: "ask",
+        model,
+        thinkingEffort: MODEL_PROBE_THINKING_EFFORT,
+        logPath: path.join(paths.logsDir, `setup-probe-${jobId}.jsonl`),
+        onSpawn: (pid) => { store.updateRunningJob(jobId, { kimi_pid: pid }); },
+        signal: handlers.signal,
+      },
+      KIMI_MODEL_PROBE_TIMEOUT_MS,
+      "setup.model-probe",
+    );
+    assertCliResultSuccess(result, "setup.model-probe");
+    if (reassembleProseFromRecords(result.records).trim().length === 0) {
+      probeError = new RuntimeError("SETUP_MODEL_PROBE_EMPTY", "the model answered with an empty reply", "setup.model-probe");
+      return {
+        ...checked,
+        modelProbe: "failed",
+        modelProbeDetail: "the model answered with an empty reply",
+        nextStep: "The model call returned nothing; retry, or pick another model with -m.",
+      };
+    }
+    store.markCompleted(jobId, {
+      summary: "Model probe answered.",
+      phase: "done",
+      final_output_path: null,
+      error: null,
+    });
+    probeJobId = null;
+    return {
+      ...checked,
+      modelProbe: "ok",
+      modelProbeDetail: model
+        ? `one prompt was answered by model ${model}`
+        : "one prompt was answered by the default model",
+    };
+  } catch (error) {
+    probeError = error;
+    if (error instanceof RuntimeError && error.code.endsWith("_JOB_ALREADY_RUNNING")) {
+      return {
+        ...checked,
+        modelProbe: "failed",
+        modelProbeKind: "job_already_running",
+        modelProbeDetail: error.message,
+        nextStep: `Model probe refused: ${error.message}`,
+      };
+    }
+    const classification = classifySetupFailure(error, { omitResumeHint: true });
+    const detail = classification
+      ? `${classification.summary} ${classification.nextStep}`
+      : `the model call failed: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`;
+    return {
+      ...checked,
+      modelProbe: "failed",
+      modelProbeKind: classification?.kind,
+      modelProbeDetail: detail,
+      nextStep: `Model probe failed: ${detail}`,
+    };
+  } finally {
+    try {
+      if (probeJobId !== null) {
+        // Every non-success terminal path (failure, timeout, exception, cancellation)
+        // releases the row, after the child has been torn down.
+        const patch = {
+          summary: handlers.cancelling ? "Model probe cancelled." : "Model probe failed.",
+          error: normalizeJobError(probeError ?? new Error("model probe ended without a result")),
+          phase: handlers.cancelling ? "cancelled" : "failed",
+        };
+        if (handlers.cancelling) {
+          store.markCancelled(probeJobId, patch);
+        } else {
+          store.markFailed(probeJobId, patch);
+        }
+      }
+    } finally {
+      handlers.dispose();
+      store.close();
+    }
   }
 }
 
@@ -185,9 +389,30 @@ function parseArgs(argv: string[]): ParsedArgs {
   let enableReviewGate = false;
   let disableReviewGate = false;
   let removeAllHosts = false;
+  let probeModel = false;
+  let allowConcurrent = false;
+  let model: string | undefined;
 
-  for (const token of argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index]!;
     switch (token) {
+      // BRILIA fork: the opt-in model probe and its options.
+      case "--probe-model":
+        probeModel = true;
+        break;
+      case "--allow-concurrent":
+        allowConcurrent = true;
+        break;
+      case "-m":
+      case "--model": {
+        const value = argv[index + 1];
+        if (!value || value.startsWith("-")) {
+          throw new RuntimeError("INVALID_ARGS", `${token} requires a model name.`, "setup.parse");
+        }
+        model = value;
+        index += 1;
+        break;
+      }
       case "--check":
         if (mode === "uninstall") {
           throw new RuntimeError(
@@ -242,7 +467,31 @@ function parseArgs(argv: string[]): ParsedArgs {
     );
   }
 
-  return { mode, enableReviewGate, disableReviewGate, removeAllHosts };
+  if (probeModel && mode !== "check") {
+    throw new RuntimeError(
+      "INVALID_ARGS",
+      "--probe-model is only valid with --check (it sends one prompt to the model).",
+      "setup.parse",
+    );
+  }
+
+  if (allowConcurrent && !probeModel) {
+    throw new RuntimeError(
+      "INVALID_ARGS",
+      "--allow-concurrent is only valid with --check --probe-model for setup.",
+      "setup.parse",
+    );
+  }
+
+  if (model !== undefined && !probeModel) {
+    throw new RuntimeError(
+      "INVALID_ARGS",
+      "-m/--model is only valid with --check --probe-model for setup.",
+      "setup.parse",
+    );
+  }
+
+  return { mode, enableReviewGate, disableReviewGate, removeAllHosts, probeModel, model, allowConcurrent };
 }
 
 async function runInstall(
@@ -1599,6 +1848,13 @@ export function renderSetupResult(result: SetupResult): string {
     `Block written:  ${result.blockWritten ? "yes" : "no"}`,
     `Block removed:  ${result.blockRemoved ? "yes" : "no"}`,
     `Probe:          ${result.probe}${result.probeError ? ` (${result.probeError})` : ""}`,
+    `Model probe:    ${result.modelProbe ?? "skipped"}${result.modelProbeDetail ? ` (${result.modelProbeDetail})` : ""}`,
+    ...(result.action === "check" && (result.modelProbe ?? "skipped") === "skipped"
+      ? [
+          "Note: the Probe line tests the hook, not model access, your plan, or your quota. " +
+            "Run `setup --check --probe-model [-m <model>]` to send one prompt (120 s budget) to the model; the provider may count more than one request for it.",
+        ]
+      : []),
     `Review gate:    ${result.reviewGateEnabled ? "enabled" : "disabled"}`,
     "",
     "Details:",

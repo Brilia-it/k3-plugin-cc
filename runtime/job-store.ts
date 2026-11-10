@@ -3,7 +3,8 @@
 // `rewriteStoredPaths` and `rebaseStoredPaths`, used by setup when it moves the
 // pre-0.6 data directory to its new name; the one-model-job-at-a-time
 // admission (`createJob` with an `admission` argument, `listRunningJobs`); the
-// compare-and-set hand-over of a background row (`claimRunningJobPid`); and, on
+// compare-and-set hand-over of a background row (`claimRunningJobPid`); the
+// model-probe row skipped by `findLatestJob` (`excludeOperationKind`); and, on
 // open, a running row left without any pid by an older version is failed
 // (JOB_STORE_PIDLESS_ON_UPGRADE). See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
@@ -143,6 +144,8 @@ export interface FindLatestJobOptions {
   commandType?: ManagedCommandType;
   terminalOnly?: boolean;
   runningOnly?: boolean;
+  /** BRILIA fork: skip rows with this operation_kind (the setup model-probe row). */
+  excludeOperationKind?: KimiOperationKind;
 }
 
 export interface HistoricalProvenancePatch {
@@ -492,6 +495,13 @@ export class JobStore {
     if (options.commandType) {
       conditions.push("command_type = @command_type");
       params.command_type = options.commandType;
+    }
+
+    // BRILIA fork: skip rows of this operation_kind (the setup model-probe row) when
+    // picking a latest conversation.
+    if (options.excludeOperationKind) {
+      conditions.push("(operation_kind IS NULL OR operation_kind != @exclude_operation_kind)");
+      params.exclude_operation_kind = options.excludeOperationKind;
     }
 
     if (options.terminalOnly) {

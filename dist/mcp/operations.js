@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: the setup model-probe operation kind is not an
+// MCP operation. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { RuntimeError } from "../errors.js";
 import { parseDurationMs, validateThinkingEffort } from "../parsing.js";
 const WORKSPACE_PROPERTY = {

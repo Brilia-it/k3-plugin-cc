@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: the operation kind "model_probe" for the row of
+// setup --check --probe-model. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { constants as fsConstants } from "node:fs";
 import { access, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
@@ -29,7 +33,11 @@ export type KimiOperationKind =
   | "review_gate"
   | "pursue"
   | "swarm"
-  | "swarm-write";
+  | "swarm-write"
+  // BRILIA fork: the `setup --check --probe-model` reservation row. Its prompt is
+  // spawned on the plan of "ask" (same read-only path and hook label); only the row
+  // carries this kind, so it is never picked as a user's latest ask conversation.
+  | "model_probe";
 
 export type KimiPlanCertification = "certified" | "test-bypass";
 
@@ -91,6 +99,7 @@ const LEGACY_V1_MINIMUMS: Readonly<Record<KimiOperationKind, { major: number; mi
   pursue: { major: 0, minor: 8 },
   swarm: { major: 0, minor: 12 },
   "swarm-write": { major: 0, minor: 18 },
+  model_probe: { major: 0, minor: 1 },
 };
 
 /**

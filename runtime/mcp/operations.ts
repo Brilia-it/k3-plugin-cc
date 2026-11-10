@@ -1,8 +1,13 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: the setup model-probe operation kind is not an
+// MCP operation. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { RuntimeError } from "../errors.js";
 import type { KimiOperationKind } from "../kimi-engine.js";
 import { parseDurationMs, validateThinkingEffort } from "../parsing.js";
 
-export type McpModelOperation = Exclude<KimiOperationKind, "review_gate">;
+// BRILIA fork: "model_probe" is the setup model-probe row, not an MCP operation.
+export type McpModelOperation = Exclude<KimiOperationKind, "review_gate" | "model_probe">;
 export type McpModelToolName =
   | "k3_ask"
   | "k3_review"

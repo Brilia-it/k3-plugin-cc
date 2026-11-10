@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: the operation kind "model_probe" for the row of
+// setup --check --probe-model. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { constants as fsConstants } from "node:fs";
 import { access, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
@@ -20,6 +24,7 @@ const LEGACY_V1_MINIMUMS = {
     pursue: { major: 0, minor: 8 },
     swarm: { major: 0, minor: 12 },
     "swarm-write": { major: 0, minor: 18 },
+    model_probe: { major: 0, minor: 1 },
 };
 /**
  * Exact kimi-code releases certified for native v2 under

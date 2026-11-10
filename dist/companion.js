@@ -1,6 +1,7 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
-// One change, on every platform: a waited background job that ended failed or
-// cancelled prints its artifact and exits non-zero. See NOTICE and README.md.
+// Changes, on every platform: a waited background job that ended failed or
+// cancelled prints its artifact and exits non-zero; so does a failed setup model
+// probe. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { runRecoverSwarm } from "./commands/recover-swarm.js";
 import { companionHelp } from "./help.js";
@@ -59,7 +60,10 @@ async function main(argv) {
             // the script cannot deny — e.g. a truncated `approval-hook.js`, which has
             // happened here via iCloud sync, or a half-extracted plugin cache).
             // `probe: "skipped"` (uninstall) is deliberately untouched.
-            if (result.probe === "failed") {
+            if (result.probe === "failed" || result.modelProbe === "failed") {
+                // BRILIA fork (2026-10-15): a failed opt-in model probe (quota, plan, context,
+                // auth, or refused while another job runs) is also nonzero, so a caller does
+                // not start a long job on it.
                 process.exitCode = 1;
             }
             return;

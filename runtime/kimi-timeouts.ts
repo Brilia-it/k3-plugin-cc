@@ -1,3 +1,6 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One addition, on every platform: KIMI_MODEL_PROBE_TIMEOUT_MS for the setup model
+// probe. See NOTICE and README.md. Section 4(b) of the License requires this notice.
 // Per-command response budgets leave room for thinking-capable workflows;
 // per-run effort is only a request. Ask/review default to 30 minutes and rescue
 // to 45 minutes for repo-wide work. Review-gate stays at 8 seconds because it
@@ -6,6 +9,11 @@
 
 /** Ask budget. Conversational; thinking-on free-form reasoning. */
 export const KIMI_ASK_PROMPT_TIMEOUT_MS = 1_800_000; // 30 minutes
+/**
+ * BRILIA fork (2026-10-15): budget of the opt-in `setup --check --probe-model` call,
+ * one minimal prompt ("Reply with the single word READY."). Short on purpose.
+ */
+export const KIMI_MODEL_PROBE_TIMEOUT_MS = 120_000;
 /** Review/challenge budget. Thinking-on single-turn analysis over the workspace. */
 export const KIMI_REVIEW_PROMPT_TIMEOUT_MS = 1_800_000;
 /** Rescue budget. Thinking-on multi-step apply/test/verify loops. */

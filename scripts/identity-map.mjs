@@ -164,7 +164,7 @@ export const DECLARED_DIVERGENT = Object.freeze({
     "upstream's DSH hook path is not ours (no DSH here); upstream's install tree is not ours; tests of the Windows quoting and path normalisation",
   // Behaviour: Windows (T02 row 3).
   "runtime/commands/setup.ts":
-    "Windows: the shell probe runs through cmd.exe instead of reporting a skipped check as passed; classifyProbeExit names the cause. Every platform: migration of the pre-0.6 hook blocks, data directory and variable names (T02 rows 8, 9)",
+    "Windows: the shell probe runs through cmd.exe instead of reporting a skipped check as passed; classifyProbeExit names the cause. Every platform: migration of the pre-0.6 hook blocks, data directory and variable names (T02 rows 8, 9); --check --probe-model (T02 row 20)",
   "tests/runtime/setup-shell-probe.test.ts": "added: tests of classifyProbeExit (NOTICE 3)",
   "tests/manual/enforcement-matrix.mjs": "added: manual Windows enforcement matrix, not run in CI (T02 row 4)",
   "tests/manual/coexistence-smoke.mjs": "added: manual smoke, upstream v2.5.6 and this fork side by side, hook blocks and MCP servers (T02 row 36)",
@@ -176,8 +176,8 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "runtime/background-spawn.ts":
     "--wait waits for job.budget_ms (or the command default) plus a grace period; a waited job that ended failed or cancelled raises TerminalJobFailure; the launcher-owned row is handed to the worker by compare-and-set (T02 row 18)",
   "runtime/errors.ts": "added TerminalJobFailure (T02 row 14)",
-  "runtime/companion.ts": "TerminalJobFailure prints the artifact on stdout and exits non-zero (T02 row 14)",
-  "runtime/commands/ask.ts": "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17); background rows born with the launcher pid, claimed by the worker (T02 row 18); a non-zero exit keeps the session (T02 row 19)",
+  "runtime/companion.ts": "TerminalJobFailure prints the artifact on stdout and exits non-zero (T02 row 14); a failed setup model probe exits non-zero (T02 row 20)",
+  "runtime/commands/ask.ts": "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17); background rows born with the launcher pid, claimed by the worker (T02 row 18); a non-zero exit keeps the session (T02 row 19); bare -r skips the setup model probe (T02 row 20)",
   "runtime/commands/rescue.ts":
     "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17); background rows born with the launcher pid, claimed by the worker (T02 row 18); a non-zero exit keeps the session (T02 row 19)",
   "tests/runtime/wait-budget.test.ts": "added: the wait follows the job budget, JOB_WAIT_TIMEOUT text (NOTICE 3)",
@@ -190,7 +190,7 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/runtime/kimi-errors-limits.test.ts": "added: classification of the provider limits on both channels (NOTICE 3)",
   // Behaviour: one model job at a time, refuse never queue (T02 row 17).
   "runtime/admission.ts": "added: the one-model-job-at-a-time guard (NOTICE 3)",
-  "runtime/parsing.ts": "every model command parses --allow-concurrent",
+  "runtime/parsing.ts": "every model command parses --allow-concurrent; setup lists --probe-model (T02 row 20)",
   "runtime/commands/review.ts": "sweeps dead jobs, then one model job at a time",
   "runtime/commands/pursue.ts": "one model job at a time",
   "runtime/commands/swarm.ts": "one model job at a time, read and write mode",
@@ -203,6 +203,11 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "runtime/failed-job-session.ts": "added: keeps the announced or digest-recovered session of a job that failed on a non-zero exit (NOTICE 3)",
   "tests/runtime/announced-session-on-failure.test.ts": "added: 0.7.0's session tests, renamed apart from upstream's session-recovery.test.ts (NOTICE 3)",
   "tests/runtime/budget-artifacts.test.ts": "a waited background job that timed out exits non-zero with its artifact on stdout (T02 row 14)",
+  // Behaviour: setup --check --probe-model (T02 row 20).
+  "runtime/kimi-engine.ts": "operation kind model_probe for the setup model-probe row",
+  "runtime/kimi-timeouts.ts": "KIMI_MODEL_PROBE_TIMEOUT_MS",
+  "runtime/mcp/operations.ts": "model_probe is not an MCP operation",
+  "tests/runtime/setup-model-probe.test.ts": "added: tests of setup --check --probe-model (NOTICE 3)",
   "tests/runtime/legacy-null-pid-rows.test.ts": "added: pid-less running rows of older versions are failed on open (NOTICE 3)",
   "tests/runtime/job-store-busy-open.test.ts": "added: opening the store and waiting under real lock contention (NOTICE 3)",
   "tests/helpers/hold-exclusive-lock.ts": "added: test helper, holds an exclusive SQLite lock from another process (NOTICE 3)",
@@ -214,7 +219,7 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "runtime/legacy-names.ts": "added: moves the pre-0.6 data directory, reports the KIMI_PLUGIN_CC_* variables (NOTICE 3)",
   "runtime/paths.ts": "the pre-0.6 data directory kimi-plugin-cc stays in use until setup moves it, and is never recreated",
   "runtime/job-store.ts":
-    "withWriteLock, countRunningJobs, rewriteStoredPaths, rebaseStoredPaths for the data-directory move; createJob with admission and listRunningJobs for the one-model-job guard (T02 row 17); claimRunningJobPid, and pid-less running rows of older versions failed on open as JOB_STORE_PIDLESS_ON_UPGRADE (T02 row 18)",
+    "withWriteLock, countRunningJobs, rewriteStoredPaths, rebaseStoredPaths for the data-directory move; createJob with admission and listRunningJobs for the one-model-job guard (T02 row 17); claimRunningJobPid, and pid-less running rows of older versions failed on open as JOB_STORE_PIDLESS_ON_UPGRADE (T02 row 18); findLatestJob excludeOperationKind (T02 row 20)",
   "tests/runtime/legacy-brand.test.ts": "added: tests of the migration from the pre-0.6 names (NOTICE 3)",
   "tests/helpers/hold-write-lock.ts": "added: test helper, holds the job store's write lock from another process (NOTICE 3)",
   // Behaviour: the plugin recognises its own installation (T02 row 10).

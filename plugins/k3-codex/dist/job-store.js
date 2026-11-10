@@ -313,6 +313,12 @@ export class JobStore {
             conditions.push("command_type = @command_type");
             params.command_type = options.commandType;
         }
+        // BRILIA fork: skip rows of this operation_kind (the setup model-probe row) when
+        // picking a latest conversation.
+        if (options.excludeOperationKind) {
+            conditions.push("(operation_kind IS NULL OR operation_kind != @exclude_operation_kind)");
+            params.exclude_operation_kind = options.excludeOperationKind;
+        }
         if (options.terminalOnly) {
             conditions.push("status IN ('completed', 'failed', 'cancelled')");
         }
