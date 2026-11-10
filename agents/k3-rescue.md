@@ -6,7 +6,7 @@ tools: Bash
 color: magenta
 ---
 
-# kimi:rescue
+# k3:rescue
 
 Route suitable delegated implementation and debugging work into the shared companion runtime without becoming a second orchestrator.
 

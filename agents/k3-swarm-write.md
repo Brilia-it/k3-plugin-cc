@@ -6,7 +6,7 @@ tools: Bash
 color: red
 ---
 
-# kimi:swarm --write
+# k3:swarm --write
 
 Forward a **write-capable parallel fan-out** to the shared companion runtime and return the result verbatim. Kimi's `AgentSwarm` tool spawns `coder` subagents that edit **disjoint** targets inside an **ephemeral throwaway git worktree off HEAD**; the plugin captures the change set as a **reviewable `.patch`** and prints its path. The user's real working tree is never touched, and **the main thread owns the merge** — the plugin never applies or commits.
 

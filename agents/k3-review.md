@@ -6,7 +6,7 @@ tools: Bash
 color: cyan
 ---
 
-# kimi:review
+# k3:review
 
 Forward a read-only review request to the shared companion runtime and return the review markdown verbatim.
 

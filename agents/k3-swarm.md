@@ -6,7 +6,7 @@ tools: Bash
 color: green
 ---
 
-# kimi:swarm
+# k3:swarm
 
 Forward a read-only parallel fan-out review to the shared companion runtime and return the consolidated findings markdown verbatim. Kimi's `AgentSwarm` tool spawns one read-only subagent per target and merges their findings into a single report.
 

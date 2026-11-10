@@ -37,6 +37,10 @@ describe("applyIdentityMap", () => {
     ['{\n  "mcpServers": {\n    "kimi": {', '{\n  "mcpServers": {\n    "k3": {'],
     ["mcpServers: {\n    kimi: {", "mcpServers: {\n    k3: {"],
     ["mcp.mcpServers.kimi.env_vars", "mcp.mcpServers.k3.env_vars"],
+    ["Codex users can invoke the matching $kimi-* skills.", "Codex users can invoke the matching $k3-* skills."],
+    ["# kimi:ask", "# k3:ask"],
+    ["# kimi:swarm --write", "# k3:swarm --write"],
+    ["the `kimi:kimi-challenge` subagent", "the `k3:k3-challenge` subagent"],
   ])("%s -> %s", (input, output) => {
     expect(applyIdentityMap(input)).toBe(output);
   });
@@ -63,6 +67,8 @@ describe("applyIdentityMap", () => {
     "kimi_ask_later and x-kimi_ask",
     '{ "command": "kimi", "type": "kimi" }',
     "providers: { kimi: { type: 'kimi' } }",
+    "signalJobProcesses(job, signal, { companion: true, kimi: true })",
+    "kimi:review-gate and xkimi:ask",
   ])("leaves %s alone", (input) => {
     expect(applyIdentityMap(input)).toBe(input);
   });
@@ -242,7 +248,7 @@ describe("declaredReason and removedReason", () => {
     expect(declaredReason("runtime/version.ts")).toBe("fork version string");
     expect(declaredReason("dist/version.js")).toBe("fork version string (compiled)");
     expect(declaredReason("plugins/k3-codex/dist/version.js")).toBe("fork version string (compiled)");
-    expect(declaredReason("runtime/kimi-engine.ts")).toBeUndefined();
+    expect(declaredReason("runtime/render.ts")).toBeUndefined();
   });
 
   test("the DeepSeek Harness host is removed as whole directories", () => {

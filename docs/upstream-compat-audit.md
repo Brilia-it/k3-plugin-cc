@@ -313,7 +313,7 @@ Reviewer 3 — **CLI surface** (`general-purpose` agent)
 - Question: did our flags survive byte-identical? Any new flags affecting prompt mode? Is auto-approve still hard-coded?
 - Output: `reports/NN-upstream-<ver>-cli-surface.md`
 
-Reviewer 4 — **Adversarial** (`general-purpose` agent — the `kimi:k3-challenge` subagent is risky for this because its foreground job can disappear)
+Reviewer 4 — **Adversarial** (`general-purpose` agent — the `k3:k3-challenge` subagent is risky for this because its foreground job can disappear)
 - Brief: "Three other reviewers say COMPAT-PRESERVED. Attack the claim. Find the cases where it breaks. If you can't, earn the conclusion adversarially."
 - Output: `reports/NN-upstream-<ver>-adversarial.md`
 

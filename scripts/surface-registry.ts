@@ -49,13 +49,13 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
   { path: "commands/setup.md", sha256: "6a91bad898723508f1cb303bdb2e7117e8df0b4cf6dba906bd30a845be77bf27" },
   { path: "commands/status.md", sha256: "0171276cd08b9fe62893f62523c164f35b1a4df98cb7b04f14f62fc33fbc8cbc" },
   { path: "commands/swarm.md", sha256: "9ba09081088b74e279e0dd44d8527db5a59db24e05d559ea2b95cafa712adc0c" },
-  { path: "agents/k3-ask.md", sha256: "2deeee75b338f3248a55a4c671f177bd530eaeb42d72adb538db14522bd3f5e5" },
-  { path: "agents/k3-challenge.md", sha256: "07296f6e62a8a1f72128fe61338b38e0f3e47be8ec3ff0b7235ecb9268b08484" },
-  { path: "agents/k3-pursue.md", sha256: "234b37bdb80ce823edbcfe9868a8cfa2272f890997c959278fe01fd07f954f40" },
-  { path: "agents/k3-rescue.md", sha256: "ac86defda1e3ba5dc32789866a09a4aec3f16e3071b144cc9056f27f791ac6ec" },
-  { path: "agents/k3-review.md", sha256: "ada613ffe52943d107548142233a8a903a860e7a1acaafd601ee71bbad7ba80d" },
-  { path: "agents/k3-swarm-write.md", sha256: "efa151b92acd530b60a567a77a067442efae0d23ce18a82ac388b13fb1b517ea" },
-  { path: "agents/k3-swarm.md", sha256: "6e6b20d2ed8afe9acc86e7bf6e3947ea967b78bdb72e0bc8b96d0218fa0109d7" },
+  { path: "agents/k3-ask.md", sha256: "ebae3b1543fda6c7a8173e11c1fd15116c11750461cdb42df02f2b36811be8c2" },
+  { path: "agents/k3-challenge.md", sha256: "cfa308809642f552ce68dd9ba9fb0be192afc44f3a51306ef0ae5c2f74923c15" },
+  { path: "agents/k3-pursue.md", sha256: "e7934ae8e08de773d69408c215a873e68d95428f9c71f704c9c9fabfd3eb370c" },
+  { path: "agents/k3-rescue.md", sha256: "50670d23acf1576c29c71d7cb482f56e9cb5bc219946ce1cd02ecb09d2756c00" },
+  { path: "agents/k3-review.md", sha256: "a9b0edce8825fe69ac0e02db2142746ccb744ce54af3e56de659a8273fd7a6c8" },
+  { path: "agents/k3-swarm-write.md", sha256: "7e4ea8db292de7f89e2541fa109493db4d8ff17a6ad51495d0813d2638309bef" },
+  { path: "agents/k3-swarm.md", sha256: "5bc8c97236e5b0a88f4c9c7bc3f736537b5e89fbfc310059056a0032fcdee9e3" },
 ];
 
 export const CODEX_MCP_CONFIG = {

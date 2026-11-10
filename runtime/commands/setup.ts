@@ -647,7 +647,7 @@ async function runInstall(
     warnings,
     reviewGateEnabled,
     nextStep: probe.ok
-      ? "Run /k3:review, /k3:challenge, /k3:ask, or /k3:rescue. Codex users can invoke the matching $kimi-* skills."
+      ? "Run /k3:review, /k3:challenge, /k3:ask, or /k3:rescue. Codex users can invoke the matching $k3-* skills."
       : "Re-run /k3:setup after installing kimi-code and Node. If the probe keeps failing, run /k3:setup --uninstall and inspect ~/.kimi-code/config.toml manually.",
     details: buildDetails({
       configPath,

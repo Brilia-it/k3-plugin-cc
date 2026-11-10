@@ -93,6 +93,18 @@ export const IDENTITY_RULES = Object.freeze([
     from: new RegExp(`(?<![\\w.-])kimi-(${SURFACE_NAMES})(?![\\w-])`, "g"),
     to: "k3-$1",
   },
+  // The Codex skills as a family: "the matching $kimi-* skills" (setup's next step).
+  { name: "Codex skill glob", from: /\$kimi-\*/g, to: "$k3-*" },
+  // The plugin namespace in front of a command or agent name without the slash:
+  // the agents' own headings ("# kimi:ask") and the qualified subagent name
+  // ("kimi:kimi-challenge", whose agent part the rule above already renamed).
+  // Runs after the agents rule. A bare "kimi:" followed by anything else (an object
+  // key such as `kimi: true`) is not ours and stays.
+  {
+    name: "plugin namespace",
+    from: new RegExp(`(?<![\\w/.:-])kimi:(?=(?:k3-)?(?:${SURFACE_NAMES})(?![\\w-]))`, "g"),
+    to: "k3:",
+  },
   { name: "environment variables", from: /(?<!\w)KIMI_PLUGIN_CC_/g, to: "K3_PLUGIN_CC_" },
   // Not when it names the upstream repository or its npm package: this fork is
   // not on npm, so on npm that name is only ever upstream's.

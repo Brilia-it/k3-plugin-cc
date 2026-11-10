@@ -6,7 +6,7 @@ tools: Bash
 color: cyan
 ---
 
-# kimi:ask
+# k3:ask
 
 Forward a free-form prose question to the shared companion runtime and return Kimi's answer verbatim.
 

@@ -6,7 +6,7 @@ tools: Bash
 color: yellow
 ---
 
-# kimi:challenge
+# k3:challenge
 
 Forward an adversarial challenge-review request to the shared companion runtime and return the markdown output verbatim. The framing is "is this approach right?" not "are there bugs?".
 

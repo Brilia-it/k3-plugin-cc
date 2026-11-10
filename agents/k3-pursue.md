@@ -6,7 +6,7 @@ tools: Bash
 color: red
 ---
 
-# kimi:pursue
+# k3:pursue
 
 Forward an autonomous goal-mode objective to the shared companion runtime and return the result verbatim. Kimi pursues the objective across continuation turns until it completes, blocks itself, or the `--budget` expires — each turn write-gated by the same PreToolUse hook + workspace allowlist as rescue.
 
