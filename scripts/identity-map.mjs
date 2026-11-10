@@ -177,16 +177,16 @@ export const DECLARED_DIVERGENT = Object.freeze({
     "--wait waits for job.budget_ms (or the command default) plus a grace period; a waited job that ended failed or cancelled raises TerminalJobFailure; the launcher-owned row is handed to the worker by compare-and-set (T02 row 18)",
   "runtime/errors.ts": "added TerminalJobFailure (T02 row 14)",
   "runtime/companion.ts": "TerminalJobFailure prints the artifact on stdout and exits non-zero (T02 row 14)",
-  "runtime/commands/ask.ts": "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17); background rows born with the launcher pid, claimed by the worker (T02 row 18)",
+  "runtime/commands/ask.ts": "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17); background rows born with the launcher pid, claimed by the worker (T02 row 18); a non-zero exit keeps the session (T02 row 19)",
   "runtime/commands/rescue.ts":
-    "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17); background rows born with the launcher pid, claimed by the worker (T02 row 18)",
+    "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17); background rows born with the launcher pid, claimed by the worker (T02 row 18); a non-zero exit keeps the session (T02 row 19)",
   "tests/runtime/wait-budget.test.ts": "added: the wait follows the job budget, JOB_WAIT_TIMEOUT text (NOTICE 3)",
   "tests/runtime/wait-exit-code.test.ts": "added: a waited failed job exits non-zero with its artifact on stdout (NOTICE 3)",
   // Behaviour: Kimi's provider limits classified apart from STARTUP_FAILED (T02 row 16).
   "runtime/kimi-errors.ts":
     "<CMD>_KIMI_QUOTA_EXHAUSTED, _CONCURRENCY_LIMITED, _PLAN_UNAVAILABLE, _CONTEXT_EXCEEDED from kimi's last provider line, read from the stderr tail and the cliError record",
   "runtime/commands/cli-helpers.ts": "CLI_NONZERO_EXIT keeps the stderr tail in details when the cliError record took the message's place (T02 row 16)",
-  "tests/helpers/mock-kimi-cli-v1.ts": "quota-fail scenario (stderr or stdout channel, optional resume line) and the child pid in the invocation log",
+  "tests/helpers/mock-kimi-cli-v1.ts": "quota-fail scenario (stderr or stdout channel, optional resume line, after the native-v2 session store) and the child pid in the invocation log",
   "tests/runtime/kimi-errors-limits.test.ts": "added: classification of the provider limits on both channels (NOTICE 3)",
   // Behaviour: one model job at a time, refuse never queue (T02 row 17).
   "runtime/admission.ts": "added: the one-model-job-at-a-time guard (NOTICE 3)",
@@ -199,6 +199,10 @@ export const DECLARED_DIVERGENT = Object.freeze({
   // Behaviour: a background row is owned by its launcher's pid (T02 row 18).
   "runtime/commands/worker.ts": "passes the launcher pid to the job, which claims its row by compare-and-set",
   "tests/runtime/job-commands.test.ts": "the 0.1.4-migration seed rows carry an owner pid, as every running row now does (T02 row 18)",
+  // Behaviour: a job that fails on a non-zero exit keeps its session (T02 row 19).
+  "runtime/failed-job-session.ts": "added: keeps the announced or digest-recovered session of a job that failed on a non-zero exit (NOTICE 3)",
+  "tests/runtime/announced-session-on-failure.test.ts": "added: 0.7.0's session tests, renamed apart from upstream's session-recovery.test.ts (NOTICE 3)",
+  "tests/runtime/budget-artifacts.test.ts": "a waited background job that timed out exits non-zero with its artifact on stdout (T02 row 14)",
   "tests/runtime/legacy-null-pid-rows.test.ts": "added: pid-less running rows of older versions are failed on open (NOTICE 3)",
   "tests/runtime/job-store-busy-open.test.ts": "added: opening the store and waiting under real lock contention (NOTICE 3)",
   "tests/helpers/hold-exclusive-lock.ts": "added: test helper, holds an exclusive SQLite lock from another process (NOTICE 3)",

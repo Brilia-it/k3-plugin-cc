@@ -1,13 +1,15 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Changes, on every platform: `--background --wait` waits for the job's own
 // budget; one model job at a time (runtime/admission.ts); a background row is
-// created owned by the launcher and claimed by the worker. See NOTICE and README.md.
+// created owned by the launcher and claimed by the worker; a job that fails on a
+// non-zero exit keeps its session. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { companionHelp } from "../help.js";
 import { allocateJobId } from "../job-id.js";
 import path from "node:path";
 import { createCliCancellationHandlers } from "../cli-cancellation.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
+import { keepFailedJobSession } from "../failed-job-session.js";
 import { assertPersistedResumeLineage, executionPlanFromPersisted, observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, reconcileHistoricalJobProvenance, } from "../kimi-engine.js";
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
@@ -170,6 +172,8 @@ export async function executeAskJob(jobId, prompt, context, options) {
     const askConfig = getManagedCommandConfig("ask");
     const cancel = askConfig.cancellation;
     let handlers;
+    // BRILIA fork: the CLI result, kept for the failure path (see failed-job-session.ts).
+    let cliResult;
     try {
         // Re-verify in the worker so a background job cannot outlive or bypass
         // enforcement drift between the user invocation and the actual Kimi spawn.
@@ -201,6 +205,7 @@ export async function executeAskJob(jobId, prompt, context, options) {
             onSpawn: (pid) => { store.updateRunningJob(job.job_id, { kimi_pid: pid }); },
             signal: handlers.signal,
         }, job.budget_ms ?? KIMI_ASK_PROMPT_TIMEOUT_MS, "ask.prompt");
+        cliResult = result;
         store.updateRunningJob(job.job_id, observedExecutionFields(result));
         if (handlers.cancelling) {
             throw new RuntimeError(cancel.errorCodes.cancelled, cancel.cancelMessages.afterPrompt, "ask.runtime");
@@ -244,8 +249,19 @@ export async function executeAskJob(jobId, prompt, context, options) {
         }) ?? job);
     }
     catch (error) {
+        // BRILIA fork (2026-10-15): a non-zero exit (a usage limit ends this way) keeps the
+        // session kimi announced, or the one upstream's prompt-digest recovery proves, so the
+        // work done is resumable; the quota message then names the exact resume command.
+        const kept = cliResult !== undefined && !handlers?.cancelling &&
+            error instanceof RuntimeError && error.code === "CLI_NONZERO_EXIT"
+            ? await keepFailedJobSession(store, job, cliResult, context.env)
+            : undefined;
         const classified = error instanceof RuntimeError && error.stage === "ask.hook-check" ? error
-            : classifyManagedCommandFailure(error, "ask", job.job_id, { background: job.background, budgetMs: job.budget_ms ?? KIMI_ASK_PROMPT_TIMEOUT_MS });
+            : classifyManagedCommandFailure(error, "ask", job.job_id, {
+                background: job.background,
+                budgetMs: job.budget_ms ?? KIMI_ASK_PROMPT_TIMEOUT_MS,
+                resumeCommand: kept?.sessionId ? `/k3:ask --resume ${job.job_id}` : null,
+            });
         const partialOutput = await captureTimeoutPartialOutput(classified, store, job, context.env, handlers?.signal);
         if (handlers?.cancelling) {
             const cancelledError = new RuntimeError(cancel.errorCodes.cancelled, cancel.cancelMessages.default, "ask.runtime", error instanceof Error ? { cause: error } : undefined);

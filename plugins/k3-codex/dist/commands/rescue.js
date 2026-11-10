@@ -1,13 +1,15 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Changes, on every platform: `--background --wait` waits for the job's own
 // budget; one model job at a time (runtime/admission.ts); a background row is
-// created owned by the launcher and claimed by the worker. See NOTICE and README.md.
+// created owned by the launcher and claimed by the worker; a job that fails on a
+// non-zero exit keeps its session. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { companionHelp } from "../help.js";
 import { allocateJobId } from "../job-id.js";
 import path from "node:path";
 import { createCliCancellationHandlers } from "../cli-cancellation.js";
 import { runCliPromptWithBudget } from "../cli-client.js";
+import { keepFailedJobSession } from "../failed-job-session.js";
 import { assertPersistedResumeLineage, executionPlanFromPersisted, observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, reconcileHistoricalJobProvenance, } from "../kimi-engine.js";
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
@@ -192,6 +194,8 @@ export async function executeRescueJob(jobId, prompt, context, options) {
         }
     }
     const handlers = createCliCancellationHandlers();
+    // BRILIA fork: the CLI result, kept for the failure path (see failed-job-session.ts).
+    let cliResult;
     try {
         const executionPlan = executionPlanFromPersisted(job);
         // Re-validate resume lineage from the store before spawning: a detached
@@ -218,6 +222,7 @@ export async function executeRescueJob(jobId, prompt, context, options) {
             onSpawn: (pid) => { store.updateRunningJob(job.job_id, { kimi_pid: pid }); },
             signal: handlers.signal,
         }, job.budget_ms ?? KIMI_RESCUE_PROMPT_TIMEOUT_MS, "rescue.prompt");
+        cliResult = result;
         store.updateRunningJob(job.job_id, observedExecutionFields(result));
         if (handlers.cancelling) {
             throw new RuntimeError(cancel.errorCodes.cancelled, cancel.cancelMessages.afterPrompt, "rescue.runtime");
@@ -273,10 +278,16 @@ export async function executeRescueJob(jobId, prompt, context, options) {
         }) ?? job);
     }
     catch (error) {
+        // BRILIA fork (2026-10-15): see ask.ts, same reason.
+        const kept = cliResult !== undefined && !handlers.cancelling &&
+            error instanceof RuntimeError && error.code === "CLI_NONZERO_EXIT"
+            ? await keepFailedJobSession(store, job, cliResult, context.env)
+            : undefined;
         const classified = classifyManagedCommandFailure(error, "rescue", job.job_id, {
             preserveStage: true,
             background: job.background,
             budgetMs: job.budget_ms ?? KIMI_RESCUE_PROMPT_TIMEOUT_MS,
+            resumeCommand: kept?.sessionId ? `/k3:rescue --resume ${job.job_id}` : null,
         });
         const partialOutput = await captureTimeoutPartialOutput(classified, store, job, context.env, handlers.signal);
         if (handlers.cancelling) {

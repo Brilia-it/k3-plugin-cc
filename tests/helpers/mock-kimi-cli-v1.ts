@@ -87,25 +87,6 @@ async function main(): Promise<void> {
     await sleep(delayMs);
   }
 
-  if (scenario === "quota-fail") {
-    // BRILIA fork (2026-10-15 incident): kimi starts, warns about the untrusted folder,
-    // then the provider refuses with the 5-hour usage limit and kimi exits 1.
-    // Knobs: K3_PLUGIN_CC_MOCK_QUOTA_CHANNEL=stdout writes the provider refusal as the
-    // role-less stdout error record (kimi-code 2.3.0+) instead of the stderr line;
-    // K3_PLUGIN_CC_MOCK_ANNOUNCE_ON_FAIL=1 also prints the "To resume this session" line.
-    const refusal = "403 You've reached your 5-hour usage limit. Your quota will reset when the current 5-hour window ends.";
-    process.stderr.write("Warning: this folder is not trusted; skipped 4 project-level MCP servers.\n");
-    if (process.env.K3_PLUGIN_CC_MOCK_QUOTA_CHANNEL === "stdout") {
-      process.stdout.write(`${JSON.stringify({ type: "error", code: "provider.auth_error", message: refusal })}\n`);
-    } else {
-      process.stderr.write(`error: failed to run prompt: provider.auth_error: ${refusal}\n`);
-    }
-    if (process.env.K3_PLUGIN_CC_MOCK_ANNOUNCE_ON_FAIL === "1") {
-      process.stderr.write(`To resume this session: kimi -r ${sessionId}\n`);
-    }
-    process.exit(1);
-  }
-
   const recoverableV2 = process.env.K3_PLUGIN_CC_MOCK_RECOVERABLE_V2 === "1";
   if (recoverableV2) {
     process.stdout.write(`${JSON.stringify({ role: "meta", type: "system.version", version: process.env.K3_PLUGIN_CC_MOCK_VERSION })}\n`);
@@ -128,6 +109,26 @@ async function main(): Promise<void> {
       ].map((line) => `${line}\n`).join(""));
     }
   }
+  if (scenario === "quota-fail") {
+    // BRILIA fork (2026-10-15 incident): kimi starts, warns about the untrusted folder,
+    // then (with K3_PLUGIN_CC_MOCK_RECOVERABLE_V2=1, after creating its native-v2 session on
+    // disk as above) the provider refuses with the 5-hour usage limit and kimi exits 1.
+    // Knobs: K3_PLUGIN_CC_MOCK_QUOTA_CHANNEL=stdout writes the provider refusal as the
+    // role-less stdout error record (kimi-code 2.3.0+) instead of the stderr line;
+    // K3_PLUGIN_CC_MOCK_ANNOUNCE_ON_FAIL=1 also prints the "To resume this session" line.
+    const refusal = "403 You've reached your 5-hour usage limit. Your quota will reset when the current 5-hour window ends.";
+    process.stderr.write("Warning: this folder is not trusted; skipped 4 project-level MCP servers.\n");
+    if (process.env.K3_PLUGIN_CC_MOCK_QUOTA_CHANNEL === "stdout") {
+      process.stdout.write(`${JSON.stringify({ type: "error", code: "provider.auth_error", message: refusal })}\n`);
+    } else {
+      process.stderr.write(`error: failed to run prompt: provider.auth_error: ${refusal}\n`);
+    }
+    if (process.env.K3_PLUGIN_CC_MOCK_ANNOUNCE_ON_FAIL === "1") {
+      process.stderr.write(`To resume this session: kimi -r ${sessionId}\n`);
+    }
+    process.exit(1);
+  }
+
   if (scenario.startsWith("hook-escape-")) {
     const toolInput = { path: "/tmp/mock-hook-escape", content: "unsafe" };
     const toolName = process.env.K3_PLUGIN_CC_MOCK_HOOK_TOOL ?? "Write";

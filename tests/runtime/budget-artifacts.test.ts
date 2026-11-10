@@ -55,8 +55,12 @@ describe("compiled timeout artifacts", () => {
         const env = mockEnv(root, repo, scenario);
         try {
           const result = await invoke([...command, "--budget", "1s", ...(background ? ["--background", "--wait"] : []), "Inspect this change"], env);
-          if (!background && kind !== "rescue") expect(result.code).toBe(1);
-          else expect(result.code).toBe(0);
+          // BRILIA fork (T02 row 14): a waited background job that ended failed exits
+          // non-zero, with the failure artifact still on stdout. Foreground rescue keeps
+          // upstream's exit 0 with the artifact.
+          if (kind === "rescue" && !background) expect(result.code).toBe(0);
+          else expect(result.code).toBe(1);
+          if (background) expect(result.stdout).toContain("NOT a final answer");
           const status = JSON.parse((await invoke(["status", "--type", kind], env)).stdout);
           expect(status.status).toBe("failed");
           expect(status.budget_ms).toBe(1000);
