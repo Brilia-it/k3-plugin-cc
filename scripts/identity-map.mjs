@@ -167,6 +167,11 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/runtime/setup-shell-probe.test.ts": "added: tests of classifyProbeExit (NOTICE 3)",
   "tests/manual/enforcement-matrix.mjs": "added: manual Windows enforcement matrix, not run in CI (T02 row 4)",
   "tests/manual/shell-probe-discrimination.mjs": "added: manual check that the Windows shell probe discriminates a quoting fault (T02 row 4)",
+  // Behaviour: a busy job store (T02 row 22).
+  "runtime/jobs.ts": "waitForTerminalJob polls again past a busy job store (isJobStoreBusy) instead of failing the wait",
+  "tests/runtime/job-store-busy-open.test.ts": "added: opening the store and waiting under real lock contention (NOTICE 3)",
+  "tests/helpers/hold-exclusive-lock.ts": "added: test helper, holds an exclusive SQLite lock from another process (NOTICE 3)",
+  "tests/helpers/open-job-store-node.mjs": "added: test helper, opens the compiled JobStore under plain Node (NOTICE 3)",
   // Behaviour: the plugin recognises its own installation (T02 row 10).
   "runtime/plugin-data.ts": "the installed-package check looks for this fork's plugin directory k3, not upstream's kimi",
   "tests/runtime/plugin-data.test.ts": "fixtures install the plugin under k3, as this fork is installed",
