@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: every model command parses `--allow-concurrent`
+// (see runtime/admission.ts). See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { RuntimeError } from "./errors.js";
 
 /**
@@ -15,12 +19,15 @@ function looksLikeFlag(token: string): boolean {
   return /^-[a-zA-Z]$/.test(token);
 }
 
+// BRILIA fork (2026-10-15): every model command also takes --allow-concurrent, which
+// overrides for one call the refusal to start a model job while another is running
+// (runtime/admission.ts). It never queues.
 export const ASK_SUPPORTED_FLAGS =
-  "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --background, --wait, --fresh, -r, --resume <job-id|session-id>";
+  "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --background, --wait, --fresh, -r, --resume <job-id|session-id>, --allow-concurrent";
 export const RESCUE_SUPPORTED_FLAGS =
-  "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --background, --wait, --fresh, -r, --resume <job-id|session-id>";
+  "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --background, --wait, --fresh, -r, --resume <job-id|session-id>, --allow-concurrent";
 
-export const REVIEW_SUPPORTED_FLAGS = "--base <ref>, -m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>";
+export const REVIEW_SUPPORTED_FLAGS = "--base <ref>, -m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --allow-concurrent";
 export const JOB_LOOKUP_SUPPORTED_FLAGS = "--type <review|challenge|rescue|review_gate|ask>, --json";
 
 export const SETUP_SUPPORTED_FLAGS = "--check, --uninstall, --all (with --uninstall), --enable-review-gate, --disable-review-gate, --models [--json] (without other setup flags)";
@@ -40,6 +47,11 @@ export function validateThinkingEffort(value: string | undefined, stage = "args.
 export interface KimiFlagState {
   model?: string;
   thinkingEffort?: string;
+  /**
+   * BRILIA fork (2026-10-15): `--allow-concurrent` overrides, for this one call,
+   * the refusal to start a model job while another is running. Never queues.
+   */
+  allowConcurrent?: boolean;
 }
 
 export interface AskArgs extends KimiFlagState {
@@ -88,7 +100,7 @@ export interface PursueArgs extends KimiFlagState {
   objective?: string;
 }
 
-export const PURSUE_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --turns <N>";
+export const PURSUE_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --turns <N>, --allow-concurrent";
 
 export interface SwarmArgs extends KimiFlagState {
   /**
@@ -130,7 +142,7 @@ export interface SwarmArgs extends KimiFlagState {
 }
 
 export const SWARM_SUPPORTED_FLAGS =
-  "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --cap <N>, --max-concurrency <N>, --write";
+  "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --cap <N>, --max-concurrency <N>, --write, --allow-concurrent";
 
 /**
  * Parser for /k3:swarm. Foreground-only: no --background/--fresh/--resume.
@@ -143,6 +155,7 @@ export function parseSwarmArgs(argv: string[]): SwarmArgs {
   let cap: number | undefined;
   let maxConcurrency: number | undefined;
   let write = false;
+  let allowConcurrent = false;
   let trailingTokens: string[] | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -186,6 +199,9 @@ export function parseSwarmArgs(argv: string[]): SwarmArgs {
       case "--write":
         write = true;
         break;
+      case "--allow-concurrent":
+        allowConcurrent = true;
+        break;
       case "--budget": {
         const value = argv[index + 1];
         if (!value || value.startsWith("-")) {
@@ -228,6 +244,7 @@ export function parseSwarmArgs(argv: string[]): SwarmArgs {
     cap,
     maxConcurrency,
     write,
+    ...(allowConcurrent && { allowConcurrent: true }),
     model,
     thinkingEffort,
     objective: trailingTokens?.join(" "),
@@ -313,6 +330,7 @@ export function parsePursueArgs(argv: string[]): PursueArgs {
   let thinkingEffort: string | undefined;
   let budgetMs: number | undefined;
   let turns: number | undefined;
+  let allowConcurrent = false;
   let trailingTokens: string[] | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -379,6 +397,9 @@ export function parsePursueArgs(argv: string[]): PursueArgs {
         index += 1;
         break;
       }
+      case "--allow-concurrent":
+        allowConcurrent = true;
+        break;
       default:
         if (looksLikeFlag(token)) {
           throw new RuntimeError(
@@ -396,6 +417,7 @@ export function parsePursueArgs(argv: string[]): PursueArgs {
   return {
     budgetMs,
     turns,
+    ...(allowConcurrent && { allowConcurrent: true }),
     model,
     thinkingEffort,
     objective: trailingTokens?.join(" "),
@@ -438,6 +460,7 @@ export function hasHelpFlag(argv: string[]): boolean {
 
 export function parseAskArgs(argv: string[]): AskArgs {
   if (hasHelpFlag(argv)) return { help: true, background: false, wait: false, fresh: false, resume: false };
+  let allowConcurrent = false;
   let budgetMs: number | undefined;
   let model: string | undefined;
   let thinkingEffort: string | undefined;
@@ -523,6 +546,9 @@ export function parseAskArgs(argv: string[]): AskArgs {
         index += 1;
         break;
       }
+      case "--allow-concurrent":
+        allowConcurrent = true;
+        break;
       default:
         if (looksLikeFlag(token)) {
           throw new RuntimeError(
@@ -554,6 +580,7 @@ export function parseAskArgs(argv: string[]): AskArgs {
   }
 
   return {
+    ...(allowConcurrent && { allowConcurrent: true }),
     budgetMs,
     background,
     wait,
@@ -569,11 +596,12 @@ export function parseAskArgs(argv: string[]): AskArgs {
 export function parseReviewArgs(argv: string[], commandName: string = "review"): ReviewArgs {
   const parsed = parseKnownFlags(
     argv,
-    new Set(["--budget", "--base", "--background", "--wait", "-m", "--model"]),
+    new Set(["--budget", "--base", "--background", "--wait", "-m", "--model", "--allow-concurrent"]),
     commandName,
   );
 
   return {
+    ...(parsed.allowConcurrent && { allowConcurrent: true }),
     budgetMs: parsed.budgetMs,
     base: parsed.base,
     background: parsed.background,
@@ -586,6 +614,7 @@ export function parseReviewArgs(argv: string[], commandName: string = "review"):
 
 export function parseRescueArgs(argv: string[]): RescueArgs {
   if (hasHelpFlag(argv)) return { help: true, background: false, wait: false, fresh: false, resume: false };
+  let allowConcurrent = false;
   let budgetMs: number | undefined;
   let model: string | undefined;
   let thinkingEffort: string | undefined;
@@ -671,6 +700,9 @@ export function parseRescueArgs(argv: string[]): RescueArgs {
         index += 1;
         break;
       }
+      case "--allow-concurrent":
+        allowConcurrent = true;
+        break;
       default:
         if (looksLikeFlag(token)) {
           throw new RuntimeError(
@@ -702,6 +734,7 @@ export function parseRescueArgs(argv: string[]): RescueArgs {
   }
 
   return {
+    ...(allowConcurrent && { allowConcurrent: true }),
     budgetMs,
     background,
     wait,
@@ -790,6 +823,7 @@ function parseKnownFlags(
   knownFlags: Set<string>,
   commandName: string,
 ): ParsedKnownFlags {
+  let allowConcurrent = false;
   let budgetMs: number | undefined;
   let model: string | undefined;
   let thinkingEffort: string | undefined;
@@ -874,6 +908,9 @@ function parseKnownFlags(
       case "--wait":
         wait = true;
         break;
+      case "--allow-concurrent":
+        allowConcurrent = true;
+        break;
       // The early `if (!knownFlags.has(token))` gate above means we only
       // reach this switch with tokens that ARE in knownFlags, and every
       // member is handled above. A `default` arm would be unreachable.
@@ -881,6 +918,7 @@ function parseKnownFlags(
   }
 
   return {
+    allowConcurrent,
     budgetMs,
     base,
     background,

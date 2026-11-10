@@ -1,11 +1,13 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
-// One change, on every platform: the methods `withWriteLock`,
-// `countRunningJobs`, `rewriteStoredPaths` and `rebaseStoredPaths`, used only
-// by setup when it moves the pre-0.6 data directory to its new name. See
+// Changes, on every platform: the methods `withWriteLock`, `countRunningJobs`,
+// `rewriteStoredPaths` and `rebaseStoredPaths`, used by setup when it moves the
+// pre-0.6 data directory to its new name; and the one-model-job-at-a-time
+// admission (`createJob` with an `admission` argument, `listRunningJobs`). See
 // NOTICE and README.md. Section 4(b) of the License requires this notice.
 import type { SwarmRecoveryRecord } from "./swarm-recovery.js";
 import { createRequire } from "node:module";
 
+import { assertNoModelJobRunning, type Admission } from "./admission.js";
 import { RuntimeError, formatError } from "./errors.js";
 import type { JobError, JobStatus, ManagedCommandType } from "./types.js";
 import type { PluginPaths } from "./paths.js";
@@ -356,7 +358,27 @@ export class JobStore {
     this.db.close();
   }
 
-  createJob(input: CreateJobInput): JobRecord {
+  /**
+   * BRILIA fork (review 0.7.0, finding 3): with `admission`, the one-model-job guard and
+   * the insert happen in ONE write-locked transaction, so two launches that both passed
+   * the early check cannot both start. `allowConcurrent` skips the check. Without
+   * `admission` (review gate, tests, repairs) this is the plain insert.
+   */
+  createJob(input: CreateJobInput, admission?: Admission): JobRecord {
+    if (!admission || admission.allowConcurrent) {
+      return this.insertJob(input);
+    }
+    return this.withWriteLock(() => {
+      // Insert first: a same-session uniqueness violation (ASK_ALREADY_RUNNING /
+      // RESCUE_ALREADY_RUNNING) keeps its more specific error. If other counted jobs
+      // are running, the throw rolls the insert back.
+      const created = this.insertJob(input);
+      assertNoModelJobRunning(this, admission.commandType, false, input.job_id);
+      return created;
+    });
+  }
+
+  private insertJob(input: CreateJobInput): JobRecord {
     const now = new Date().toISOString();
     try {
       this.db.run(
@@ -565,6 +587,14 @@ export class JobStore {
 
   rebaseStoredPaths(map: (storedPath: string) => string | null): number {
     return this.withWriteLock(() => this.rewriteStoredPaths(map));
+  }
+
+  // BRILIA fork (2026-10-15): every running job, oldest first, so the
+  // one-model-job-at-a-time guard (runtime/admission.ts) can name them.
+  listRunningJobs(): JobRecord[] {
+    return this.db
+      .all<DbRow>(`SELECT * FROM jobs WHERE status = 'running' ORDER BY created_at ASC`)
+      .map(hydrateRow);
   }
 
   listRunningJobsWithProcessHints(): JobRecord[] {

@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: one model job at a time (runtime/admission.ts),
+// after a sweep of dead jobs. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { allocateJobId } from "../job-id.js";
 import path from "node:path";
 import process from "node:process";
@@ -6,7 +10,7 @@ import { runCliPromptWithBudget } from "../cli-client.js";
 import { observedExecutionFields, persistedExecutionPlanFields, prepareKimiExecutionPlan, } from "../kimi-engine.js";
 import { getManagedCommandConfig } from "./registry.js";
 import { collectReviewContext } from "../git.js";
-import { digestPrompt, markJobCancelled, markJobFailed } from "../jobs.js";
+import { assertNoModelJobRunning, digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
 import { JobStore } from "../job-store.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { KIMI_REVIEW_PROMPT_TIMEOUT_MS } from "../kimi-timeouts.js";
@@ -38,6 +42,16 @@ export async function runReview(argv, context, commandType) {
         env: context.env,
     });
     const store = new JobStore(paths);
+    // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue). review
+    // never swept stale jobs before; a dead job must not block, so sweep first.
+    try {
+        await sweepStaleJobs(store, paths);
+        assertNoModelJobRunning(store, commandType, parsed.allowConcurrent);
+    }
+    catch (error) {
+        store.close();
+        throw error;
+    }
     const jobId = allocateJobId(context);
     // Leave kimi_session_id NULL until kimi announces an actual ID; never invent
     // one that no on-disk session matches.
@@ -66,7 +80,7 @@ export async function runReview(argv, context, commandType) {
         final_output_path: null,
         stream_log_path: logPath,
         error: null,
-    });
+    }, { commandType, allowConcurrent: parsed.allowConcurrent });
     await writeInvocationLogHeader(logPath, {
         commandType,
         kimiSessionId: reviewSessionId ?? "(pending)",

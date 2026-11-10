@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { assertNoModelJobRunning } from "./admission.js";
 import { RuntimeError, formatError } from "./errors.js";
 export class JobStore {
     db;
@@ -202,7 +203,26 @@ export class JobStore {
     close() {
         this.db.close();
     }
-    createJob(input) {
+    /**
+     * BRILIA fork (review 0.7.0, finding 3): with `admission`, the one-model-job guard and
+     * the insert happen in ONE write-locked transaction, so two launches that both passed
+     * the early check cannot both start. `allowConcurrent` skips the check. Without
+     * `admission` (review gate, tests, repairs) this is the plain insert.
+     */
+    createJob(input, admission) {
+        if (!admission || admission.allowConcurrent) {
+            return this.insertJob(input);
+        }
+        return this.withWriteLock(() => {
+            // Insert first: a same-session uniqueness violation (ASK_ALREADY_RUNNING /
+            // RESCUE_ALREADY_RUNNING) keeps its more specific error. If other counted jobs
+            // are running, the throw rolls the insert back.
+            const created = this.insertJob(input);
+            assertNoModelJobRunning(this, admission.commandType, false, input.job_id);
+            return created;
+        });
+    }
+    insertJob(input) {
         const now = new Date().toISOString();
         try {
             this.db.run(`
@@ -389,6 +409,13 @@ export class JobStore {
     }
     rebaseStoredPaths(map) {
         return this.withWriteLock(() => this.rewriteStoredPaths(map));
+    }
+    // BRILIA fork (2026-10-15): every running job, oldest first, so the
+    // one-model-job-at-a-time guard (runtime/admission.ts) can name them.
+    listRunningJobs() {
+        return this.db
+            .all(`SELECT * FROM jobs WHERE status = 'running' ORDER BY created_at ASC`)
+            .map(hydrateRow);
     }
     listRunningJobsWithProcessHints() {
         const rows = this.db.all(`SELECT * FROM jobs WHERE status = 'running' AND (pid IS NOT NULL OR kimi_pid IS NOT NULL)`);

@@ -1,7 +1,7 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Changes, on every platform: waitForTerminalJob retries a busy job store until
 // its deadline instead of failing the whole wait, and its timeout says the job is
-// still running. See NOTICE and README.md.
+// still running; it also re-exports the one-model-job guard. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { createHash } from "node:crypto";
 import { RuntimeError } from "./errors.js";
@@ -86,6 +86,9 @@ export async function markJobCancelled(store, paths, job, summary, error, option
         ...(phase !== undefined ? { phase } : {}),
     }) ?? artifactJob);
 }
+// BRILIA fork: the one-model-job-at-a-time guard lives in admission.ts (review 0.7.0);
+// re-exported here so the commands import it from jobs.js with the sweep it follows.
+export { assertNoModelJobRunning } from "./admission.js";
 export async function sweepStaleJobs(store, paths) {
     for (const job of store.listRunningJobsWithProcessHints()) {
         if (store.getMcpTask(job.job_id))

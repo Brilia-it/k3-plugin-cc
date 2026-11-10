@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: every model command parses `--allow-concurrent`
+// (see runtime/admission.ts). See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { RuntimeError } from "./errors.js";
 /**
  * Unknown flag-shaped tokens hard-fail instead of being absorbed into prose.
@@ -13,9 +17,12 @@ function looksLikeFlag(token) {
     // Short flag: a single dash followed by exactly one letter (`-r`, `-m`).
     return /^-[a-zA-Z]$/.test(token);
 }
-export const ASK_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --background, --wait, --fresh, -r, --resume <job-id|session-id>";
-export const RESCUE_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --background, --wait, --fresh, -r, --resume <job-id|session-id>";
-export const REVIEW_SUPPORTED_FLAGS = "--base <ref>, -m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>";
+// BRILIA fork (2026-10-15): every model command also takes --allow-concurrent, which
+// overrides for one call the refusal to start a model job while another is running
+// (runtime/admission.ts). It never queues.
+export const ASK_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --background, --wait, --fresh, -r, --resume <job-id|session-id>, --allow-concurrent";
+export const RESCUE_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --background, --wait, --fresh, -r, --resume <job-id|session-id>, --allow-concurrent";
+export const REVIEW_SUPPORTED_FLAGS = "--base <ref>, -m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --allow-concurrent";
 export const JOB_LOOKUP_SUPPORTED_FLAGS = "--type <review|challenge|rescue|review_gate|ask>, --json";
 export const SETUP_SUPPORTED_FLAGS = "--check, --uninstall, --all (with --uninstall), --enable-review-gate, --disable-review-gate, --models [--json] (without other setup flags)";
 export const RECOVER_SWARM_SUPPORTED_FLAGS = "--apply";
@@ -29,8 +36,8 @@ export function validateThinkingEffort(value, stage = "args.parse", lowercase = 
     }
     return effort;
 }
-export const PURSUE_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --turns <N>";
-export const SWARM_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --cap <N>, --max-concurrency <N>, --write";
+export const PURSUE_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --turns <N>, --allow-concurrent";
+export const SWARM_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --cap <N>, --max-concurrency <N>, --write, --allow-concurrent";
 /**
  * Parser for /k3:swarm. Foreground-only: no --background/--fresh/--resume.
  * Trailing tokens are the objective.
@@ -42,6 +49,7 @@ export function parseSwarmArgs(argv) {
     let cap;
     let maxConcurrency;
     let write = false;
+    let allowConcurrent = false;
     let trailingTokens;
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
@@ -77,6 +85,9 @@ export function parseSwarmArgs(argv) {
             case "--write":
                 write = true;
                 break;
+            case "--allow-concurrent":
+                allowConcurrent = true;
+                break;
             case "--budget": {
                 const value = argv[index + 1];
                 if (!value || value.startsWith("-")) {
@@ -110,6 +121,7 @@ export function parseSwarmArgs(argv) {
         cap,
         maxConcurrency,
         write,
+        ...(allowConcurrent && { allowConcurrent: true }),
         model,
         thinkingEffort,
         objective: trailingTokens?.join(" "),
@@ -178,6 +190,7 @@ export function parsePursueArgs(argv) {
     let thinkingEffort;
     let budgetMs;
     let turns;
+    let allowConcurrent = false;
     let trailingTokens;
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
@@ -232,6 +245,9 @@ export function parsePursueArgs(argv) {
                 index += 1;
                 break;
             }
+            case "--allow-concurrent":
+                allowConcurrent = true;
+                break;
             default:
                 if (looksLikeFlag(token)) {
                     throw new RuntimeError("INVALID_ARGS", `Unknown flag ${token} for pursue. Supported flags: ${PURSUE_SUPPORTED_FLAGS}. Use \`--\` before flag-shaped objective text to pass it through.`, "pursue.parse");
@@ -244,6 +260,7 @@ export function parsePursueArgs(argv) {
     return {
         budgetMs,
         turns,
+        ...(allowConcurrent && { allowConcurrent: true }),
         model,
         thinkingEffort,
         objective: trailingTokens?.join(" "),
@@ -279,6 +296,7 @@ export function hasHelpFlag(argv) {
 export function parseAskArgs(argv) {
     if (hasHelpFlag(argv))
         return { help: true, background: false, wait: false, fresh: false, resume: false };
+    let allowConcurrent = false;
     let budgetMs;
     let model;
     let thinkingEffort;
@@ -352,6 +370,9 @@ export function parseAskArgs(argv) {
                 index += 1;
                 break;
             }
+            case "--allow-concurrent":
+                allowConcurrent = true;
+                break;
             default:
                 if (looksLikeFlag(token)) {
                     throw new RuntimeError("INVALID_ARGS", `Unknown flag ${token} for ask. Supported flags: ${ASK_SUPPORTED_FLAGS}. Use \`--\` before flag-shaped prompt text to pass it through.`, "args.parse");
@@ -368,6 +389,7 @@ export function parseAskArgs(argv) {
         throw new RuntimeError("INVALID_ARGS", "--resume only accepts a job-id or session-id. Use -r to resume the latest ask session with a prompt.", "ask.parse");
     }
     return {
+        ...(allowConcurrent && { allowConcurrent: true }),
         budgetMs,
         background,
         wait,
@@ -380,8 +402,9 @@ export function parseAskArgs(argv) {
     };
 }
 export function parseReviewArgs(argv, commandName = "review") {
-    const parsed = parseKnownFlags(argv, new Set(["--budget", "--base", "--background", "--wait", "-m", "--model"]), commandName);
+    const parsed = parseKnownFlags(argv, new Set(["--budget", "--base", "--background", "--wait", "-m", "--model", "--allow-concurrent"]), commandName);
     return {
+        ...(parsed.allowConcurrent && { allowConcurrent: true }),
         budgetMs: parsed.budgetMs,
         base: parsed.base,
         background: parsed.background,
@@ -394,6 +417,7 @@ export function parseReviewArgs(argv, commandName = "review") {
 export function parseRescueArgs(argv) {
     if (hasHelpFlag(argv))
         return { help: true, background: false, wait: false, fresh: false, resume: false };
+    let allowConcurrent = false;
     let budgetMs;
     let model;
     let thinkingEffort;
@@ -467,6 +491,9 @@ export function parseRescueArgs(argv) {
                 index += 1;
                 break;
             }
+            case "--allow-concurrent":
+                allowConcurrent = true;
+                break;
             default:
                 if (looksLikeFlag(token)) {
                     throw new RuntimeError("INVALID_ARGS", `Unknown flag ${token} for rescue. Supported flags: ${RESCUE_SUPPORTED_FLAGS}. Use \`--\` before flag-shaped prompt text to pass it through.`, "args.parse");
@@ -483,6 +510,7 @@ export function parseRescueArgs(argv) {
         throw new RuntimeError("INVALID_ARGS", "--resume only accepts a job-id or session-id. Use -r to resume the latest rescue session with a prompt.", "rescue.parse");
     }
     return {
+        ...(allowConcurrent && { allowConcurrent: true }),
         budgetMs,
         background,
         wait,
@@ -535,6 +563,7 @@ function isManagedCommandType(value) {
         value === "ask");
 }
 function parseKnownFlags(argv, knownFlags, commandName) {
+    let allowConcurrent = false;
     let budgetMs;
     let model;
     let thinkingEffort;
@@ -603,12 +632,16 @@ function parseKnownFlags(argv, knownFlags, commandName) {
             case "--wait":
                 wait = true;
                 break;
+            case "--allow-concurrent":
+                allowConcurrent = true;
+                break;
             // The early `if (!knownFlags.has(token))` gate above means we only
             // reach this switch with tokens that ARE in knownFlags, and every
             // member is handled above. A `default` arm would be unreachable.
         }
     }
     return {
+        allowConcurrent,
         budgetMs,
         base,
         background,

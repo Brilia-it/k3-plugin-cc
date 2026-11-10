@@ -171,14 +171,14 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/manual/shell-probe-discrimination.mjs": "added: manual check that the Windows shell probe discriminates a quoting fault (T02 row 4)",
   // Behaviour: a busy job store (T02 row 22).
   "runtime/jobs.ts":
-    "waitForTerminalJob polls again past a busy job store (isJobStoreBusy) instead of failing the wait; JOB_WAIT_TIMEOUT says the job is STILL RUNNING (T02 row 15)",
+    "waitForTerminalJob polls again past a busy job store (isJobStoreBusy) instead of failing the wait; JOB_WAIT_TIMEOUT says the job is STILL RUNNING (T02 row 15); re-exports the one-model-job guard (T02 row 17)",
   // Behaviour: --wait waits for the job's budget and exits non-zero on a failed job (T02 rows 13, 14).
   "runtime/background-spawn.ts":
     "--wait waits for job.budget_ms (or the command default) plus a grace period; a waited job that ended failed or cancelled raises TerminalJobFailure",
   "runtime/errors.ts": "added TerminalJobFailure (T02 row 14)",
   "runtime/companion.ts": "TerminalJobFailure prints the artifact on stdout and exits non-zero (T02 row 14)",
-  "runtime/commands/ask.ts": "passes the command's default budget to the background wait (T02 row 13)",
-  "runtime/commands/rescue.ts": "passes the command's default budget to the background wait (T02 row 13)",
+  "runtime/commands/ask.ts": "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17)",
+  "runtime/commands/rescue.ts": "passes the command's default budget to the background wait (T02 row 13); one model job at a time (T02 row 17)",
   "tests/runtime/wait-budget.test.ts": "added: the wait follows the job budget, JOB_WAIT_TIMEOUT text (NOTICE 3)",
   "tests/runtime/wait-exit-code.test.ts": "added: a waited failed job exits non-zero with its artifact on stdout (NOTICE 3)",
   // Behaviour: Kimi's provider limits classified apart from STARTUP_FAILED (T02 row 16).
@@ -187,6 +187,13 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "runtime/commands/cli-helpers.ts": "CLI_NONZERO_EXIT keeps the stderr tail in details when the cliError record took the message's place (T02 row 16)",
   "tests/helpers/mock-kimi-cli-v1.ts": "quota-fail scenario (stderr or stdout channel, optional resume line) and the child pid in the invocation log",
   "tests/runtime/kimi-errors-limits.test.ts": "added: classification of the provider limits on both channels (NOTICE 3)",
+  // Behaviour: one model job at a time, refuse never queue (T02 row 17).
+  "runtime/admission.ts": "added: the one-model-job-at-a-time guard (NOTICE 3)",
+  "runtime/parsing.ts": "every model command parses --allow-concurrent",
+  "runtime/commands/review.ts": "sweeps dead jobs, then one model job at a time",
+  "runtime/commands/pursue.ts": "one model job at a time",
+  "runtime/commands/swarm.ts": "one model job at a time, read and write mode",
+  "tests/runtime/concurrency-guard.test.ts": "added: the guard on every model command, MCP child launches and the atomic insert (NOTICE 3)",
   "tests/runtime/job-store-busy-open.test.ts": "added: opening the store and waiting under real lock contention (NOTICE 3)",
   "tests/helpers/hold-exclusive-lock.ts": "added: test helper, holds an exclusive SQLite lock from another process (NOTICE 3)",
   "tests/helpers/open-job-store-node.mjs": "added: test helper, opens the compiled JobStore under plain Node (NOTICE 3)",
@@ -196,7 +203,8 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "runtime/hooks/legacy-brand.ts": "added: removes this fork's pre-0.6 hook blocks under upstream's marker, never upstream's (NOTICE 3)",
   "runtime/legacy-names.ts": "added: moves the pre-0.6 data directory, reports the KIMI_PLUGIN_CC_* variables (NOTICE 3)",
   "runtime/paths.ts": "the pre-0.6 data directory kimi-plugin-cc stays in use until setup moves it, and is never recreated",
-  "runtime/job-store.ts": "withWriteLock, countRunningJobs, rewriteStoredPaths, rebaseStoredPaths for the data-directory move",
+  "runtime/job-store.ts":
+    "withWriteLock, countRunningJobs, rewriteStoredPaths, rebaseStoredPaths for the data-directory move; createJob with admission and listRunningJobs for the one-model-job guard (T02 row 17)",
   "tests/runtime/legacy-brand.test.ts": "added: tests of the migration from the pre-0.6 names (NOTICE 3)",
   "tests/helpers/hold-write-lock.ts": "added: test helper, holds the job store's write lock from another process (NOTICE 3)",
   // Behaviour: the plugin recognises its own installation (T02 row 10).

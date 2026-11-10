@@ -1,3 +1,6 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: one model job at a time (runtime/admission.ts).
+// See NOTICE and README.md. Section 4(b) of the License requires this notice.
 import { resolveKimiHome } from "../kimi-home.js";
 import { probeProcessIdentity } from "../process-tree.js";
 import { recordRecoveryEvent, finishRecoveryRecord, type SwarmRecoveryRecord } from "../swarm-recovery.js";
@@ -29,7 +32,7 @@ import {
   resolveRepoIdentity,
   type RepoIdentity,
 } from "../git.js";
-import { digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
+import { assertNoModelJobRunning, digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
 import { JobStore, type JobRecord } from "../job-store.js";
 import { classifyManagedCommandFailure } from "../kimi-errors.js";
 import { KIMI_SWARM_DEFAULT_BUDGET_MS } from "../kimi-timeouts.js";
@@ -209,6 +212,9 @@ async function runReadSwarm(
 
   try {
     await sweepStaleJobs(store, paths);
+    // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue).
+    // The swarm's own internal fan-out is one job and is not affected.
+    assertNoModelJobRunning(store, "swarm", parsed.allowConcurrent);
     const executionPlan = await prepareKimiExecutionPlan({
       operationKind: "swarm",
       cwd: context.cwd,
@@ -244,7 +250,7 @@ async function runReadSwarm(
       final_output_path: null,
       stream_log_path: logPath,
       error: null,
-    });
+    }, { commandType: "swarm", allowConcurrent: parsed.allowConcurrent });
 
     try {
       await writeInvocationLogHeader(logPath, {
@@ -300,6 +306,8 @@ async function runWriteSwarm(
 
   try {
     await sweepStaleJobs(store, paths);
+    // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue).
+    assertNoModelJobRunning(store, "swarm", parsed.allowConcurrent);
     // Write mode needs a real git repo and a born HEAD before any job state is
     // created. Its execution plan is certified below from the actual throwaway
     // worktree cwd, not from the user's tree.
@@ -375,7 +383,7 @@ async function runWriteSwarm(
         final_output_path: null,
         stream_log_path: logPath,
         error: null,
-      });
+      }, { commandType: "swarm", allowConcurrent: parsed.allowConcurrent });
 
       try {
         await writeInvocationLogHeader(logPath, {

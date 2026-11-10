@@ -1,6 +1,6 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Changes, on every platform: `--background --wait` waits for the job's own
-// budget. See NOTICE and README.md.
+// budget; one model job at a time (runtime/admission.ts). See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { companionHelp } from "../help.js";
 import { allocateJobId } from "../job-id.js";
@@ -19,7 +19,7 @@ import {
 import { getManagedCommandConfig } from "./registry.js";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
-import { digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
+import { assertNoModelJobRunning, digestPrompt, markJobCancelled, markJobFailed, sweepStaleJobs } from "../jobs.js";
 import { JobStore, type JobRecord } from "../job-store.js";
 import { KIMI_ASK_PROMPT_TIMEOUT_MS } from "../kimi-timeouts.js";
 import { writeInvocationLogHeader } from "../logging.js";
@@ -93,6 +93,11 @@ export async function runAsk(argv: string[], context: CommandContext): Promise<s
       parsed.resume,
       parsed.resumeTarget,
     );
+    // BRILIA fork (2026-10-15): one model job at a time (refuse, never queue).
+    // After the session resolution on purpose: resuming a session that is itself
+    // still running keeps its more specific ASK_ALREADY_RUNNING. This early check
+    // is a fast path; the final one is in createJob's transaction.
+    assertNoModelJobRunning(store, "ask", parsed.allowConcurrent);
     const askPrompt = buildAskPrompt(parsed.prompt, sessionResolution.reusedSession);
     const executionPlan = await prepareKimiExecutionPlan({
       operationKind: "ask",
@@ -128,7 +133,7 @@ export async function runAsk(argv: string[], context: CommandContext): Promise<s
       final_output_path: null,
       stream_log_path: logPath,
       error: null,
-    });
+    }, { commandType: "ask", allowConcurrent: parsed.allowConcurrent });
 
     try {
       await writeInvocationLogHeader(logPath, {
