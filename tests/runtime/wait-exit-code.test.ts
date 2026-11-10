@@ -53,6 +53,23 @@ describe("--background --wait exit code (built companion)", () => {
     }
   }, 90_000);
 
+  test("a quota failure (stderr line, then stdout record) is classified in the artifact and exits non-zero", async () => {
+    for (const channel of ["stderr", "stdout"]) {
+      const root = await createTestPluginDataRoot(`wait-exit-quota-${channel}`);
+      const repoRoot = await createGitRepoFixture(`wait-exit-quota-${channel}-repo`);
+      try {
+        const env = { ...mockEnv(root, "quota-fail"), K3_PLUGIN_CC_MOCK_QUOTA_CHANNEL: channel };
+        const result = await run(["ask", "--background", "--wait", "read the big document"], env, repoRoot);
+        expect(result.code).not.toBe(0);
+        expect(result.stdout).toContain("ASK_KIMI_QUOTA_EXHAUSTED");
+        expect(result.stdout).toContain("5-hour");
+      } finally {
+        await cleanupTestPath(root);
+        await cleanupTestPath(repoRoot);
+      }
+    }
+  }, 120_000);
+
   test("a successful waited job still exits zero with the answer", async () => {
     const root = await createTestPluginDataRoot("wait-exit-ok");
     const repoRoot = await createGitRepoFixture("wait-exit-ok-repo");

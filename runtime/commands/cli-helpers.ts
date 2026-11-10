@@ -1,3 +1,8 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: a CLI_NONZERO_EXIT that carries the stdout
+// cliError record also keeps the stderr tail in its details, for the
+// provider-limit classification. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { RuntimeError } from "../errors.js";
 import { ResponseTimeoutError, type CliClientResult } from "../cli-client.js";
 import { observedExecutionFields } from "../kimi-engine.js";
@@ -123,6 +128,12 @@ export function assertCliResultSuccess(result: CliClientResult, stage: string): 
           record_count: result.records.length,
           malformed_count: result.malformed.length,
           ...(result.cliError !== undefined && { cli_error: result.cliError }),
+          // BRILIA fork: when the cliError record took the message's place, keep the
+          // stderr tail too (its last 4000 characters), so the provider-limit
+          // classification in kimi-errors.ts can read both channels.
+          ...(result.cliError !== undefined && result.stderrTail.trim().length > 0 && {
+            stderr_tail: result.stderrTail.trim().slice(-4000),
+          }),
           stderr_tail_len: result.stderrTail.length,
         },
       },

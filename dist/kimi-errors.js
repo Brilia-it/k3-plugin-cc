@@ -1,3 +1,8 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: Kimi's provider limits (usage quota, concurrent
+// request limit, plan, context window) are classified apart from
+// `_KIMI_STARTUP_FAILED`, whose "/k3:setup" advice cannot fix any of them. See
+// NOTICE and README.md. Section 4(b) of the License requires this notice.
 import { RuntimeError, formatError } from "./errors.js";
 const BUDGET_CEILING_MS = 24 * 60 * 60 * 1_000;
 function formatBudgetMs(ms) {
@@ -20,7 +25,7 @@ function budgetAdvice(budgetMs) {
     return `raise the budget (e.g. \`--budget ${formatBudgetMs(Math.min(budgetMs * 2, BUDGET_CEILING_MS))}\`)`;
 }
 export function classifyManagedCommandFailure(error, commandType, jobId, options) {
-    const classification = classifyKimiAvailability(error);
+    const classification = classifyKimiAvailability(error, options);
     if (!classification) {
         return error instanceof Error ? error : new Error(String(error));
     }
@@ -41,7 +46,7 @@ export function classifyManagedCommandFailure(error, commandType, jobId, options
     // `auth.login_required` on 2026-08-08) was reduced to the generic
     // "run /k3:setup" advice with the real cause reachable only as `cause`,
     // which no output channel serializes — an LLM caller could not diagnose it.
-    const details = { availability: classification.kind };
+    const details = { availability: classification.kind, ...(classification.details ?? {}) };
     if (error instanceof RuntimeError) {
         details.cause_code = error.code;
         for (const key of ["spawn_code", "spawn_errno", "spawn_message"]) {
@@ -77,7 +82,14 @@ function truncateCauseMessageForDetails(message) {
     return `…${message.slice(-CAUSE_MESSAGE_DETAILS_MAX)}`;
 }
 export function summarizeKimiAvailabilityWarning(error, commandType) {
-    const classification = classifyKimiAvailability(error);
+    // BRILIA fork: an error that classifyManagedCommandFailure already classified carries
+    // its kind in details.availability; summarise THAT instead of reclassifying the
+    // formatted text (which would re-read serialized details and could reverse the
+    // last-provider-line precedence).
+    const recorded = error instanceof RuntimeError ? error.details.availability : undefined;
+    const classification = typeof recorded === "string"
+        ? { kind: recorded }
+        : classifyKimiAvailability(error);
     if (!classification) {
         return null;
     }
@@ -89,6 +101,19 @@ export function summarizeKimiAvailabilityWarning(error, commandType) {
     }
     if (classification.kind === "startup_failed") {
         return `K3 ${formatCommandLabel(commandType).toLowerCase()} could not start a usable Kimi subprocess; allowing stop.`;
+    }
+    // BRILIA fork (2026-10-15): the gate stays fail-open for provider limits too.
+    if (classification.kind === "quota_exhausted") {
+        return `K3 ${formatCommandLabel(commandType).toLowerCase()} hit a Kimi usage limit (call volume, not the context window); allowing stop.`;
+    }
+    if (classification.kind === "concurrency_limited") {
+        return `K3 ${formatCommandLabel(commandType).toLowerCase()} hit Kimi's concurrent request limit; allowing stop.`;
+    }
+    if (classification.kind === "plan_unavailable") {
+        return `K3 ${formatCommandLabel(commandType).toLowerCase()} is not available on the current Kimi subscription; allowing stop.`;
+    }
+    if (classification.kind === "context_exceeded") {
+        return `K3 ${formatCommandLabel(commandType).toLowerCase()} exceeded the model's context; allowing stop.`;
     }
     switch (classification.kind) {
         case "startup_timeout":
@@ -103,10 +128,152 @@ export function summarizeKimiAvailabilityWarning(error, commandType) {
             return `K3 ${formatCommandLabel(commandType).toLowerCase()} timed out; allowing stop.`;
     }
 }
-export function classifySetupFailure(error) {
-    return classifyKimiAvailability(error);
+export function classifySetupFailure(error, options) {
+    return classifyKimiAvailability(error, options);
 }
-function classifyKimiAvailability(error) {
+/**
+ * BRILIA fork (review 0.7.0): provider limits are classified ONLY from kimi's own
+ * provider error line, `error: failed to run prompt: provider.auth_error: 403 You've
+ * reached ...`, never from the whole message. A local error that merely mentions
+ * "does not have access to", or a quota sentence echoed in a log, must not become
+ * account advice. The marker must START a line (after trimming), optionally behind
+ * kimi's `error: failed to run prompt:` prefix. Returns the payload after the marker
+ * of the LAST provider line, or null.
+ */
+export function extractProviderPayload(message) {
+    let payload = null;
+    for (const rawLine of message.split(/\r?\n/)) {
+        const match = /^(?:error: failed to run prompt: )?provider\.[a-z_]+_error:\s*(.*)$/i.exec(rawLine.trim());
+        if (match) {
+            payload = match[1] ?? "";
+        }
+    }
+    return payload;
+}
+/**
+ * BRILIA fork: the text in which to look for kimi's provider line.
+ *
+ * kimi-code 2.5.x reports a failed prompt on two channels, and it is NOT VERIFIED on
+ * which of the two it writes the `provider.<kind>_error:` line (no real 403 has been
+ * observed on 2.5.x): the stderr tail (up to 2.1.x the only one, 2026-10-15 incident)
+ * and, since 2.3.0, a role-less `{"type":"error","code","message"}` record on stdout
+ * that the CLI client keeps as `cliError`. assertCliResultSuccess embeds only one of
+ * them in the CLI_NONZERO_EXIT message (cliError when present, else the stderr tail),
+ * so both are read here: the message itself, the stderr tail it carries in
+ * `details.stderr_tail` when cliError took the message's place, and the cliError
+ * record, both as its message and as a `<code>: <message>` line (in case the code is
+ * the `provider.<kind>_error` marker). The cliError record comes last, so it decides
+ * when both channels carry a provider line. Only the fields assertCliResultSuccess
+ * itself writes are read, and only on CLI_NONZERO_EXIT: other serialized details stay
+ * out.
+ */
+function providerSourceText(error) {
+    if (!(error instanceof Error))
+        return String(error);
+    const parts = [error.message];
+    if (error instanceof RuntimeError && error.code === "CLI_NONZERO_EXIT") {
+        const tail = error.details.stderr_tail;
+        if (typeof tail === "string")
+            parts.push(tail);
+        const cliError = error.details.cli_error;
+        if (cliError !== null && typeof cliError === "object") {
+            const { code, message } = cliError;
+            if (typeof message === "string") {
+                parts.push(message);
+                if (typeof code === "string")
+                    parts.push(`${code}: ${message}`);
+            }
+        }
+    }
+    return parts.join("\n");
+}
+/**
+ * BRILIA fork (2026-10-15 incident): which provider limit, if any, kimi reports.
+ * Texts are the ones in https://www.kimi.com/code/docs/en/kimi-code/error-reference.html
+ * (checked 2026-10-15). Case-insensitive; `you.ve` tolerates a curly apostrophe.
+ */
+function classifyProviderLimit(payload, options) {
+    const text = payload.toLowerCase();
+    let limit = null;
+    if (text.includes("5-hour usage limit")) {
+        limit = "5-hour";
+    }
+    else if (text.includes("weekly (7-day) usage limit")) {
+        limit = "weekly";
+    }
+    else if (text.includes("usage limit for this billing cycle")) {
+        limit = "billing-cycle";
+    }
+    else if (/you.ve reached your[^\n]*usage limit/.test(text)) {
+        limit = "unspecified";
+    }
+    if (limit !== null) {
+        const which = limit === "5-hour"
+            ? "5-hour rolling window"
+            : limit === "weekly"
+                ? "weekly (7-day)"
+                : limit === "billing-cycle"
+                    ? "monthly billing cycle"
+                    : "plan";
+        const resume = options?.omitResumeHint
+            ? ""
+            : options?.resumeCommand
+                ? `The work already done is kept in the Kimi session: once the limit resets, continue with \`${options.resumeCommand}\`.`
+                : "No resumable Kimi session was kept for this job, so a retry starts from zero.";
+        return {
+            kind: "quota_exhausted",
+            summary: `the Kimi subscription refused the call: the ${which} usage limit is reached. This is call volume on your plan, NOT the context window.`,
+            nextStep: "`/k3:setup` does not fix it. The limit resets by itself when the window ends (or buy extra usage from Kimi). " +
+                "For long read-heavy jobs, `kimi-code/k3-256k` uses about half the quota of `k3` at 1M context. " +
+                `Run jobs one at a time.${resume ? ` ${resume}` : ""}`,
+            runtimeProbe: "ok",
+            authProbe: "ok",
+            details: { limit },
+        };
+    }
+    if (text.includes("concurrent request limit")) {
+        return {
+            kind: "concurrency_limited",
+            summary: "Kimi refused the call under its concurrent request limit. This is risk control, not quota: it is unrelated to how much quota remains.",
+            nextStep: "Run one job at a time. If it persists with a single job, use Kimi's appeal process. `/k3:setup` does not fix it.",
+            runtimeProbe: "ok",
+            authProbe: "ok",
+        };
+    }
+    if (text.includes("does not have access to")) {
+        return {
+            kind: "plan_unavailable",
+            summary: "the current Kimi subscription does not include this model, or Kimi Code, right now.",
+            nextStep: "Check the plan on your Kimi account. For `k3` the Kimi docs suggest `kimi-for-coding` (pass `-m kimi-for-coding`). `/k3:setup` does not fix it.",
+            runtimeProbe: "ok",
+            authProbe: "failed",
+        };
+    }
+    // Official "no 1M access" denial (error reference, anchor #no-1m-access).
+    if (text.includes("supports only k3 up to 256k context")) {
+        return {
+            kind: "context_exceeded",
+            summary: "the current plan has no 1M context access for `k3`, only up to 256K.",
+            nextStep: "The remedy is to stay within 256K (use kimi-code/k3-256k), or upgrade to a plan with 1M. `/k3:setup` does not fix it.",
+            runtimeProbe: "ok",
+            authProbe: "ok",
+            details: { reason: "plan-256k" },
+        };
+    }
+    if (text.includes("exceeded model token limit") ||
+        text.includes("total message size") ||
+        text.includes("supports only 256k context")) {
+        return {
+            kind: "context_exceeded",
+            summary: "the request exceeded the model's context limit.",
+            nextStep: "Narrow the scope or split the work into smaller jobs. `k3-256k` is fixed at 256K; `k3` has 1M only on Pro / Allegretto and above. `/k3:setup` does not fix it.",
+            runtimeProbe: "ok",
+            authProbe: "ok",
+        };
+    }
+    return null;
+}
+function classifyKimiAvailability(error, options) {
     const message = formatError(error);
     // kimi-code's managed OAuth store emits `auth.login_required: OAuth
     // provider "managed:kimi-code" requires login…` on stderr when the token
@@ -124,6 +291,17 @@ function classifyKimiAvailability(error) {
             runtimeProbe: "ok",
             authProbe: "failed",
         };
+    }
+    // BRILIA fork (2026-10-15): same reason as the auth.login_required branch above.
+    // A provider limit arrives inside the same CLI_NONZERO_EXIT and must not fall into
+    // the generic startup_failed branch below, whose "/k3:setup" advice cannot fix a
+    // quota, a plan, or a context window. Read from the error's OWN text and the two
+    // CLI channels (providerSourceText), never from formatError output, which appends
+    // serialized details such as cause_message.
+    const providerPayload = extractProviderPayload(providerSourceText(error));
+    const providerLimit = providerPayload === null ? null : classifyProviderLimit(providerPayload, options);
+    if (providerLimit) {
+        return providerLimit;
     }
     if (message.includes("LLM is not set") || message.includes("LLM service error")) {
         return {
@@ -236,6 +414,14 @@ function mapAvailabilityCode(kind, commandType) {
             return `${prefix}_KIMI_BINARY_UNAVAILABLE`;
         case "startup_failed":
             return `${prefix}_KIMI_STARTUP_FAILED`;
+        case "quota_exhausted":
+            return `${prefix}_KIMI_QUOTA_EXHAUSTED`;
+        case "concurrency_limited":
+            return `${prefix}_KIMI_CONCURRENCY_LIMITED`;
+        case "plan_unavailable":
+            return `${prefix}_KIMI_PLAN_UNAVAILABLE`;
+        case "context_exceeded":
+            return `${prefix}_KIMI_CONTEXT_EXCEEDED`;
         case "startup_timeout":
             return `${prefix}_KIMI_STARTUP_TIMEOUT`;
         case "initialize_timeout":

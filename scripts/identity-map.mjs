@@ -181,6 +181,12 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "runtime/commands/rescue.ts": "passes the command's default budget to the background wait (T02 row 13)",
   "tests/runtime/wait-budget.test.ts": "added: the wait follows the job budget, JOB_WAIT_TIMEOUT text (NOTICE 3)",
   "tests/runtime/wait-exit-code.test.ts": "added: a waited failed job exits non-zero with its artifact on stdout (NOTICE 3)",
+  // Behaviour: Kimi's provider limits classified apart from STARTUP_FAILED (T02 row 16).
+  "runtime/kimi-errors.ts":
+    "<CMD>_KIMI_QUOTA_EXHAUSTED, _CONCURRENCY_LIMITED, _PLAN_UNAVAILABLE, _CONTEXT_EXCEEDED from kimi's last provider line, read from the stderr tail and the cliError record",
+  "runtime/commands/cli-helpers.ts": "CLI_NONZERO_EXIT keeps the stderr tail in details when the cliError record took the message's place (T02 row 16)",
+  "tests/helpers/mock-kimi-cli-v1.ts": "quota-fail scenario (stderr or stdout channel, optional resume line) and the child pid in the invocation log",
+  "tests/runtime/kimi-errors-limits.test.ts": "added: classification of the provider limits on both channels (NOTICE 3)",
   "tests/runtime/job-store-busy-open.test.ts": "added: opening the store and waiting under real lock contention (NOTICE 3)",
   "tests/helpers/hold-exclusive-lock.ts": "added: test helper, holds an exclusive SQLite lock from another process (NOTICE 3)",
   "tests/helpers/open-job-store-node.mjs": "added: test helper, opens the compiled JobStore under plain Node (NOTICE 3)",
