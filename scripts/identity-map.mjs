@@ -165,6 +165,8 @@ export const DECLARED_DIVERGENT = Object.freeze({
   // Behaviour: Windows (T02 row 3).
   "runtime/commands/setup.ts": "Windows: the shell probe runs through cmd.exe instead of reporting a skipped check as passed; classifyProbeExit names the cause",
   "tests/runtime/setup-shell-probe.test.ts": "added: tests of classifyProbeExit (NOTICE 3)",
+  "tests/manual/enforcement-matrix.mjs": "added: manual Windows enforcement matrix, not run in CI (T02 row 4)",
+  "tests/manual/shell-probe-discrimination.mjs": "added: manual check that the Windows shell probe discriminates a quoting fault (T02 row 4)",
   // Behaviour: the plugin recognises its own installation (T02 row 10).
   "runtime/plugin-data.ts": "the installed-package check looks for this fork's plugin directory k3, not upstream's kimi",
   "tests/runtime/plugin-data.test.ts": "fixtures install the plugin under k3, as this fork is installed",
