@@ -1,6 +1,6 @@
 ---
 description: Run a read-only Kimi challenge review that challenges assumptions and surfaces safer alternatives.
-argument-hint: "[--budget <30m|1h|90s>] [--base <ref>] [-m <model>] [--thinking <effort>] [extra prose]"
+argument-hint: "[--budget <30m|1h|90s>] [--base <ref>] [--allow-concurrent] [-m <model>] [--thinking <effort>] [extra prose]"
 disable-model-invocation: true
 ---
 
@@ -16,6 +16,7 @@ Supported flags:
 
 - `--base <ref>` — challenge against a branch/commit diff instead of the working tree. Working-tree challenges also include untracked files listed by `git status`; `--base` remains branch/commit-diff only.
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `CHALLENGE_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 - trailing text — adversarial focus or framing to steer the challenge
 
 Reasoning behavior follows the selected model and Kimi configuration unless `--thinking <effort>` requests one for this run (honoured by Kimi's own providers on models that can turn thinking off; other providers ignore it silently; the plugin cannot verify it). The default budget is 30m; use `--budget` to change it. Challenge runs foreground-synchronously; it does not support `--background` or `--wait`.

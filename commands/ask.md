@@ -1,6 +1,6 @@
 ---
 description: Ask Kimi a read-only question in free-form prose mode.
-argument-hint: "[--budget <30m|1h|90s>] [--background] [--wait] [-r | --resume <id>] [--fresh] [-m <model>] [--thinking <effort>] <prompt>"
+argument-hint: "[--budget <30m|1h|90s>] [--background] [--wait] [-r | --resume <id>] [--fresh] [--allow-concurrent] [-m <model>] [--thinking <effort>] <prompt>"
 disable-model-invocation: true
 ---
 
@@ -15,15 +15,18 @@ Supported flags:
 - `--budget <dur>` — wall-clock ceiling (default 30m; `30m`, `1h`, `90s`, or bare minutes; maximum 24h)
 
 - `--background` — spawn as a background job and return `{job_id}` immediately
-- `--wait` — combined with `--background`, block until terminal state and return the rendered answer
+- `--wait` — combined with `--background`, block until terminal state and return the rendered answer. It waits for the job's own budget plus a 60 s grace period, not a fixed minute; if it still stops waiting it says the job is STILL RUNNING, and starting another job then would run in parallel
 - `-r` — resume the latest ask session for the current repo; any trailing text becomes the next prompt
 - `--resume <job-id-or-session-id>` — resume a specific prior ask session without a new prompt payload
 - `--fresh` — force a new ask session id instead of reusing a prior session
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `ASK_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 
 Reasoning behavior follows the selected model and Kimi configuration unless `--thinking <effort>` requests one for this run (honoured by Kimi's own providers on models that can turn thinking off; other providers ignore it silently; the plugin cannot verify it). The default budget is 30m; use `--budget` to change it. Backgrounding does not extend the runtime budget.
 
 A budget timeout leaves the job `failed` and saves any partial assistant prose in its artifact, labeled **NOT a final answer**. Read it with `result <jobId>` or `result <jobId> --json`; tool-only runs explicitly report no assistant prose. A session ID is kept if Kimi announced it or, on a native-v2 budget timeout, recovered from the session store when exactly one session matches this spawn — created between spawn and settlement in the same directory AND whose journal opens with this job's exact prompt; `result --json` identifies the source in `kimi_session_id_source`, and `error.details.session_recovery` says why no ID was recovered (`none`, `journal_missing:<n>`, `digest_mismatch:<n>`, `ambiguous:<n>`, `enumeration_capped`, `engine_unobserved`). Cancellation does not capture partial output. A resume without `--budget` inherits the parent job's budget; an explicit budget overrides it. Inherited budgets are printed to stderr at launch; status and `result --json` expose `budget_source` (`explicit`, `inherited`, or `default`; old non-null budgets report `unknown`). Use `--help` or `-h` among the leading flags for usage; once prompt text starts, `-h` is part of the prompt. Other failures (nonzero exit, cancellation) do not capture partial output.
+
+With `--background --wait`, a job that ends failed or cancelled prints its artifact on stdout and exits non-zero. A job that fails on a non-zero exit (a usage limit ends this way) keeps the session Kimi announced, or the one recovered with the same proof as on a budget timeout; the quota message then names `/k3:ask --resume <job-id>`.
 
 Return the companion stdout verbatim.
 

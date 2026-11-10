@@ -1,6 +1,6 @@
 ---
 description: Run a read-only Kimi review over the current working tree changes or a base ref diff.
-argument-hint: "[--budget <30m|1h|90s>] [--base <ref>] [-m <model>] [--thinking <effort>] [extra prose]"
+argument-hint: "[--budget <30m|1h|90s>] [--base <ref>] [--allow-concurrent] [-m <model>] [--thinking <effort>] [extra prose]"
 disable-model-invocation: true
 ---
 
@@ -16,6 +16,7 @@ Supported flags:
 
 - `--base <ref>` — review against a branch/commit diff instead of the working tree. Working-tree reviews also include untracked files listed by `git status`; `--base` remains branch/commit-diff only.
 - `-m`, `--model <name>`
+- `--allow-concurrent` - override, for this one call, the refusal to start a model job while another is running. By default the plugin runs ONE model job at a time (the Kimi quota is call volume in a rolling window, parallel jobs burn it together) and refuses with `REVIEW_JOB_ALREADY_RUNNING`; it never queues. Use the flag only when the user asks for it
 - trailing text — optional focus hint for the review
 
 Reasoning behavior follows the selected model and Kimi configuration unless `--thinking <effort>` requests one for this run (honoured by Kimi's own providers on models that can turn thinking off; other providers ignore it silently; the plugin cannot verify it). The default budget is 30m; use `--budget` to change it. Review runs foreground-synchronously; it does not support `--background` or `--wait`.

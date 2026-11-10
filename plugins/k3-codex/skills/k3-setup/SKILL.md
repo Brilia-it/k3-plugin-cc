@@ -17,7 +17,7 @@ Forward this request to the local Kimi Code companion runtime by shell. Do not u
 
 ## Arguments
 
-Pass through: `[--models [--json] | --check | --uninstall [--all] | --enable-review-gate | --disable-review-gate]`
+Pass through: `[--models [--json] | --check [--probe-model [-m <model>] [--allow-concurrent]] | --uninstall [--all] | --enable-review-gate | --disable-review-gate]`
 
 ## Handling
 
@@ -31,4 +31,5 @@ Pass through: `[--models [--json] | --check | --uninstall [--all] | --enable-rev
 - For subscription auth, guide native Kimi `/login`; for API keys or other providers, guide native `/provider` and have the user enter secrets there. Only an explicit saved-default request calls for native `/model`. Re-list after setup; use `setup --check` for hook readiness. Swarm `-m` selects the coordinator; `[secondary_model]` can select different child models.
 - Use `--check` for read-only verification and `--uninstall` only when explicitly requested. `--uninstall` removes only this host's block; `--uninstall --all` removes every host's block from the shared config.
 - Setup validates the complete shared TOML and every configured hook under a serialized lock. If it reports invalid foreign config, surface that failure; do not bypass it or claim the managed block is safe in isolation.
+- BRILIA fork: `--check` tests the hook, not model access, plan or quota. Add `--probe-model [-m <model>]` only when asked (or before a long job): it sends one prompt (120 s budget; the provider may count more than one request), goes through the same one-job admission, and reports `Model probe: ok|failed|skipped` with the classified provider error.
 - Report setup stdout verbatim because it contains hook and probe status.
