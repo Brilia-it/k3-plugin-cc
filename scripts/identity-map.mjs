@@ -149,31 +149,30 @@ export function applyIdentityMap(text) {
 // Keys are paths in THIS repository. The compiled counterparts of a runtime
 // file (dist/**.js and plugins/k3-codex/dist/**.js) follow their source.
 export const DECLARED_DIVERGENT = Object.freeze({
-  // Behaviour: Windows compatibility (NOTICE kind 1).
-  "runtime/hooks/install-paths.ts": "Windows: hook command quoting, path normalisation (NOTICE 1)",
-  "runtime/commands/setup.ts": "Windows shell probe (NOTICE 1); brand migration of the hook block and data directory (NOTICE 6)",
-  "tests/runtime/install-paths.test.ts": "tests of the Windows changes (NOTICE 1)",
-  // Behaviour: reliability fix (NOTICE kind 5).
-  "runtime/job-store.ts": "busy_timeout before WAL (NOTICE 5)",
-  "runtime/jobs.ts": "the wait keeps polling past a busy store (NOTICE 5)",
-  "runtime/commands/repair-sessions.ts": "busy_timeout on the read-only connection (NOTICE 5)",
-  // Behaviour: brand migration and self-recognition (NOTICE kind 6).
-  "runtime/plugin-data.ts": "recognises this fork's install layout (plugin k3), not upstream's (NOTICE 6)",
-  "runtime/paths.ts": "data directory k3-plugin-cc with the legacy directory as fallback (NOTICE 6)",
-  "runtime/hooks/legacy-brand.ts": "added: finds this fork's pre-0.6 hook blocks so setup can migrate them (NOTICE 6)",
-  "runtime/legacy-names.ts": "added: reports the old variables and moves the old data directory (NOTICE 6)",
-  "tests/runtime/legacy-brand.test.ts": "added: tests of the brand migration (NOTICE 6)",
-  "tests/runtime/plugin-data.test.ts": "tests of the fork's install layout (NOTICE 6)",
-  "tests/runtime/plugin-data-installed.test.ts": "tests of the fork's install layout (NOTICE 6)",
+  // A file joins this list in the same commit that makes it differ, and only
+  // then: verify reports a declaration for a file that is identical or absent.
+  // The 2.5.6 rebuild brings the behaviour of 0.7.0 back in phases, so the
+  // files of the next phases (install-paths and setup for Windows, job-store,
+  // jobs, repair-sessions, plugin-data, paths, legacy-brand, legacy-names,
+  // kimi-errors, admission, background-spawn, worker, kimi-session-recovery,
+  // brand-residue, the manual harnesses and their tests) are declared there.
+  //
+  // Behaviour: the DeepSeek Harness host is not carried (NOTICE kind 4).
+  "runtime/hooks/install-paths.ts": "a dsh-kimi-plugin-cc tree is upstream's DSH package, never ours (no DSH here)",
+  "tests/runtime/install-paths.test.ts": "upstream's DSH hook path is not ours (no DSH here)",
   // Version, identity metadata and packaging (NOTICE kinds 2 and 4).
   "runtime/version.ts": "fork version string",
-  "package.json": "private, not on npm, points to this repository (NOTICE 4)",
-  ".github/workflows/ci.yml": "CI also on staging/** (NOTICE 4)",
+  "package.json": "private, not on npm, points to this repository, no DeepSeek Harness fields (NOTICE 4)",
+  "bun.lock": "the DeepSeek Harness dependencies pruned with package.json",
+  ".github/workflows/ci.yml": "CI also on staging/**; no DeepSeek Harness package steps (NOTICE 4)",
   ".claude-plugin/plugin.json": "fork description",
   ".claude-plugin/marketplace.json": "fork description",
   ".agents/plugins/marketplace.json": "fork display name",
   "plugins/k3-codex/.codex-plugin/plugin.json": "fork description (generated from scripts/surface-registry.ts)",
-  "scripts/surface-registry.ts": "fork descriptions, links and pinned manifest hashes",
+  "scripts/surface-registry.ts": "fork descriptions, links and pinned manifest hashes; no DeepSeek Harness surfaces",
+  "scripts/generate-surfaces.ts": "no DeepSeek Harness surfaces to generate or check",
+  "scripts/check-package.mjs": "no DeepSeek Harness package to check",
+  "scripts/check-consumer-security.mjs": "no DeepSeek Harness package to scan",
   "tests/runtime/codex-surfaces.test.ts": "plugin and marketplace names are bare words the map does not touch",
   // Additions (NOTICE kind 3).
   "NOTICE": "added: attribution and modification notice",
@@ -181,22 +180,21 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "scripts/promote-to-main.mjs": "added: maintainer script (NOTICE 3)",
   "tests/scripts/promote-to-main.test.js": "added (NOTICE 3)",
   "tests/scripts/identity-map.test.js": "added (NOTICE 3)",
-  "tests/scripts/brand-residue.test.js": "added: fails when an upstream name reappears (NOTICE 3)",
-  "tests/scripts/brand-residue.pins.json": "added: the lines allowed to keep an upstream name (NOTICE 6)",
-  "tests/runtime/job-store-busy-open.test.ts": "added (NOTICE 5)",
-  "tests/helpers/hold-exclusive-lock.ts": "added (NOTICE 5)",
-  "tests/helpers/open-job-store-node.mjs": "added (NOTICE 5)",
-  "tests/helpers/hold-write-lock.ts": "added (NOTICE 6)",
-  "tests/manual/coexistence-smoke.mjs": "added (NOTICE 3)",
-  "tests/manual/enforcement-matrix.mjs": "added (NOTICE 3)",
-  "tests/manual/shell-probe-discrimination.mjs": "added (NOTICE 3)",
   // Documentation written or rewritten for the fork.
   "README.md": "fork documentation",
   "CHANGELOG.md": "fork entries; upstream entries kept as history, with upstream names",
-  "AGENTS.md": "fork maintainer notes",
+  "AGENTS.md": "fork version and ids, pointer to docs/fork-notes.md, no DeepSeek Harness",
+  "docs/fork-notes.md": "added: the fork's maintainer notes, kept out of AGENTS.md for its 24 KB cap",
   "SECURITY.md": "fork reporting address",
-  "ROADMAP-TO-GA.md": "fork note",
   "docs/registry-releases.md": "fork note on top of upstream's page, kept verbatim (KEEP_VERBATIM)",
+  "CONTRIBUTING.md": "no DeepSeek Harness package",
+  "docs/ci.md": "no DeepSeek Harness package checks or smoke",
+  "docs/invariants.md": "no DeepSeek Harness host",
+  "docs/migration.md": "no DeepSeek Harness host",
+  "docs/models.md": "no DeepSeek Harness host",
+  "docs/safety.md": "no DeepSeek Harness host",
+  "runtime/README.md": "no DeepSeek Harness host",
+  "scripts/README.md": "no DeepSeek Harness scripts or surfaces",
 });
 
 // Upstream files this fork deliberately does not carry. Keys are paths in
