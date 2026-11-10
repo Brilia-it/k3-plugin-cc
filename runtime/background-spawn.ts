@@ -1,8 +1,9 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Changes, on every platform: `--wait` waits for the job's own budget plus a
-// grace period instead of a fixed minute, and a waited job that ended failed or
-// cancelled raises TerminalJobFailure (artifact on stdout, non-zero exit). See
-// NOTICE and README.md. Section 4(b) of the License requires this notice.
+// grace period instead of a fixed minute; a waited job that ended failed or
+// cancelled raises TerminalJobFailure (artifact on stdout, non-zero exit); and
+// the job row, created owned by this launcher, is handed to the worker by
+// compare-and-set. See NOTICE and README.md. Section 4(b) of the License requires this notice.
 import { spawn } from "node:child_process";
 import { access, appendFile, constants as fsConstants } from "node:fs/promises";
 import path from "node:path";
@@ -130,6 +131,9 @@ export async function startBackgroundJob(
     env: {
       ...context.env,
       K3_PLUGIN_CC_WORKSPACE_CWD: context.cwd,
+      // BRILIA fork: the row is owned by this launcher until the worker (or this
+      // process, right after spawning) transfers it by compare-and-set.
+      K3_PLUGIN_CC_LAUNCHER_PID: String(process.pid),
       [options.promptEnvVar]: b64,
       [options.reusedSessionEnvVar]: options.reusedSession ? "1" : "0",
       ...(options.extraEnv ?? {}),
@@ -191,10 +195,30 @@ export async function startBackgroundJob(
 
   const store = new JobStore(paths);
   try {
-    store.updateRunningJob(job.job_id, {
-      pid: child.pid ?? null,
-      phase: "worker-spawned",
-    });
+    // BRILIA fork: hand the row from this launcher to the worker with a
+    // compare-and-set, and finish it BEFORE returning (a non-wait launcher exits right
+    // after). When the compare-and-set does not apply, either the worker already
+    // claimed the row (its pid is the child's), or the row is no longer running:
+    // finished by the worker, or swept or cancelled while starting, in which case the
+    // worker's own claim refuses and no model call is made. The wait below reads
+    // the outcome in both cases. Only a running row owned by a third process is a
+    // contradiction: stop the worker and say so.
+    const childPid = child.pid;
+    if (childPid !== undefined && !store.claimRunningJobPid(job.job_id, [process.pid], childPid, "worker-spawned")) {
+      const current = store.getJob(job.job_id);
+      if (current?.status === "running" && current.pid !== childPid) {
+        try {
+          process.kill(childPid, "SIGTERM");
+        } catch {
+          // already gone
+        }
+        throw new RuntimeError(
+          options.earlyExitErrorCode,
+          `Background ${options.workerKind} job ${job.job_id} is owned by process ${current.pid ?? "none"}, not by this launcher or its worker; the worker was stopped.`,
+          options.spawnStage,
+        );
+      }
+    }
   } finally {
     store.close();
   }

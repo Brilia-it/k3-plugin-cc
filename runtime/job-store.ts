@@ -1,9 +1,12 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Changes, on every platform: the methods `withWriteLock`, `countRunningJobs`,
 // `rewriteStoredPaths` and `rebaseStoredPaths`, used by setup when it moves the
-// pre-0.6 data directory to its new name; and the one-model-job-at-a-time
-// admission (`createJob` with an `admission` argument, `listRunningJobs`). See
-// NOTICE and README.md. Section 4(b) of the License requires this notice.
+// pre-0.6 data directory to its new name; the one-model-job-at-a-time
+// admission (`createJob` with an `admission` argument, `listRunningJobs`); the
+// compare-and-set hand-over of a background row (`claimRunningJobPid`); and, on
+// open, a running row left without any pid by an older version is failed
+// (JOB_STORE_PIDLESS_ON_UPGRADE). See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import type { SwarmRecoveryRecord } from "./swarm-recovery.js";
 import { createRequire } from "node:module";
 
@@ -148,6 +151,10 @@ export interface HistoricalProvenancePatch {
   kimi_version?: string | null;
   system_version?: string | null;
 }
+
+// BRILIA fork: a pid-less running row younger than this is never reconciled on open
+// (the same 15 s as STALE_SWEEP_GRACE_MS in jobs.ts, which imports this module).
+const PIDLESS_RECONCILE_GRACE_MS = 15_000;
 
 export class JobStore {
   private readonly db: SqliteAdapter;
@@ -327,6 +334,42 @@ export class JobStore {
     if (!mcpTableHasColumn(this.db, "kimi_identity")) {
       this.db.exec("ALTER TABLE mcp_tasks ADD COLUMN kimi_identity TEXT;");
     }
+      // BRILIA fork, same precedent as the 0.1.4 reconciliation above. Every
+      // non-review-gate running row is now born with an owner pid (foreground: the
+      // command's pid; background: the LAUNCHER's, handed to the worker by
+      // compare-and-set, see claimRunningJobPid). A running row with BOTH pids null
+      // can therefore only be left by an older plugin version (this fork up to 0.6.x
+      // created background rows without a pid until the worker started); nothing can
+      // sweep or cancel it, and it would block the one-model-job guard forever. Fail
+      // it, inside the write lock, with its own code: JOB_STORE_ORPHANED_ON_UPGRADE
+      // stays upstream's code for the 0.1.4 duplicates. Idempotent and cheap: it
+      // matches nothing once reconciled. Review-gate rows (always pid-less) and rows
+      // with any pid are never touched, and neither is a row updated in the last
+      // PIDLESS_RECONCILE_GRACE_MS: an older version's background row is pid-less
+      // only until its worker starts, and a row that young may still be moving. The
+      // write lock is taken only when a read finds such a row, so a normal open (a
+      // --wait poll opens one per tick) never takes it.
+      const pidlessCutoff = new Date(Date.now() - PIDLESS_RECONCILE_GRACE_MS).toISOString();
+      const pidlessWhere = `status = 'running' AND command_type != 'review_gate' AND pid IS NULL AND kimi_pid IS NULL
+        AND updated_at < @cutoff`;
+      const pidlessRow = this.db.get(`SELECT 1 AS found FROM jobs WHERE ${pidlessWhere} LIMIT 1`, { cutoff: pidlessCutoff });
+      if (pidlessRow) this.withWriteLock(() => {
+        this.db.run(
+          `
+          UPDATE jobs
+          SET status = 'failed',
+              phase = 'failed',
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              summary = 'Left without a process by an older plugin version; reconciled on upgrade.',
+              error = COALESCE(
+                error,
+                '{"code":"JOB_STORE_PIDLESS_ON_UPGRADE","message":"Running job left without a process by an older plugin version, reconciled on upgrade","stage":"job-store.migrate"}'
+              )
+          WHERE ${pidlessWhere}
+          `,
+          { cutoff: pidlessCutoff },
+        );
+      });
     } catch (error) {
       // Migration failed — close the adapter so the OS handle is released
       // before propagating. Wrap close() in its own try so a double-fault
@@ -587,6 +630,21 @@ export class JobStore {
 
   rebaseStoredPaths(map: (storedPath: string) => string | null): number {
     return this.withWriteLock(() => this.rewriteStoredPaths(map));
+  }
+
+  // BRILIA fork: compare-and-set of the owner pid of a RUNNING job. It succeeds only
+  // if the row is still running and its pid is one of `expectedPids`; otherwise
+  // (swept, cancelled, already owned by someone else) it changes nothing and returns
+  // false. The launcher uses it to hand the row to the worker, the worker to claim it.
+  claimRunningJobPid(jobId: string, expectedPids: readonly number[], newPid: number, phase: string): boolean {
+    return this.withWriteLock(() => {
+      const current = this.getJob(jobId);
+      if (!current || current.status !== "running" || current.pid === null || !expectedPids.includes(current.pid)) {
+        return false;
+      }
+      this.updateRunningJob(jobId, { pid: newPid, phase });
+      return true;
+    });
   }
 
   // BRILIA fork (2026-10-15): every running job, oldest first, so the

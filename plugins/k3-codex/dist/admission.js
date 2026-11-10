@@ -18,8 +18,14 @@
 //
 // Review 0.7.0:
 //   - which rows count: EVERY running row except review-gate rows. There is no time-based
-//     expiry. The stale-job sweep, which runs before every check, fails a row whose owner
-//     process is dead.
+//     expiry. A row cannot strand the guard because it always has an owner pid: foreground
+//     rows carry the command's pid, background rows start owned by the LAUNCHER and are
+//     handed to the worker by compare-and-set (JobStore.claimRunningJobPid). The stale-job
+//     sweep, which runs before every check, fails a row whose owner is dead, and
+//     `/k3:cancel` can act on a starting row. A worker that loses the compare-and-set
+//     (row swept or cancelled) makes no model call. A running row with no pid at all can
+//     only come from an older version and is failed when the store opens
+//     (JOB_STORE_PIDLESS_ON_UPGRADE).
 //   - atomic admission: the early check in the commands is only a fast path; the final
 //     check runs inside the same write-locked transaction as the row insert
 //     (JobStore.createJob with an `admission` argument).

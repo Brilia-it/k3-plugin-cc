@@ -1,6 +1,7 @@
 // MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
 // Changes, on every platform: `--background --wait` waits for the job's own
-// budget; one model job at a time (runtime/admission.ts). See NOTICE and README.md.
+// budget; one model job at a time (runtime/admission.ts); a background row is
+// created owned by the launcher and claimed by the worker. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 import { companionHelp } from "../help.js";
 import { allocateJobId } from "../job-id.js";
@@ -120,7 +121,11 @@ export async function runAsk(argv: string[], context: CommandContext): Promise<s
       budget_ms: parsed.budgetMs ?? (sessionResolution.sourceJob?.operation_kind === "ask" ? sessionResolution.sourceJob.budget_ms : null) ?? null,
       budget_source: parsed.budgetMs !== undefined ? "explicit"
         : sessionResolution.sourceJob?.operation_kind === "ask" && sessionResolution.sourceJob.budget_ms !== null ? "inherited" : "default",
-      pid: parsed.background ? null : process.pid,
+      // BRILIA fork: a background row starts owned by the LAUNCHER (this process); the
+      // pid is handed to the worker by a compare-and-set (see background-spawn.ts). A pid
+      // is always present, so the sweeper and /k3:cancel can act on a starting row and
+      // the one-model-job guard is never stranded by a launcher that crashed.
+      pid: process.pid,
       kimi_pid: null,
       status: "running",
       kimi_session_id: sessionResolution.kimiSessionId,
@@ -188,7 +193,7 @@ export async function executeAskJob(
   jobId: string,
   prompt: string,
   context: CommandContext,
-  options?: { workerPid?: number },
+  options?: { workerPid?: number; launcherPid?: number },
 ): Promise<JobRecord> {
   const paths = resolvePluginPaths(context.env);
   await ensurePluginPaths(paths);
@@ -197,6 +202,23 @@ export async function executeAskJob(
   if (!job) {
     store.close();
     throw new RuntimeError("JOB_NOT_FOUND", `Ask job ${jobId} was not found.`, "ask.worker");
+  }
+
+  // BRILIA fork: a detached worker claims the row by compare-and-set BEFORE doing
+  // anything. If the row was swept or cancelled while it was starting, no model call
+  // is made.
+  if (options?.workerPid !== undefined) {
+    const claimed = store.claimRunningJobPid(
+      job.job_id,
+      [options.workerPid, ...(options.launcherPid !== undefined ? [options.launcherPid] : [])],
+      options.workerPid,
+      "worker-running",
+    );
+    if (!claimed) {
+      const current = store.getJob(job.job_id) ?? job;
+      store.close();
+      return current;
+    }
   }
 
   const askConfig = getManagedCommandConfig("ask");
@@ -221,9 +243,6 @@ export async function executeAskJob(
       await assertPersistedResumeLineage(store, executionPlan, job.kimi_session_id, "ask");
     }
 
-    if (options?.workerPid) {
-      store.updateRunningJob(job.job_id, { pid: options.workerPid, phase: "worker-running" });
-    }
 
     const result = await runCliPromptWithBudget(
       {
