@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: a waited background job that ended failed or
+// cancelled prints its artifact and exits non-zero. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { runRecoverSwarm } from "./commands/recover-swarm.js";
 import { companionHelp } from "./help.js";
 import { runModelInventory } from "./commands/models.js";
@@ -8,7 +12,7 @@ import { runResult } from "./commands/result.js";
 import { renderSetupResult, runSetup } from "./commands/setup.js";
 import { runStatus } from "./commands/status.js";
 import { runWorker } from "./commands/worker.js";
-import { formatError, RuntimeError } from "./errors.js";
+import { formatError, RuntimeError, TerminalJobFailure } from "./errors.js";
 import { resolveKimiHome } from "./kimi-home.js";
 import { runModelCommand } from "./model-command.js";
 import { runMcpChild } from "./mcp/supervised-child.js";
@@ -101,6 +105,15 @@ async function main(argv: string[]): Promise<void> {
 }
 
 main(process.argv.slice(2)).catch((error) => {
+  if (error instanceof TerminalJobFailure) {
+    // BRILIA fork: a waited background job that ended failed/cancelled. The artifact
+    // stays the stdout output, the exit code says it did not succeed (as in the
+    // foreground path).
+    process.stdout.write(`${error.artifact.trimEnd()}\n`);
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
   process.stderr.write(`${formatError(error)}\n`);
   process.exitCode = 1;
 });

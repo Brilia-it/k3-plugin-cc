@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// Changes, on every platform: `--background --wait` waits for the job's own
+// budget. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { companionHelp } from "../help.js";
 import { allocateJobId } from "../job-id.js";
 import path from "node:path";
@@ -148,6 +152,7 @@ export async function runRescue(argv: string[], context: CommandContext): Promis
       return startBackgroundJob(job, prompt, context, paths, {
         workerKind: "rescue",
         wait: parsed.wait,
+        defaultBudgetMs: KIMI_RESCUE_PROMPT_TIMEOUT_MS,
         promptEnvVar: "K3_PLUGIN_CC_RESCUE_PROMPT_B64",
         reusedSessionEnvVar: "K3_PLUGIN_CC_RESCUE_REUSED_SESSION",
         reusedSession: sessionResolution.reusedSession,

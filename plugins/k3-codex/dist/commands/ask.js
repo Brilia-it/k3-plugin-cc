@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// Changes, on every platform: `--background --wait` waits for the job's own
+// budget. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 import { companionHelp } from "../help.js";
 import { allocateJobId } from "../job-id.js";
 import path from "node:path";
@@ -110,6 +114,7 @@ export async function runAsk(argv, context) {
             return startBackgroundJob(job, askPrompt, context, paths, {
                 workerKind: "ask",
                 wait: parsed.wait,
+                defaultBudgetMs: KIMI_ASK_PROMPT_TIMEOUT_MS,
                 promptEnvVar: "K3_PLUGIN_CC_ASK_PROMPT_B64",
                 reusedSessionEnvVar: "K3_PLUGIN_CC_ASK_REUSED_SESSION",
                 reusedSession: sessionResolution.reusedSession,

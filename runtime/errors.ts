@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One addition, on every platform: TerminalJobFailure, so a waited background
+// job that ended failed or cancelled exits non-zero. See NOTICE and README.md.
+// Section 4(b) of the License requires this notice.
 export class RuntimeError extends Error {
   readonly code: string;
   readonly stage: string;
@@ -9,6 +13,22 @@ export class RuntimeError extends Error {
     this.code = code;
     this.stage = stage;
     this.details = options?.details ?? {};
+  }
+}
+
+/**
+ * BRILIA fork (review 0.7.0, finding 6): a waited background job ended `failed` or
+ * `cancelled`. The failure artifact is still the output (the companion prints it on
+ * stdout), but the process must exit non-zero like the foreground path, or a caller
+ * that keys on the exit code would start the next job.
+ */
+export class TerminalJobFailure extends RuntimeError {
+  readonly artifact: string;
+
+  constructor(code: string, message: string, stage: string, artifact: string) {
+    super(code, message, stage);
+    this.name = "TerminalJobFailure";
+    this.artifact = artifact;
   }
 }
 

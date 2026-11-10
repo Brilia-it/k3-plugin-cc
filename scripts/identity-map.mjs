@@ -170,7 +170,17 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/manual/coexistence-smoke.mjs": "added: manual smoke, upstream v2.5.6 and this fork side by side, hook blocks and MCP servers (T02 row 36)",
   "tests/manual/shell-probe-discrimination.mjs": "added: manual check that the Windows shell probe discriminates a quoting fault (T02 row 4)",
   // Behaviour: a busy job store (T02 row 22).
-  "runtime/jobs.ts": "waitForTerminalJob polls again past a busy job store (isJobStoreBusy) instead of failing the wait",
+  "runtime/jobs.ts":
+    "waitForTerminalJob polls again past a busy job store (isJobStoreBusy) instead of failing the wait; JOB_WAIT_TIMEOUT says the job is STILL RUNNING (T02 row 15)",
+  // Behaviour: --wait waits for the job's budget and exits non-zero on a failed job (T02 rows 13, 14).
+  "runtime/background-spawn.ts":
+    "--wait waits for job.budget_ms (or the command default) plus a grace period; a waited job that ended failed or cancelled raises TerminalJobFailure",
+  "runtime/errors.ts": "added TerminalJobFailure (T02 row 14)",
+  "runtime/companion.ts": "TerminalJobFailure prints the artifact on stdout and exits non-zero (T02 row 14)",
+  "runtime/commands/ask.ts": "passes the command's default budget to the background wait (T02 row 13)",
+  "runtime/commands/rescue.ts": "passes the command's default budget to the background wait (T02 row 13)",
+  "tests/runtime/wait-budget.test.ts": "added: the wait follows the job budget, JOB_WAIT_TIMEOUT text (NOTICE 3)",
+  "tests/runtime/wait-exit-code.test.ts": "added: a waited failed job exits non-zero with its artifact on stdout (NOTICE 3)",
   "tests/runtime/job-store-busy-open.test.ts": "added: opening the store and waiting under real lock contention (NOTICE 3)",
   "tests/helpers/hold-exclusive-lock.ts": "added: test helper, holds an exclusive SQLite lock from another process (NOTICE 3)",
   "tests/helpers/open-job-store-node.mjs": "added: test helper, opens the compiled JobStore under plain Node (NOTICE 3)",

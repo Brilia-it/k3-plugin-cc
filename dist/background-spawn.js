@@ -1,8 +1,13 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// Changes, on every platform: `--wait` waits for the job's own budget plus a
+// grace period instead of a fixed minute, and a waited job that ended failed or
+// cancelled raises TerminalJobFailure (artifact on stdout, non-zero exit). See
+// NOTICE and README.md. Section 4(b) of the License requires this notice.
 import { spawn } from "node:child_process";
 import { access, appendFile, constants as fsConstants } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RuntimeError, formatError } from "./errors.js";
+import { RuntimeError, TerminalJobFailure, formatError } from "./errors.js";
 import { preferStableNodePath } from "./hooks/install-paths.js";
 import { markJobFailed, waitForTerminalJob } from "./jobs.js";
 import { JobStore } from "./job-store.js";
@@ -14,6 +19,29 @@ const isCompiledRuntime = import.meta.url.endsWith(".js");
 const companionEntrypoint = fileURLToPath(new URL(isCompiledRuntime ? "./companion.js" : "./companion.ts", import.meta.url));
 const companionProjectRoot = path.resolve(path.dirname(companionEntrypoint), "..");
 const FAILURE_PERSIST_RETRY_DELAYS_MS = [100, 200, 400];
+// BRILIA fork (2026-10-15 incident): three read-only ask jobs were launched with
+// `--background --wait`. `--wait` gave up after the 60 s default of
+// waitForTerminalJob while each job had a much longer budget, so the caller's
+// loop started the next job and the three ran in PARALLEL. The wait is now the
+// job's own budget (job.budget_ms, persisted since upstream 2.0.8; the command
+// default when the row has none) plus this grace period.
+export const BACKGROUND_WAIT_GRACE_MS = 60_000;
+/** The budget the worker will apply to this job: its own, or the command default. */
+export function backgroundJobBudgetMs(job, defaultBudgetMs) {
+    return job.budget_ms ?? defaultBudgetMs;
+}
+/**
+ * Total time `--wait` blocks for a job whose own budget is `budgetMs`.
+ * `K3_PLUGIN_CC_WAIT_TIMEOUT_MS` (a positive integer) overrides the total; it
+ * exists so tests can exercise the timeout without a real 30-minute wait.
+ */
+export function resolveBackgroundWaitTimeoutMs(budgetMs, env) {
+    const override = Number.parseInt(env.K3_PLUGIN_CC_WAIT_TIMEOUT_MS ?? "", 10);
+    if (Number.isFinite(override) && override > 0) {
+        return override;
+    }
+    return budgetMs + BACKGROUND_WAIT_GRACE_MS;
+}
 export async function startBackgroundJob(job, prompt, context, paths, options) {
     // Background spawn and hook verification must resolve the same stable Node
     // path: the worker re-verifies the byte-exact hook command from its own
@@ -114,11 +142,18 @@ export async function startBackgroundJob(job, prompt, context, paths, options) {
         store.close();
     }
     if (options.wait) {
-        const completed = await waitForTerminalJob(() => new JobStore(paths), job.job_id);
+        const completed = await waitForTerminalJob(() => new JobStore(paths), job.job_id, resolveBackgroundWaitTimeoutMs(backgroundJobBudgetMs(job, options.defaultBudgetMs), context.env));
         if (!completed.final_output_path) {
             throw new RuntimeError(options.missingResultErrorCode, describeMissingResult(completed, options.workerKind), options.waitStage);
         }
-        return readArtifact(completed.final_output_path);
+        const artifact = await readArtifact(completed.final_output_path);
+        // BRILIA fork (review 0.7.0, finding 6): a failed or cancelled job is not a
+        // success. The artifact still goes to stdout; the exit code says it failed.
+        if (completed.status === "failed" || completed.status === "cancelled") {
+            throw new TerminalJobFailure(completed.error?.code || `${options.workerKind.toUpperCase()}_JOB_${completed.status.toUpperCase()}`, `Background ${options.workerKind} job ${completed.job_id} ended ${completed.status}` +
+                `${completed.error?.code ? ` (${completed.error.code})` : ""}; the failure artifact is on stdout.`, options.waitStage, artifact);
+        }
+        return artifact;
     }
     return `${JSON.stringify({
         job_id: job.job_id,
