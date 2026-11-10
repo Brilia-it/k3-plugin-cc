@@ -167,6 +167,7 @@ export const DECLARED_DIVERGENT = Object.freeze({
     "Windows: the shell probe runs through cmd.exe instead of reporting a skipped check as passed; classifyProbeExit names the cause. Every platform: migration of the pre-0.6 hook blocks, data directory and variable names (T02 rows 8, 9)",
   "tests/runtime/setup-shell-probe.test.ts": "added: tests of classifyProbeExit (NOTICE 3)",
   "tests/manual/enforcement-matrix.mjs": "added: manual Windows enforcement matrix, not run in CI (T02 row 4)",
+  "tests/manual/coexistence-smoke.mjs": "added: manual smoke, upstream v2.5.6 and this fork side by side, hook blocks and MCP servers (T02 row 36)",
   "tests/manual/shell-probe-discrimination.mjs": "added: manual check that the Windows shell probe discriminates a quoting fault (T02 row 4)",
   // Behaviour: a busy job store (T02 row 22).
   "runtime/jobs.ts": "waitForTerminalJob polls again past a busy job store (isJobStoreBusy) instead of failing the wait",
