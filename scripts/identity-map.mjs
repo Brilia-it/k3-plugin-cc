@@ -172,6 +172,7 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/runtime/job-store-busy-open.test.ts": "added: opening the store and waiting under real lock contention (NOTICE 3)",
   "tests/helpers/hold-exclusive-lock.ts": "added: test helper, holds an exclusive SQLite lock from another process (NOTICE 3)",
   "tests/helpers/open-job-store-node.mjs": "added: test helper, opens the compiled JobStore under plain Node (NOTICE 3)",
+  "runtime/commands/repair-sessions.ts": "busy_timeout on the read-only job database connection (T02 row 23)",
   // Behaviour: the plugin recognises its own installation (T02 row 10).
   "runtime/plugin-data.ts": "the installed-package check looks for this fork's plugin directory k3, not upstream's kimi",
   "tests/runtime/plugin-data.test.ts": "fixtures install the plugin under k3, as this fork is installed",
