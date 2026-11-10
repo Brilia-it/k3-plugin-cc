@@ -158,8 +158,10 @@ export const DECLARED_DIVERGENT = Object.freeze({
   // brand-residue, the manual harnesses and their tests) are declared there.
   //
   // Behaviour: the DeepSeek Harness host is not carried (NOTICE kind 4).
-  "runtime/hooks/install-paths.ts": "a dsh-kimi-plugin-cc tree is upstream's DSH package, never ours (no DSH here)",
-  "tests/runtime/install-paths.test.ts": "upstream's DSH hook path is not ours (no DSH here); upstream's install tree is not ours",
+  "runtime/hooks/install-paths.ts":
+    "a dsh-kimi-plugin-cc tree is upstream's DSH package, never ours (no DSH here); Windows: double-quoted hook command and forward-slash derived hook path (T02 rows 1, 2)",
+  "tests/runtime/install-paths.test.ts":
+    "upstream's DSH hook path is not ours (no DSH here); upstream's install tree is not ours; tests of the Windows quoting and path normalisation",
   // Behaviour: the plugin recognises its own installation (T02 row 10).
   "runtime/plugin-data.ts": "the installed-package check looks for this fork's plugin directory k3, not upstream's kimi",
   "tests/runtime/plugin-data.test.ts": "fixtures install the plugin under k3, as this fork is installed",

@@ -1,3 +1,7 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// Adds tests for this fork's Windows changes to runtime/hooks/install-paths.ts.
+// See NOTICE and README.md. Section 4(b) of the License requires this notice.
+
 import { describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
@@ -11,9 +15,12 @@ import {
   describeHookCommandDrift,
   hostIdFromHookScript,
   isOurApprovalHookCommand,
+  normalizeHookPathSeparators,
+  resolveHookScriptPath,
   parseHookShellCommand,
   resolveNodeBinary,
   shellSingleQuote,
+  shellDoubleQuote,
   preferStableNodePath,
   resolveHostId,
   slugifyHostId,
@@ -97,6 +104,54 @@ describe("parseHookShellCommand", () => {
 
   test("returns null for an unterminated quote", () => {
     expect(parseHookShellCommand("'/node' '/unterminated")).toBeNull();
+  });
+
+  // BRILIA fork: the Windows quoting form must round-trip through the parser
+  // on EVERY platform. The parser is the verifier's inverse, so a form the
+  // builder can emit but the parser cannot read would be classified as drift
+  // and the plugin would refuse to run.
+  test("round-trips the double-quoted (Windows) form on any platform", () => {
+    const cmd = `${shellDoubleQuote("C:\\Program Files\\nodejs\\node.exe")} ${shellDoubleQuote("C:/p/dist/hooks/approval-hook.js")}`;
+    expect(parseHookShellCommand(cmd)).toEqual({
+      nodeBin: "C:\\Program Files\\nodejs\\node.exe",
+      hookScript: "C:/p/dist/hooks/approval-hook.js",
+    });
+  });
+
+  test("round-trips a double-quoted path containing spaces and parentheses", () => {
+    const node = "C:\\Program Files (x86)\\nodejs\\node.exe";
+    const hook = "C:/My Plugins/kimi/dist/hooks/approval-hook.js";
+    const cmd = `${shellDoubleQuote(node)} ${shellDoubleQuote(hook)}`;
+    expect(parseHookShellCommand(cmd)).toEqual({ nodeBin: node, hookScript: hook });
+  });
+});
+
+describe("shellDoubleQuote: cmd.exe metacharacters (BRILIA fork)", () => {
+  // These characters survive double quotes in cmd.exe. A path containing one
+  // would build an ambiguous command, and an ambiguous command that fails to
+  // launch is treated as ALLOW by the hook contract, silently disabling the
+  // gate. Failing loudly is the only safe behaviour.
+  test("refuses a percent sign, which still expands inside double quotes", () => {
+    expect(() => shellDoubleQuote("C:/builds/100%/node.exe")).toThrow(/%/);
+  });
+
+  test("refuses an exclamation mark (delayed expansion)", () => {
+    expect(() => shellDoubleQuote("C:/builds/urgent!/node.exe")).toThrow(/!/);
+  });
+
+  test("refuses a double quote, which would close the quoting", () => {
+    expect(() => shellDoubleQuote('C:/we"ird/node.exe')).toThrow(/"/);
+  });
+
+  test("ACCEPTS characters that double quotes DO neutralize in cmd.exe", () => {
+    // Rejecting these would be a false positive on legal Windows paths.
+    for (const p of ["C:/a&b/node.exe", "C:/a^b/node.exe", "C:/a b/node.exe", "C:/a(b)/node.exe"]) {
+      expect(shellDoubleQuote(p)).toBe(`"${p}"`);
+    }
+  });
+
+  test("the error names the offending character, so the operator can act", () => {
+    expect(() => shellDoubleQuote("C:/100%/x")).toThrow(/fail-open/);
   });
 });
 
@@ -385,8 +440,13 @@ describe("preferStableNodePath", () => {
     // identical canonical token.
     const workerSide = preferStableNodePath(process.execPath, setupSide);
     expect(workerSide).toBe(setupSide);
+    // BRILIA fork: the quoting form is platform-dependent. cmd.exe does not
+    // treat `'` as a quote character, so a single-quoted command fails to
+    // launch there and the hook degrades to fail-open. Assert the form the
+    // builder actually has to emit on the host platform.
+    const q = process.platform === "win32" ? shellDoubleQuote : shellSingleQuote;
     expect(buildHookShellCommand("/x/dist/hooks/approval-hook.js", {})).toBe(
-      `${shellSingleQuote(workerSide)} '/x/dist/hooks/approval-hook.js'`,
+      `${q(workerSide)} ${q("/x/dist/hooks/approval-hook.js")}`,
     );
   });
 
@@ -469,8 +529,9 @@ describe("preferStableNodePath", () => {
       expect(parsed).not.toBeNull();
       expect(parsed!.nodeBin).toBe(built.nodeBin);
       expect(parsed!.hookScript).toBe(built.hookScriptPath);
+      const quote = process.platform === "win32" ? shellDoubleQuote : shellSingleQuote;
       expect(built.command).toBe(
-        `${shellSingleQuote(built.nodeBin)} ${shellSingleQuote(built.hookScriptPath)}`,
+        `${quote(built.nodeBin)} ${quote(built.hookScriptPath)}`,
       );
     }
   });
@@ -515,5 +576,49 @@ describe("preferStableNodePath", () => {
     const chosen = preferStableNodePath(process.execPath);
     expect(path.isAbsolute(chosen)).toBe(true);
     expect(realpathSync(chosen)).toBe(realpathSync(process.execPath));
+  });
+});
+
+describe("normalizeHookPathSeparators", () => {
+  const isWin = process.platform === "win32";
+  const BACKSLASH = String.fromCharCode(92);
+  const winPath = ["C:", "Users", "x", ".claude", "plugins", "kimi", "dist", "hooks", "approval-hook.js"].join(
+    BACKSLASH,
+  );
+
+  test("converts separators on Windows and is a no-op elsewhere", () => {
+    const out = normalizeHookPathSeparators(winPath);
+    if (isWin) {
+      expect(out).toBe("C:/Users/x/.claude/plugins/kimi/dist/hooks/approval-hook.js");
+      expect(out.includes(BACKSLASH)).toBe(false);
+    } else {
+      expect(out).toBe(winPath);
+    }
+  });
+
+  test("leaves an already-normalized path untouched on every platform", () => {
+    const posix = "/home/u/.claude/plugins/kimi/dist/hooks/approval-hook.js";
+    expect(normalizeHookPathSeparators(posix)).toBe(posix);
+  });
+
+  test("is idempotent", () => {
+    const once = normalizeHookPathSeparators(winPath);
+    expect(normalizeHookPathSeparators(once)).toBe(once);
+  });
+
+  // The override is the operator's own spelling and is compared byte for byte
+  // with the managed block: normalizing it would read a correct block as drift.
+  test("the K3_PLUGIN_CC_HOOK_SCRIPT override is returned verbatim", () => {
+    const override = isWin ? winPath : "/home/u/custom/approval-hook.js";
+    expect(resolveHookScriptPath({ K3_PLUGIN_CC_HOOK_SCRIPT: override } as NodeJS.ProcessEnv)).toBe(override);
+  });
+
+  test("the derived hook path carries no separator the TOML check rejects", () => {
+    // This is the regression the change exists for: on Windows the derived path
+    // used to contain backslashes and assertHookPathTomlSafe rejected it, which
+    // forced every user into a machine-specific K3_PLUGIN_CC_HOOK_SCRIPT.
+    const derived = resolveHookScriptPath({} as NodeJS.ProcessEnv);
+    if (isWin) expect(derived.includes(BACKSLASH)).toBe(false);
+    expect(path.isAbsolute(derived)).toBe(true);
   });
 });
