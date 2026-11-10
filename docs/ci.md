@@ -16,10 +16,10 @@ source-only Bun tests do not exercise TypeScript's compiler output.
 The full check covers:
 
 - compiled runtime output
-- Claude surface hashes and generated Codex/DSH surfaces
+- Claude surface hashes and generated Codex surfaces
 - TypeScript types
 - the test suite, including real-process MCP protocol, task recovery, ownership, cancellation, and hook-enforcement coverage
-- changed or untracked files in `dist/`, `plugins/k3-codex/`, and `plugins/kimi-dsh/`
+- changed or untracked files in `dist/` and `plugins/k3-codex/`
 
 `bun run check:package` additionally packs the release tarball and runs modern MCP discovery plus legacy initialization on all three extracted compiled distributions. These checks use mock-backed or protocol-only fixtures and make no provider calls.
 
@@ -120,15 +120,9 @@ Store CI credentials in GitHub Actions secrets. The workflow uses the API enviro
 
 Billing and access depend on the account behind the key. The workflow references secret names; never commit their values. Dispatching a run can make paid model calls.
 
-## DSH host smoke and release maintenance
+## Consumer security gate
 
-`node scripts/check-dsh-package.mjs [destination]` packs the root npm artifact and creates a fresh DSH 0.2.1-rc.5 host with explicit dependency overrides from `package.json`. It audits that actual host and the isolated plugin profile for high/critical advisories, checks all seven operations in the composed config, and boots Web with a disposable probe that verifies all seven providers and model tools are registered. It uses no model calls or maintainer Kimi configuration. An existing host binary cannot substitute for the audited installation. See [patched host and profile requirements](./registry-releases.md#patched-dsh-host-and-profiles); verify the current supported release and the latest prerelease before widening `engines.dsh`. The separate `bun run check:consumer-security` gate installs the packed package normally into a fresh npm consumer and audits its production graph; both CI and release validation run it.
-
-For live DSH integration smoke, use `tests/helpers/dsh-live-mock-package` with `tests/helpers/dsh-live.patch.yml`. Install that mock and the bundle into an isolated DSH profile, install the DSH-managed hook through the normal sanitized setup path, and use an isolated Kimi home with an authorized authentication route. The scripted parent makes real DSH tool calls while the actual Kimi CLI executes, so no parent-provider credential is needed. `DSH_MOCK_TOOL`, `DSH_MOCK_DESCRIPTION`, and `DSH_MOCK_PROMPT` select the operation and task; `dsh --profile headless --patch tests/helpers/dsh-live.patch.yml 'Delegate the task'` runs it.
-
-Required scenarios for a host-parity change are: `k3_ask` returns `4`; a write attempt through the read-only tool is denied and creates no file; `k3_rescue` writes only the requested marker; and `k3_swarm_write` returns a valid disjoint-target patch without applying it or placing target files in the real workspace. Inspect the persisted result, marker, and patch rather than relying only on the parent's completion text. Run these sequentially, keep all test state in throwaway homes, and clean up interrupted processes and worktrees.
-
-Every release also updates `DSH_PUBLISH_TIMESTAMP` in `scripts/surface-registry.ts`, regenerates `dsh/index.json`, and validates the version/timestamp/engine assertions in `tests/runtime/dsh-surfaces.test.ts`. This keeps the DSH Discover entry aligned with the published package.
+The `bun run check:consumer-security` gate installs the packed package normally into a fresh npm consumer and audits its production graph; CI runs it. (BRILIA fork: upstream's DeepSeek Harness host smoke is gone with the DSH bundle.)
 
 ## Dependency maintenance
 

@@ -14,7 +14,7 @@ Read [AGENTS.md](./AGENTS.md) before changing the runtime. It summarizes the [ru
 
 ## Make and check a change
 
-1. Edit the source files. Do not edit `dist/`, `plugins/k3-codex/`, or `plugins/kimi-dsh/` by hand.
+1. Edit the source files. Do not edit `dist/` or `plugins/k3-codex/` by hand.
 2. Run `bun run build && bun run generate:surfaces` after changing runtime code, shell entry points, or generated text sources.
 3. Review and stage the generated changes in all three trees.
 4. Run `bun run check` from the repository root.
@@ -38,13 +38,13 @@ Write comments only for current, non-obvious constraints, upstream quirks, and s
 Use these commands during development:
 
 - `bun run build` to compile `runtime/` into `dist/`
-- `bun run generate:surfaces` to generate Codex and DSH surfaces and bundled runtimes
+- `bun run generate:surfaces` to generate Codex surfaces and the bundled runtime
 - `bun run check:surfaces` to check generated files and Claude surface hashes
 - `bun test <path>` to run a focused test file
 
 ## Keep installed packages complete
 
-All hosts install precompiled JavaScript. Claude Code uses the root package, Codex uses `plugins/k3-codex/`, and DSH uses `plugins/kimi-dsh/`. Commit all generated trees when they change so users can install without building.
+All hosts install precompiled JavaScript. Claude Code uses the root package and Codex uses `plugins/k3-codex/`. Commit all generated trees when they change so users can install without building.
 
 ## Keep onboarding translations aligned
 

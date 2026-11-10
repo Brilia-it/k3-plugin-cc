@@ -4,7 +4,6 @@ name: CI
 # push to main and every PR. NO secrets, NO kimi binary, NO model tokens — the
 # real-binary smokes auto-skip without K3_PLUGIN_CC_SMOKE=1. This is the
 # per-push safety net the repo previously only had locally via `bun run check`.
-
 on:
   push:
     branches: [main]
@@ -28,14 +27,11 @@ jobs:
         with:
           bun-version: 1.4.2
 
-      # DSH requires Node >= 24.9; the companion still supports >= 22.5.
+      # The companion supports Node >= 22.5; CI keeps upstream's Node 24.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
           node-version: "24"
-
-      - name: Install pnpm for DSH plugin installation
-        run: npm install -g pnpm@10.11.0
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -43,12 +39,12 @@ jobs:
       - name: Audit dependencies
         run: bun audit
 
-      # Rebuilds and checks root dist/ plus the self-contained Codex and DSH packages.
+      # Rebuilds and checks root dist/ plus the self-contained Codex package.
       # Generated surface hashes and untracked distribution files are checked too.
       - name: Check (build, surfaces, typecheck, test, drift gate)
         run: bun run check
 
-      - name: Check root and DSH npm package installation
+      - name: Check root npm package installation
         run: bun run check:package
 
       - name: Audit installed npm consumer dependencies

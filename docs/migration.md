@@ -2,8 +2,6 @@
 
 Plugin 2.5.1 certifies Kimi Code CLI 2.4.1 for all eight operations, alongside exact native-v2 versions `0.42.0`, `0.43.0`, `0.43.1`, `2.0.0`, `2.0.1`, `2.0.2`, `2.1.0`, `2.1.1`, `2.2.0`, `2.3.0`, `2.3.1`, `2.3.2`, `2.3.3`, and `2.4.0`. Later patches and minor releases are not accepted automatically. The npm distribution adds an installation channel; it does not change this compatibility table.
 
-Plugin 2.5.1 also adds DeepSeek Harness as a third host with all seven operations and a DSH-specific bundle, data root, and managed hook id. Existing Claude Code and Codex certification, job stores, and host-scoped hooks are unchanged; no migration is required for those hosts. New DSH installations follow the [README DSH section](../README.md#install-in-deepseek-harness), including `/k3-setup` on that host.
-
 Explicitly pinned legacy-v1 binaries remain supported within `KIMI_TESTED_MINORS`, through 0.41.x, subject to each operation's minimum version. The [runtime table](../runtime/kimi-engine.ts) is the authority.
 
 Use the [README installation and update steps](../README.md) for Claude Code or Codex. Model and provider choices are covered in the [model setup guide](./models.md). Do not change your host application's authentication to configure Kimi.

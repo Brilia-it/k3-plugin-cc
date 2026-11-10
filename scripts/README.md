@@ -6,10 +6,9 @@ The shell entry points run the compiled Node runtime while preserving the caller
 | --- | --- |
 | `companion.sh` | Launch `dist/companion.js` for commands, skills, and the MCP stdio server |
 | `review-gate-hook.sh` | Launch the optional Claude Code Stop hook |
-| `surface-registry.ts` | Define Codex and DSH surfaces and lock Claude surface hashes |
-| `generate-surfaces.ts` | Generate Codex and DSH manifests, composition, skills, scripts, runtime mirrors, and the DSH Discover index |
+| `surface-registry.ts` | Define Codex surfaces and lock Claude surface hashes |
+| `generate-surfaces.ts` | Generate the Codex manifests, skills, scripts, and runtime mirror |
 | `check-package.mjs` | Validate the packed root plugin and exercise isolated host, MCP, and version gates |
-| `check-dsh-package.mjs` | Install the root artifact into isolated DSH, verify all seven tools, and boot the Web host |
 | `smoke-rescue-drift.sh` | Run an opt-in live rescue check after CLI changes |
 | `audit-subscription-routing.ts` | Offline, exact-source counterexamples to atomic regional routing in CLI 2.0.1 |
 | `audit-subscription-recovery.ts` | Offline, exact-source evidence that terminal quota/recovery metadata is unavailable |
@@ -19,7 +18,7 @@ Both shell entry points accept `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT` and otherwi
 
 `companion.sh` preserves the caller's directory in `K3_PLUGIN_CC_WORKSPACE_CWD`. It resolves Node from `K3_PLUGIN_CC_NODE_BIN` or `PATH` and requires Node.js 22.5 or newer.
 
-After changing runtime code or shell scripts, run `bun run build && bun run generate:surfaces`. Review and stage `dist/`, `plugins/k3-codex/`, and `plugins/kimi-dsh/`, then run `bun run check`. Never edit either generated package by hand.
+After changing runtime code or shell scripts, run `bun run build && bun run generate:surfaces`. Review and stage `dist/` and `plugins/k3-codex/`, then run `bun run check`. Never edit the generated package by hand.
 
 Live smoke scripts use model calls. Read the script and the [smoke run instructions](../docs/ci.md) before using them. They are not part of routine offline checks.
 

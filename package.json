@@ -1,93 +1,29 @@
 {
   "name": "k3-plugin-cc",
   "version": "2.5.6",
-  "description": "Kimi for Claude Code, Codex, and DeepSeek Harness: code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP tools through the local Kimi Code CLI.",
+  "description": "Kimi for Claude Code and Codex: code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP tools through the local Kimi Code CLI.",
   "type": "module",
-  "main": "dist/dsh/index.js",
   "engines": {
-    "node": ">=22.5.0",
-    "dsh": ">=0.2.1-rc.5 <0.3.0"
-  },
-  "dsh": {
-    "bundle": {
-      "patch": "./plugins/kimi-dsh/cordis.patch.yml"
-    }
+    "node": ">=22.5.0"
   },
   "scripts": {
-    "check": "bun run build && bun run check:contracts && bun run check:surfaces && bunx tsc --noEmit && bun test && git diff --exit-code -- dist plugins/k3-codex plugins/kimi-dsh && UNTRACKED=\"$(git ls-files --others --exclude-standard -- dist plugins/k3-codex plugins/kimi-dsh)\" && { [ -z \"$UNTRACKED\" ] || { echo \"drift gate: untracked dist/codex/dsh files (stage them and re-run check):\"; echo \"$UNTRACKED\"; exit 1; }; }",
+    "check": "bun run build && bun run check:contracts && bun run check:surfaces && bunx tsc --noEmit && bun test && git diff --exit-code -- dist plugins/k3-codex && UNTRACKED=\"$(git ls-files --others --exclude-standard -- dist plugins/k3-codex)\" && { [ -z \"$UNTRACKED\" ] || { echo \"drift gate: untracked dist/codex files (stage them and re-run check):\"; echo \"$UNTRACKED\"; exit 1; }; }",
     "check:surfaces": "bun run scripts/generate-surfaces.ts --check",
     "generate:surfaces": "bun run scripts/generate-surfaces.ts",
     "build": "rm -rf dist && bunx tsc -p tsconfig.build.json && mkdir -p dist/vendor/shell-quote dist/vendor/smol-toml && cp runtime/vendor/shell-quote/LICENSE dist/vendor/shell-quote/LICENSE && cp runtime/vendor/smol-toml/*.js runtime/vendor/smol-toml/LICENSE dist/vendor/smol-toml/ && echo '{\"type\":\"module\"}' > dist/package.json",
     "companion": "node --import tsx runtime/companion.ts",
     "test": "bun test",
     "smoke:real": "K3_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts --path-ignore-patterns '**/worktrees/**'",
-    "check:package": "node scripts/check-package.mjs && node scripts/check-dsh-package.mjs",
+    "check:package": "node scripts/check-package.mjs",
     "check:consumer-security": "node scripts/check-consumer-security.mjs",
     "check:contracts": "node scripts/check-contract-size.mjs"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-commands": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-session": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-subagent": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-tool-subagent": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-working-directory": "0.2.1-rc.5",
     "@types/bun": "^1.4.4",
     "@types/node": "^26.6.6",
     "smol-toml": "1.9.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
-  },
-  "dependencies": {
-    "@deepseek-ai/dsh-brand": "0.2.1-rc.5",
-    "@deepseek-ai/schemastery": "3.18.5"
-  },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5",
-    "@deepseek-ai/dsh-commands": ">=0.2.1-rc.5 <0.3.0",
-    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.5 <0.3.0",
-    "@deepseek-ai/dsh-session": ">=0.2.1-rc.5 <0.3.0",
-    "@deepseek-ai/dsh-subagent": ">=0.2.1-rc.5 <0.3.0",
-    "@deepseek-ai/dsh-subprocess": ">=0.2.1-rc.5 <0.3.0",
-    "@deepseek-ai/dsh-system-prompt": ">=0.2.1-rc.5 <0.3.0",
-    "@deepseek-ai/dsh-working-directory": ">=0.2.1-rc.5 <0.3.0",
-    "@deepseek-ai/dsh-tool-subagent": ">=0.2.1-rc.5 <0.3.0"
-  },
-  "peerDependenciesMeta": {
-    "@deepseek-ai/cordis": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-commands": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-llm": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-session": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-subagent": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-subprocess": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-system-prompt": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-working-directory": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-tool-subagent": {
-      "optional": true
-    }
-  },
-  "overrides": {
-    "zod": "^4.6.6",
-    "undici": "^8.12.2"
   },
   "license": "Apache-2.0",
   "author": "Xule Lin",
@@ -102,8 +38,6 @@
   "keywords": [
     "claude-code",
     "codex",
-    "deepseek-harness",
-    "dsh",
     "kimi",
     "kimi-code",
     "plugin",
@@ -124,7 +58,6 @@
     "hooks/",
     "dist/",
     "plugins/k3-codex/",
-    "plugins/kimi-dsh/",
     "scripts/companion.sh",
     "scripts/review-gate-hook.sh",
     "docs/safety.md",

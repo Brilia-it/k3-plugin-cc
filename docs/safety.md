@@ -81,20 +81,17 @@ Key constraints (verified by [`runtime/hooks/managed-block.ts`](../runtime/hooks
 ### Host scoping (all hosts share one config)
 
 Claude Code and Codex install this plugin to **different, version-stamped
-paths** (`~/.claude/plugins/cache/…` vs `~/.codex/plugins/cache/…`), while DSH
-uses its own profile package path. All read the **same**
+paths** (`~/.claude/plugins/cache/…` vs `~/.codex/plugins/cache/…`). Both read the **same**
 `~/.kimi-code/config.toml`. So the managed block is **host-scoped**:
 its marker carries a `:<host-id>` suffix, and each host owns, verifies, and
 uninstalls only its **own** block.
 
 - **Host id** (`runtime/hooks/install-paths.ts::resolveHostId`) is derived
   version-independently from the hook path: `~/.claude/…` → `claude-code`,
-  `~/.codex/…` → `codex`, else a stable `host-<sha1>` for dev checkouts. DSH
-  explicitly pins `dsh`. A plugin upgrade *refreshes* the same host's block
+  `~/.codex/…` → `codex`, else a stable `host-<sha1>` for dev checkouts. A plugin upgrade *refreshes* the same host's block
   rather than adding a new one.
-- **No clobbering.** `/k3:setup` (Claude), `$k3-setup` (Codex), and
-  `/k3-setup` (DSH) each write their own block and leave the others
-  byte-identical. Before v1.7.0 there was
+- **No clobbering.** `/k3:setup` (Claude) and `$k3-setup` (Codex) each
+  write their own block and leave the other's byte-identical. Before v1.7.0 there was
   a single block exact-matched to the running host, so the two hosts overwrote
   each other and the loser's write-commands refused with "hook path drift."
 - **Enforcement is redundant-safe.** kimi-code fires *every* `[[hooks]]` entry
@@ -106,8 +103,8 @@ uninstalls only its **own** block.
 - **Migration + cleanup.** A pre-v1.7.0 un-suffixed block is adopted and
   converted in place by the current host on its next `/k3:setup`. Orphaned,
   marker-less `[[hooks]]` entries that are unambiguously our approval hook
-  (canonical command, `approval-hook.js` under a brilia-k3-marketplace/k3-plugin-cc/
-  dsh-kimi-plugin-cc tree) are pruned **host-scoped** (v1.8.2): install and scoped uninstall touch
+  (canonical command, `approval-hook.js` under a brilia-k3-marketplace/k3-plugin-cc
+  tree) are pruned **host-scoped** (v1.8.2): install and scoped uninstall touch
   only tables whose command path derives to the *current* host. `/k3:setup
   --uninstall` removes only the current host's block (plus legacy + this host's
   orphans); `/k3:setup --uninstall --all` removes every host's block and every
@@ -125,18 +122,6 @@ uninstalls only its **own** block.
   re-adorns the markers; the other host's marker-less table is that host's LIVE
   hook and is left byte-untouched (pre-v1.8.2, the host-blind prune here caused
   each host's setup to disarm the other after any kimi login — the "seesaw").
-
-## DeepSeek Harness providers
-
-DSH's host and any profile-local harness packages must use patched `zod >=4.6.6` and `undici >=8.12.2`. The plugin treats DSH services as optional host-provided peers; it does not install the harness for other hosts or rewrite an existing DSH installation. Audit the actual host installation as well as the profile. See [patched DSH setup](./registry-releases.md#patched-dsh-host-and-profiles).
-
-The DSH bundle exposes the same seven operations as the other hosts: `k3_ask`, `k3_review`, `k3_challenge`, `k3_rescue`, `k3_pursue`, `k3_swarm`, and `k3_swarm_write`. Each activation starts the existing companion through DSH's managed subprocess service and uses the same `kimi -p` transport, hook verification, exact-version certification, job store, and response or safety budgets. ACP is not used.
-
-Run `/k3-setup` explicitly before delegating. Installing or enabling the bundle does not modify Kimi configuration. DSH uses host id `dsh` and `$DSH_HOME/plugin-data/k3-plugin-cc` unless an absolute data-root override selects another store. Its provider-owned environment clears other-host roots/data, hook/script overrides, trusted roots, and verification bypasses instead of inheriting them.
-
-The parent receives only complete successful stdout. stderr remains on the host, and nonzero, empty, or truncated output becomes a bounded diagnostic rather than partial prose. Cancellation terminates the managed process range and waits for quiescence. DSH activation ids are distinct from companion job ids; use `/k3-status`, `/k3-result`, or `/k3-cancel` for the persisted job.
-
-Write boundaries are identical to the companion commands: rescue and pursue edit the real selected workspace, ask/review/challenge and read-only swarm deny writes and shell commands, and swarm-write works from born HEAD in a temporary worktree and returns a patch without applying or committing it. `/k3-setup --uninstall` removes only the DSH managed block; the all-host uninstall flag is not exposed.
 
 ## The hook's per-command policy
 

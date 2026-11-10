@@ -285,12 +285,13 @@ describe("isOurApprovalHookCommand", () => {
     ).toBe(true);
   });
 
-  test("true for the standalone DSH package hook path", () => {
+  // BRILIA fork: no DeepSeek Harness package here, so upstream's DSH tree is not ours.
+  test("false for upstream's standalone DSH package hook path", () => {
     expect(
       isOurApprovalHookCommand(
         "'/usr/bin/node' '/home/u/.dsh/profiles/web/node_modules/dsh-kimi-plugin-cc/dist/hooks/approval-hook.js'",
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   test("false for a non-canonical (bare node) command — never prunes a hand-rolled hook", () => {

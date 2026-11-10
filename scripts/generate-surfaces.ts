@@ -12,11 +12,6 @@ import {
   CODEX_PLUGIN_MANIFEST,
   CODEX_PLUGIN_SUBDIR,
   CODEX_SKILLS,
-  DSH_BUNDLE_PATCH,
-  DSH_DISCOVERY_INDEX,
-  DSH_PLUGIN_MANIFEST,
-  DSH_PLUGIN_SUBDIR,
-  DSH_README,
   type CodexSkillSpec,
 } from "./surface-registry.js";
 
@@ -92,57 +87,6 @@ export function generatedCodexSurfaceFiles(): GeneratedFile[] {
   }
 
   return files;
-}
-
-export function generatedDshSurfaceFiles(): GeneratedFile[] {
-  return [
-    {
-      path: `${DSH_PLUGIN_SUBDIR}/package.json`,
-      content: `${JSON.stringify(DSH_PLUGIN_MANIFEST, null, 2)}\n`,
-    },
-    {
-      path: `${DSH_PLUGIN_SUBDIR}/cordis.patch.yml`,
-      content: DSH_BUNDLE_PATCH,
-    },
-    {
-      path: `${DSH_PLUGIN_SUBDIR}/README.md`,
-      content: DSH_README,
-    },
-    {
-      path: "dsh/index.json",
-      content: `${JSON.stringify(DSH_DISCOVERY_INDEX, null, 2)}\n`,
-    },
-  ];
-}
-
-export async function checkGeneratedDshSurfaces(repoRoot: string): Promise<SurfaceCheckResult> {
-  const messages: string[] = [];
-  for (const file of generatedDshSurfaceFiles()) {
-    let actual: string;
-    try {
-      actual = await readFile(path.join(repoRoot, file.path), "utf8");
-    } catch (error) {
-      messages.push(`${file.path}: unable to read (${formatError(error)})`);
-      continue;
-    }
-    if (actual !== file.content) messages.push(`${file.path}: generated content is not current`);
-  }
-  return { ok: messages.length === 0, messages };
-}
-
-export async function checkGeneratedDshTextOrphans(repoRoot: string): Promise<SurfaceCheckResult> {
-  const expected = new Set([
-    ...generatedDshSurfaceFiles().map((file) => file.path),
-    `${DSH_PLUGIN_SUBDIR}/LICENSE`,
-  ]);
-  const messages: string[] = [];
-  const entries = await readdir(path.join(repoRoot, DSH_PLUGIN_SUBDIR), { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    const rel = `${DSH_PLUGIN_SUBDIR}/${entry.name}`;
-    if (!expected.has(rel)) messages.push(`${rel}: orphaned generated file (run \`bun run generate:surfaces\`)`);
-  }
-  return { ok: messages.length === 0, messages };
 }
 
 export async function checkGeneratedCodexSurfaces(repoRoot: string): Promise<SurfaceCheckResult> {
@@ -273,16 +217,6 @@ export async function writeGeneratedCodexSurfaces(repoRoot: string): Promise<voi
   await mirrorRuntimePayload(repoRoot);
 }
 
-export async function writeGeneratedDshSurfaces(repoRoot: string): Promise<void> {
-  await assertClaudeSurfaceGate(repoRoot, "DSH");
-  await writeGeneratedFiles(repoRoot, generatedDshSurfaceFiles());
-  await mirrorRuntimePayload(repoRoot, DSH_PLUGIN_SUBDIR);
-  const license = await readFile(path.join(repoRoot, "LICENSE"));
-  const target = path.join(repoRoot, DSH_PLUGIN_SUBDIR, "LICENSE");
-  await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(target, license);
-}
-
 async function assertClaudeSurfaceGate(repoRoot: string, host: string): Promise<void> {
   const result = await verifyClaudeSurfaceHashes(repoRoot);
   if (!result.ok) {
@@ -371,23 +305,13 @@ export async function checkAllSurfaces(repoRoot: string): Promise<SurfaceCheckRe
   const codex = await checkGeneratedCodexSurfaces(repoRoot);
   const textOrphans = await checkGeneratedTextOrphans(repoRoot);
   const runtime = await checkRuntimeMirror(repoRoot);
-  const dsh = await checkGeneratedDshSurfaces(repoRoot);
-  const dshOrphans = await checkGeneratedDshTextOrphans(repoRoot);
-  const dshRuntime = await checkRuntimeMirror(repoRoot, DSH_PLUGIN_SUBDIR);
-  const dshLicense = await readFile(path.join(repoRoot, DSH_PLUGIN_SUBDIR, "LICENSE")).catch(() => null);
-  const rootLicense = await readFile(path.join(repoRoot, "LICENSE"));
-  const licenseMessages = dshLicense?.equals(rootLicense) ? [] : [`${DSH_PLUGIN_SUBDIR}/LICENSE: bundled license is missing or out of date`];
   return {
-    ok: claude.ok && codex.ok && textOrphans.ok && runtime.ok && dsh.ok && dshOrphans.ok && dshRuntime.ok && licenseMessages.length === 0,
+    ok: claude.ok && codex.ok && textOrphans.ok && runtime.ok,
     messages: [
       ...claude.messages.map((message) => `Claude: ${message}`),
       ...codex.messages.map((message) => `Codex: ${message}`),
       ...textOrphans.messages.map((message) => `Codex: ${message}`),
       ...runtime.messages.map((message) => `Codex runtime: ${message}`),
-      ...dsh.messages.map((message) => `DSH: ${message}`),
-      ...dshOrphans.messages.map((message) => `DSH: ${message}`),
-      ...dshRuntime.messages.map((message) => `DSH runtime: ${message}`),
-      ...licenseMessages.map((message) => `DSH: ${message}`),
     ],
   };
 }
@@ -458,8 +382,7 @@ async function main(): Promise<void> {
   }
 
   await writeGeneratedCodexSurfaces(repoRoot);
-  await writeGeneratedDshSurfaces(repoRoot);
-  process.stdout.write("generated Codex and DSH surfaces (text + bundled runtime)\n");
+  process.stdout.write("generated Codex surfaces (text + bundled runtime)\n");
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
