@@ -10,22 +10,61 @@
 
 ## 2.5.6-brilia.0.1.0 - unreleased (fork)
 
-**Rebuild on upstream v2.5.6, phase 1 of 3.** The fork is rebuilt on upstream 2.5.6 instead of
-merging 2.5.6 into 2.0.7-brilia.0.7.0. This first phase carries:
+**Rebuild on upstream v2.5.6.** The fork is rebuilt on upstream 2.5.6 instead of merging 2.5.6
+into 2.0.7-brilia.0.7.0, in three phases; what each carried, with its commits:
+
+Phase 1, identity and packaging:
 
 - the identity map, extended to the MCP server that upstream added in 2.4.0: the server is
   registered as `k3` and its tools are `k3_ask`, `k3_review`, `k3_challenge`, `k3_rescue`,
   `k3_pursue`, `k3_swarm`, `k3_swarm_write`, `k3_job_status`, `k3_job_result` and
   `k3_job_cancel`. Fields that name Moonshot's CLI (`kimi_session_id`, `kimi_pid`, ...) keep
-  their names;
-- **no DeepSeek Harness host**: upstream's DSH bundle (2.5.0, 2.5.1) is not part of the fork;
+  their names (0541c5f);
+- **no DeepSeek Harness host**: upstream's DSH bundle (2.5.0, 2.5.1) is not part of the fork
+  (e92242b);
 - the fork's packaging and CI: private package, CI on `staging/**`, `scripts/promote-to-main.mjs`,
-  no `publish.yml`; the fork's manifests, NOTICE and maintainer notes (`docs/fork-notes.md`).
+  no `publish.yml`; the fork's manifests, NOTICE and maintainer notes, `docs/fork-notes.md`
+  (bae1a7f, 91e19a6, e287545).
 
-The behaviour changes of 0.7.0 (Windows fixes, migration from the 0.5.x names, wait and job
-store fixes, quota classification, one model job at a time, model probe) come back in phases 2
-and 3; the public texts are rewritten in T14. Upstream's entries 2.0.8 to 2.5.6 are below, with
-upstream's names.
+Phase 2, Windows, installation and migration:
+
+- the plugin recognises its own install (plugin directory `k3`), not upstream's (82ba420);
+- Windows: the hook command is double-quoted and its derived path uses forward slashes, so
+  setup needs no path override (69e63da); the shell probe really runs through cmd.exe and names
+  the cause of a failure (2f6eda0); the manual enforcement matrix and shell-probe check
+  (a3d0d06);
+- `--wait` keeps polling past a busy job store (e169afb); `repair-sessions` sets a busy timeout
+  on its read-only connection (c5efa7b);
+- the migration from the 0.5.x names: old hook blocks, data directory, variables (9836a34); the
+  coexistence smoke now runs against upstream v2.5.6, with two MCP servers (02b5c9d).
+
+Phase 3, the behaviour of 0.7.0:
+
+- `--background --wait` waits for the job's own budget (`budget_ms`, or the command default)
+  plus 60 s; a waited job that ended failed or cancelled prints its artifact and exits non-zero;
+  `JOB_WAIT_TIMEOUT` says the job is still running (0e82a4d);
+- Kimi's provider limits are classified as `<CMD>_KIMI_QUOTA_EXHAUSTED`,
+  `_CONCURRENCY_LIMITED`, `_PLAN_UNAVAILABLE` and `_CONTEXT_EXCEEDED`, from the last
+  `provider.<kind>_error:` line, read from both the stderr tail and the stdout error record:
+  which of the two kimi-code 2.5.x uses is not verified (a2fd8b2);
+- one model job at a time, refused with `<CMD>_JOB_ALREADY_RUNNING`, never queued;
+  `--allow-concurrent` overrides it for one call; the check is in the same transaction as the
+  insert; MCP launches are refused by the same check, without an override (755157b);
+- a background job row is owned by its launcher's pid and handed to the worker by
+  compare-and-set; a running row with no pid left by an older version is failed on open
+  (`JOB_STORE_PIDLESS_ON_UPGRADE`) (b728f17);
+- a job that fails on a non-zero exit keeps the session Kimi announced, or the one upstream's
+  prompt-digest recovery proves; the quota message names the exact resume command. 0.7.0's
+  unverified session-index hint is not carried (9d5d985);
+- `setup --check --probe-model [-m <model>]`: one minimal prompt, 120 s budget, thinking
+  requested off, same admission as every model job, non-zero exit when it fails (4eba5b6);
+- the fork's sentences reinserted in the command, agent and Codex skill texts (4d4599a); two
+  more identity-map rules, for `$k3-*` and the plugin namespace of the agents' headings
+  (6c2fc8f); the residue test with its pins regenerated on this tree (2f8d0cd).
+
+Not verified on a real kimi-code 2.5.x: where it writes the provider line, whether it announces
+a session before a quota refusal, and which shell launches the hook on Windows. The public texts
+are rewritten in T14. Upstream's entries 2.0.8 to 2.5.6 are below, with upstream's names.
 
 ## 2.0.7-brilia.0.7.0 - 2026-10-15 (fork)
 
