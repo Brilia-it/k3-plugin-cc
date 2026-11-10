@@ -282,6 +282,8 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "scripts/promote-to-main.mjs": "added: maintainer script (NOTICE 3)",
   "tests/scripts/promote-to-main.test.js": "added (NOTICE 3)",
   "tests/scripts/identity-map.test.js": "added (NOTICE 3)",
+  "tests/scripts/brand-residue.test.js": "added: upstream names only in lines pinned one by one (NOTICE 3)",
+  "tests/scripts/brand-residue.pins.json": "added: the pinned lines, regenerated on this tree and read one by one (NOTICE 3)",
   // Documentation written or rewritten for the fork.
   "README.md": "fork documentation",
   "CHANGELOG.md": "fork entries; upstream entries kept as history, with upstream names",
