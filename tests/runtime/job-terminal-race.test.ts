@@ -12,7 +12,7 @@ describe("terminal job artifact preservation", () => {
   test("late failure and cancellation cannot overwrite a completed answer", async () => {
     const data = await createTestPluginDataRoot("terminal-race");
     const repo = await createGitRepoFixture("terminal-race-repo");
-    const paths = resolvePluginPaths({ KIMI_PLUGIN_CC_DATA: data });
+    const paths = resolvePluginPaths({ K3_PLUGIN_CC_DATA: data });
     await ensurePluginPaths(paths);
     const store = new JobStore(paths);
     try {

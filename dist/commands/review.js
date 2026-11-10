@@ -25,7 +25,7 @@ export async function runReview(argv, context, commandType) {
     if (parsed.background || parsed.wait) {
         throw new RuntimeError("INVALID_FLAGS", `${commandType} does not support --background or --wait in v1; review runs foreground-synchronously.`, `${commandType}.parse`);
     }
-    if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+    if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
         await requireReadOnlyHookInstalled(context, commandType);
     }
     const reviewContext = await collectReviewContext(context.cwd, parsed.base);
@@ -149,7 +149,7 @@ export async function runReview(argv, context, commandType) {
     }
 }
 async function requireReadOnlyHookInstalled(context, commandType) {
-    if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
+    if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
         return;
     }
     const installStatus = await verifyHookInstalled(context.env);
@@ -158,10 +158,10 @@ async function requireReadOnlyHookInstalled(context, commandType) {
     }
     maybeWarnHookMissing(installStatus, commandType, context.stderr);
     throw new RuntimeError(`${commandType.toUpperCase()}_HOOK_NOT_INSTALLED`, [
-        `${commandType} refuses to run without the canonical kimi-plugin-cc PreToolUse hook.`,
+        `${commandType} refuses to run without the canonical k3-plugin-cc PreToolUse hook.`,
         `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-        "Run /kimi:setup or $kimi-setup to install or repair this host's managed block.",
-        "Set KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
+        "Run /k3:setup or $k3-setup to install or repair this host's managed block.",
+        "Set K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
         hookRefusalRetryProtocol(context.env),
     ].join(" "), `${commandType}.hook-check`, { details: hookRefusalDetails(installStatus) });
 }

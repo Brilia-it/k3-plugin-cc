@@ -1,5 +1,5 @@
 {
-  "name": "kimi-marketplace",
+  "name": "brilia-k3-marketplace",
   "interface": {
     "displayName": "Kimi Marketplace"
   },
@@ -8,7 +8,7 @@
       "name": "kimi",
       "source": {
         "source": "local",
-        "path": "./plugins/kimi-codex"
+        "path": "./plugins/k3-codex"
       },
       "policy": {
         "installation": "AVAILABLE",

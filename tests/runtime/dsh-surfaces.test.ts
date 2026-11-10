@@ -18,7 +18,7 @@ import {
   DSH_VERSION_RANGE,
 } from "../../scripts/surface-registry.js";
 import { DSH_COMPANION_OPERATIONS } from "../../runtime/dsh/companion.js";
-import { KIMI_PLUGIN_CC_VERSION } from "../../runtime/version.js";
+import { K3_PLUGIN_CC_VERSION } from "../../runtime/version.js";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
 
@@ -46,7 +46,7 @@ describe("DSH generated surface", () => {
       await readFile(path.join(repoRoot, DSH_PLUGIN_SUBDIR, "package.json"), "utf8"),
     ) as typeof DSH_PLUGIN_MANIFEST;
     expect(manifest).toEqual(DSH_PLUGIN_MANIFEST);
-    expect(manifest.version).toBe(KIMI_PLUGIN_CC_VERSION);
+    expect(manifest.version).toBe(K3_PLUGIN_CC_VERSION);
     expect(manifest.main).toBe("dist/dsh/index.js");
     expect(manifest.dsh.bundle.patch).toBe("./cordis.patch.yml");
     expect(manifest.engines.dsh).toBe(DSH_VERSION_RANGE);
@@ -74,7 +74,7 @@ describe("DSH generated surface", () => {
 
   test("compiled provider uses DSH function-plugin exports and no default export", async () => {
     const provider = await import(path.join(repoRoot, DSH_PLUGIN_SUBDIR, "dist/dsh/index.js"));
-    expect(provider.name).toBe("kimi-plugin-cc");
+    expect(provider.name).toBe("k3-plugin-cc");
     expect(provider.inject).toEqual(["subagents", "subprocess"]);
     expect(provider.apply).toBeFunction();
     expect(provider.Config).toBeFunction();
@@ -91,9 +91,9 @@ describe("DSH generated surface", () => {
   test("discovery index carries the current release metadata", async () => {
     const index = JSON.parse(await readFile(path.join(repoRoot, "dsh/index.json"), "utf8")) as typeof DSH_DISCOVERY_INDEX;
     expect(index).toEqual(DSH_DISCOVERY_INDEX);
-    expect(index.plugins[0].versions[0].version).toBe(KIMI_PLUGIN_CC_VERSION);
+    expect(index.plugins[0].versions[0].version).toBe(K3_PLUGIN_CC_VERSION);
     expect(index.plugins[0].versions[0].publishTimestamp).toBe(DSH_PUBLISH_TIMESTAMP);
     expect(index.plugins[0].versions[0].engines.dsh).toBe(DSH_VERSION_RANGE);
-    expect(index.plugins[0].name).toBe("kimi-plugin-cc");
+    expect(index.plugins[0].name).toBe("k3-plugin-cc");
   });
 });

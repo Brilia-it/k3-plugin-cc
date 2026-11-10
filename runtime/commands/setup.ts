@@ -65,10 +65,10 @@ import { isNativeV2CertifiedVersion, NATIVE_V2_CERTIFIED_VERSIONS } from "../kim
 import { resolveKimiHome } from "../kimi-home.js";
 import { ensurePluginPaths, resolvePluginPaths } from "../paths.js";
 import type { CommandContext } from "../types.js";
-import { KIMI_PLUGIN_CC_VERSION } from "../version.js";
+import { K3_PLUGIN_CC_VERSION } from "../version.js";
 import { parse as parseToml } from "../vendor/smol-toml/parse.js";
 
-const BEGIN_MARKER_PREFIX = "# === BEGIN kimi-plugin-cc-managed";
+const BEGIN_MARKER_PREFIX = "# === BEGIN k3-plugin-cc-managed";
 
 const DEFAULT_HOOK_TIMEOUT_S = 15;
 
@@ -275,7 +275,7 @@ async function runInstall(
       warnings.push(
         readorned
           ? `Re-adorned this host's managed-block markers: kimi-code rewrites its config on login/settings changes and strips all comments (markers included), leaving the hook enforcing but unmarked. Replaced the bare hook table with a freshly marked block (${prunedCount} table(s) refreshed). Enforcement was never interrupted.`
-          : `Pruned ${prunedCount} stale marker-less kimi-plugin-cc hook block(s) left by this host's earlier installs. This is a cleanup — your active hook is unaffected.`,
+          : `Pruned ${prunedCount} stale marker-less k3-plugin-cc hook block(s) left by this host's earlier installs. This is a cleanup — your active hook is unaffected.`,
       );
     }
 
@@ -296,10 +296,10 @@ async function runInstall(
       throw new RuntimeError(
         "SETUP_DUPLICATE_BLOCKS",
         [
-          `kimi-code config at ${configPath} contains ${state.beginLines.length} kimi-plugin-cc managed blocks for host ${hostId} (lines ${state.beginLines
+          `kimi-code config at ${configPath} contains ${state.beginLines.length} k3-plugin-cc managed blocks for host ${hostId} (lines ${state.beginLines
             .map((line) => line + 1)
             .join(", ")}).`,
-          "This usually means two /kimi:setup runs raced. Run `/kimi:setup --uninstall` to clear them, then `/kimi:setup` again.",
+          "This usually means two /k3:setup runs raced. Run `/k3:setup --uninstall` to clear them, then `/k3:setup` again.",
         ].join(" "),
         "setup.install",
         { details: { configPath, beginLines: state.beginLines } },
@@ -338,8 +338,8 @@ async function runInstall(
 
   const summary = probe.ok
     ? blockWritten
-      ? `Installed kimi-plugin-cc PreToolUse hook in ${configPath}.`
-      : `kimi-plugin-cc PreToolUse hook already up to date in ${configPath}.`
+      ? `Installed k3-plugin-cc PreToolUse hook in ${configPath}.`
+      : `k3-plugin-cc PreToolUse hook already up to date in ${configPath}.`
     : `Wrote managed block to ${configPath} but the hook script probe failed.`;
   return {
     action: "install",
@@ -353,8 +353,8 @@ async function runInstall(
     warnings,
     reviewGateEnabled,
     nextStep: probe.ok
-      ? "Run /kimi:review, /kimi:challenge, /kimi:ask, or /kimi:rescue. Codex users can invoke the matching $kimi-* skills."
-      : "Re-run /kimi:setup after installing kimi-code and Node. If the probe keeps failing, run /kimi:setup --uninstall and inspect ~/.kimi-code/config.toml manually.",
+      ? "Run /k3:review, /k3:challenge, /k3:ask, or /k3:rescue. Codex users can invoke the matching $kimi-* skills."
+      : "Re-run /k3:setup after installing kimi-code and Node. If the probe keeps failing, run /k3:setup --uninstall and inspect ~/.kimi-code/config.toml manually.",
     details: buildDetails({
       configPath,
       hookScriptPath,
@@ -390,7 +390,7 @@ async function runCheck(
       warnings,
       reviewGateEnabled,
       nextStep:
-        "Repair or remove the invalid [[hooks]] entry named above, then run /kimi:setup --check again. No model call is required.",
+        "Repair or remove the invalid [[hooks]] entry named above, then run /k3:setup --check again. No model call is required.",
       details: buildDetails({
         configPath,
         hookScriptPath,
@@ -443,13 +443,13 @@ async function runCheck(
   ];
   if (ownStale.length > 0) {
     warnings.push(
-      `Found ${ownStale.length} stale marker-less kimi-plugin-cc hook block(s) from this host's earlier installs. ` +
-        `Run /kimi:setup to refresh, or /kimi:setup --uninstall --all to clear everything.`,
+      `Found ${ownStale.length} stale marker-less k3-plugin-cc hook block(s) from this host's earlier installs. ` +
+        `Run /k3:setup to refresh, or /k3:setup --uninstall --all to clear everything.`,
     );
   }
   for (const host of foreignHosts) {
     warnings.push(
-      `Host "${host}" has a marker-less kimi-plugin-cc hook block (kimi-code config rewrites strip comments). ` +
+      `Host "${host}" has a marker-less k3-plugin-cc hook block (kimi-code config rewrites strip comments). ` +
         `It still enforces and is left untouched; run that host's setup to re-adorn its markers.`,
     );
   }
@@ -462,8 +462,8 @@ async function runCheck(
       action: "check",
       summary:
         installedCheck.state.kind === "absent"
-          ? `kimi-plugin-cc managed block is NOT installed in ${configPath}.`
-          : `kimi-plugin-cc managed block is present but invalid: ${installedCheck.reason}.`,
+          ? `k3-plugin-cc managed block is NOT installed in ${configPath}.`
+          : `k3-plugin-cc managed block is present but invalid: ${installedCheck.reason}.`,
       configPath,
       hookScriptPath,
       blockWritten: false,
@@ -474,10 +474,10 @@ async function runCheck(
       reviewGateEnabled,
       nextStep:
         installedCheck.state.kind === "absent"
-          ? "Run /kimi:setup (without --check) to install the managed block."
+          ? "Run /k3:setup (without --check) to install the managed block."
           : installedCheck.state.kind === "orphan"
             ? ORPHAN_MARKER_REMEDY
-            : "Run /kimi:setup --uninstall, then /kimi:setup to repair.",
+            : "Run /k3:setup --uninstall, then /k3:setup to repair.",
       details: buildDetails({
         configPath,
         hookScriptPath,
@@ -510,7 +510,7 @@ async function runCheck(
       warnings,
       reviewGateEnabled,
       nextStep:
-        "Reinstall the plugin so dist/hooks/approval-hook.js is present, or run /kimi:setup to refresh the managed block.",
+        "Reinstall the plugin so dist/hooks/approval-hook.js is present, or run /k3:setup to refresh the managed block.",
       details: buildDetails({
         configPath,
         hookScriptPath,
@@ -526,7 +526,7 @@ async function runCheck(
   return {
     action: "check",
     summary: probe.ok
-      ? `kimi-plugin-cc PreToolUse hook is installed and probe passed.`
+      ? `k3-plugin-cc PreToolUse hook is installed and probe passed.`
       : `Managed block is installed but probe failed (${probe.reason}).`,
     configPath,
     hookScriptPath,
@@ -537,11 +537,11 @@ async function runCheck(
     warnings,
     reviewGateEnabled,
     nextStep: !probe.ok
-      ? "Run /kimi:setup to repair the managed block, or /kimi:setup --uninstall if you want to remove the integration."
+      ? "Run /k3:setup to repair the managed block, or /k3:setup --uninstall if you want to remove the integration."
       : installedCheck.via === "bare-table"
         // Enforcement remains active through the marker-less table, but recommend
         // re-adorning rather than claiming no action is needed.
-        ? "Enforcement is active. Run /kimi:setup to re-adorn this host's managed-block markers — kimi-code stripped them on its last config write (comments are not preserved). Your hook keeps working meanwhile."
+        ? "Enforcement is active. Run /k3:setup to re-adorn this host's managed-block markers — kimi-code stripped them on its last config write (comments are not preserved). Your hook keeps working meanwhile."
         : "No action needed.",
     details: buildDetails({
       configPath,
@@ -597,7 +597,7 @@ async function runUninstallLocked(
       probe: "skipped",
       warnings,
       reviewGateEnabled,
-      nextStep: "Run /kimi:setup to install the managed block again.",
+      nextStep: "Run /k3:setup to install the managed block again.",
       details: buildDetails({
         configPath,
         hookScriptPath,
@@ -639,7 +639,7 @@ async function runUninstallLocked(
   }
   if (prunedCount > 0) {
     warnings.push(
-      `Pruned ${prunedCount} orphaned kimi-plugin-cc hook block(s) with no managed marker.`,
+      `Pruned ${prunedCount} orphaned k3-plugin-cc hook block(s) with no managed marker.`,
     );
   }
   const { blocks: remainingBlocks } = parseManagedBlock(stripped, hostId);
@@ -649,7 +649,7 @@ async function runUninstallLocked(
   if (!removeAllHosts && remainingHosts.length > 0) {
     warnings.push(
       `Left ${remainingHosts.length} other host block(s) in place: ${remainingHosts.join(", ")}. ` +
-        `Use \`/kimi:setup --uninstall --all\` to remove every host's block.`,
+        `Use \`/k3:setup --uninstall --all\` to remove every host's block.`,
     );
   }
 
@@ -657,7 +657,7 @@ async function runUninstallLocked(
     action: "uninstall",
     summary: changed
       ? `Removed ${removedBlocks} managed block(s)${prunedCount > 0 ? ` + ${prunedCount} orphan hook block(s)` : ""} from ${configPath}.`
-      : `No kimi-plugin-cc managed block to remove from ${configPath}.`,
+      : `No k3-plugin-cc managed block to remove from ${configPath}.`,
     configPath,
     hookScriptPath,
     blockWritten: false,
@@ -666,8 +666,8 @@ async function runUninstallLocked(
     warnings,
     reviewGateEnabled,
     nextStep: changed
-      ? "Run /kimi:setup again to reinstall the hook, or leave the plugin uninstalled."
-      : "Run /kimi:setup to install the hook.",
+      ? "Run /k3:setup again to reinstall the hook, or leave the plugin uninstalled."
+      : "Run /k3:setup to install the hook.",
     details: buildDetails({
       configPath,
       hookScriptPath,
@@ -703,7 +703,7 @@ async function writeConfigAtomic(configPath: string, contents: string): Promise<
   // mode.
   await mkdir(path.dirname(configPath), { recursive: true });
   const suffix = randomBytes(8).toString("hex");
-  const tmpPath = `${configPath}.kimi-plugin-cc.${process.pid}.${suffix}.tmp`;
+  const tmpPath = `${configPath}.k3-plugin-cc.${process.pid}.${suffix}.tmp`;
   const openFlags =
     fsConstants.O_WRONLY |
     fsConstants.O_CREAT |
@@ -745,7 +745,7 @@ async function assertKimiHookSetValid(
   if (validation.valid) return;
   throw new RuntimeError(
     "SETUP_INVALID_HOOKS_CONFIG",
-    `${validation.reason ?? "Configured hooks failed validation"} Repair or remove that [[hooks]] entry before rerunning /kimi:setup; the existing config was left unchanged.`,
+    `${validation.reason ?? "Configured hooks failed validation"} Repair or remove that [[hooks]] entry before rerunning /k3:setup; the existing config was left unchanged.`,
     stage,
     {
       details: {
@@ -1029,11 +1029,11 @@ function buildManagedBlock(
   const commandLine = `command = ${tomlBasicString(shellCommand)}`;
   const suffix = hostId.length > 0 ? `:${hostId}` : "";
   return [
-    `${BEGIN_MARKER_PREFIX}${suffix} (v${KIMI_PLUGIN_CC_VERSION}) ===`,
-    `# DO NOT EDIT — managed by /kimi:setup. Run /kimi:setup --uninstall to remove.`,
+    `${BEGIN_MARKER_PREFIX}${suffix} (v${K3_PLUGIN_CC_VERSION}) ===`,
+    `# DO NOT EDIT — managed by /k3:setup. Run /k3:setup --uninstall to remove.`,
     `# Host: ${hostId.length > 0 ? hostId : "(legacy)"} — each host owns a separate block in this shared`,
     `#   ~/.kimi-code/config.toml. Scoped setup/uninstall preserves other hosts;`,
-    `#   /kimi:setup --uninstall --all removes every host's block.`,
+    `#   /k3:setup --uninstall --all removes every host's block.`,
     `# Purpose:`,
     `#   kimi-code's \`kimi -p\` mode hard-codes permission='auto' and`,
     `#   auto-approves every tool call. This hook enforces each managed command's`,
@@ -1050,7 +1050,7 @@ function buildManagedBlock(
     `event = "PreToolUse"`,
     commandLine,
     `timeout = ${DEFAULT_HOOK_TIMEOUT_S}`,
-    `# === END kimi-plugin-cc-managed${suffix} ===`,
+    `# === END k3-plugin-cc-managed${suffix} ===`,
   ].join(lineEnding);
 }
 
@@ -1078,7 +1078,7 @@ function assertHookPathTomlSafe(hookScriptPath: string): void {
     [
       `Hook script path ${JSON.stringify(hookScriptPath)} contains characters`,
       `(control chars, quotes, backslashes, or newlines) that cannot be safely`,
-      `written into kimi-code's TOML config. Set KIMI_PLUGIN_CC_HOOK_SCRIPT`,
+      `written into kimi-code's TOML config. Set K3_PLUGIN_CC_HOOK_SCRIPT`,
       `to an unambiguous absolute path or reinstall the plugin to a location`,
       `without these characters.`,
     ].join(" "),
@@ -1185,7 +1185,7 @@ function spawnProbe(
 ): Promise<ProbeOutcome> {
   const payload = JSON.stringify({
     hook_event_name: "PreToolUse",
-    session_id: "kimi-plugin-cc-setup-probe",
+    session_id: "k3-plugin-cc-setup-probe",
     cwd: process.cwd(),
     tool_name: "Bash",
     tool_input: { command: "echo probe" },
@@ -1198,8 +1198,8 @@ function spawnProbe(
       child = spawn(command, args, {
         env: {
           ...env,
-          KIMI_PLUGIN_CC_CMD: "review",
-          KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+          K3_PLUGIN_CC_CMD: "review",
+          K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
         },
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -1268,16 +1268,16 @@ function truncate(value: string, max: number): string {
  * Warn only when the installed kimi is demonstrably outside the certified
  * range. Probe failure records nothing here because the hook probe reports the
  * more direct problem; setup may finish, but model spawn still refuses an
- * uncertified binary. KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is a test/CI bypass,
+ * uncertified binary. K3_PLUGIN_CC_SKIP_VERSION_PROBE is a test/CI bypass,
  * not a production compatibility override.
  */
 async function collectKimiVersionWarnings(
   env: NodeJS.ProcessEnv,
   warnings: string[],
 ): Promise<void> {
-  if (env.KIMI_PLUGIN_CC_SKIP_VERSION_PROBE === "1") return;
+  if (env.K3_PLUGIN_CC_SKIP_VERSION_PROBE === "1") return;
   const probe = await probeKimiVersion({
-    kimiBin: env.KIMI_PLUGIN_CC_KIMI_BIN || undefined,
+    kimiBin: env.K3_PLUGIN_CC_KIMI_BIN || undefined,
     env,
   });
   if (probe.kind === "failed") {
@@ -1291,7 +1291,7 @@ async function collectKimiVersionWarnings(
   // KIMI_TESTED_MINORS — that table never gains 0.42). Without this, setup on a
   // v2-certified binary would wrongly warn "not certified, commands will refuse".
   if (probe.inTestedRange || isNativeV2CertifiedVersion(probe.version)) return;
-  warnings.push(formatVersionOutOfRangeWarning(probe, KIMI_PLUGIN_CC_VERSION, NATIVE_V2_CERTIFIED_VERSIONS));
+  warnings.push(formatVersionOutOfRangeWarning(probe, K3_PLUGIN_CC_VERSION, NATIVE_V2_CERTIFIED_VERSIONS));
 }
 
 /**
@@ -1337,11 +1337,11 @@ async function collectInstalledKimiPluginsNotice(
   warnings.push(
     [
       `NOTE: ${enabledIds.length} kimi-code plugin(s) installed and enabled: ${enabledIds.join(", ")}.`,
-      "  kimi-code registers their tools (including MCP) on every session. Under kimi-plugin-cc's",
-      "  read-only commands (/kimi:review, /kimi:challenge, /kimi:ask, and the review gate) the",
+      "  kimi-code registers their tools (including MCP) on every session. Under k3-plugin-cc's",
+      "  read-only commands (/k3:review, /k3:challenge, /k3:ask, and the review gate) the",
       "  PreToolUse hook denies any tool outside Read/Grep/Glob, so calls to these plugins' tools",
       "  are blocked — safe, but they can waste model turns. This is expected; no action needed.",
-      "  (/kimi:rescue and /kimi:swarm apply their own allowlists.) To avoid the turn-waste, disable",
+      "  (/k3:rescue and /k3:swarm apply their own allowlists.) To avoid the turn-waste, disable",
       "  kimi-code plugins you don't need for delegated work in your kimi-code config.",
     ].join("\n"),
   );
@@ -1424,7 +1424,7 @@ function buildDetails(args: {
 }): string[] {
   const details = [
     `Companion runtime: Node ${process.version}`,
-    `Plugin version:   ${KIMI_PLUGIN_CC_VERSION}`,
+    `Plugin version:   ${K3_PLUGIN_CC_VERSION}`,
     ...(args.hostId ? [`Host id:          ${args.hostId}`] : []),
     `Config file:      ${args.configPath}`,
     `Hook script:      ${args.hookScriptPath}`,

@@ -105,7 +105,7 @@ export async function runReviewGateStopHook(
     return reviewGateSkipped("no assistant message");
   }
 
-  if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+  if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
     const installStatus = await verifyHookInstalled(context.env);
     if (!installStatus.installed) {
       maybeWarnHookMissing(installStatus, "review_gate", context.stderr);
@@ -129,7 +129,7 @@ export async function runReviewGateStopHook(
       context,
     );
 
-    const note = output.hookEscapeNote !== undefined ? `Kimi review gate ${output.hookEscapeNote}` : undefined;
+    const note = output.hookEscapeNote !== undefined ? `K3 review gate ${output.hookEscapeNote}` : undefined;
     if (output.decision === "BLOCK" && output.confidence === "high") {
       return {
         decision: "block",
@@ -139,7 +139,7 @@ export async function runReviewGateStopHook(
     }
 
     if (output.decision === "BLOCK") {
-      const concern = `Kimi review gate noted concerns but allowed stop: ${output.summary}`;
+      const concern = `K3 review gate noted concerns but allowed stop: ${output.summary}`;
       return { systemMessage: note !== undefined ? `${concern}\n${note}` : concern };
     }
 
@@ -181,9 +181,9 @@ async function executeReviewGate(
     });
     // Unset or empty → request "off" (the 8 s budget is why); "inherit" → export
     // nothing; anything else is lowercased and syntax-checked like --thinking.
-    const gateThinking = context.env.KIMI_PLUGIN_CC_REVIEW_GATE_THINKING?.trim() || "off";
+    const gateThinking = context.env.K3_PLUGIN_CC_REVIEW_GATE_THINKING?.trim() || "off";
     const thinkingEffort = gateThinking.toLowerCase() === "inherit" ? undefined : validateThinkingEffort(gateThinking, "review_gate.parse");
-    const configuredModel = context.env.KIMI_PLUGIN_CC_REVIEW_GATE_MODEL;
+    const configuredModel = context.env.K3_PLUGIN_CC_REVIEW_GATE_MODEL;
     const model = configuredModel?.trim() ? configuredModel : undefined;
     const executionPlan = await prepareKimiExecutionPlan({
       operationKind: "review_gate",
@@ -263,7 +263,7 @@ async function executeReviewGate(
       const finalText = reassembleProseFromRecords(result.records);
       const rendered = renderManagedJobOutput(job, finalText);
 
-      // Cancel-vs-completed race: /kimi:cancel pre-marks the row as
+      // Cancel-vs-completed race: /k3:cancel pre-marks the row as
       // `cancelled` and SIGTERMs the worker. If the subprocess close/result
       // path returns success in the SIGTERM→exit window, committing here could
       // overwrite the cancellation artifact and confuse the hook's allow/block
@@ -331,7 +331,7 @@ function buildBlockReason(output: ReviewGateOutput): string {
     .map((issue) => `- [${issue.severity}] ${issue.title}: ${issue.body}`);
 
   return [
-    "Kimi review gate blocked stop. Revise the previous response before ending the turn.",
+    "K3 review gate blocked stop. Revise the previous response before ending the turn.",
     `Summary: ${output.summary}`,
     ...(issueLines.length > 0 ? ["Issues:", ...issueLines] : []),
   ].join("\n");
@@ -352,7 +352,7 @@ function isTimeoutError(error: unknown): boolean {
 
 function buildWarningMessage(error: unknown): string {
   if (isTimeoutError(error)) {
-    return "Kimi review gate timed out after 8s; allowing stop.";
+    return "K3 review gate timed out after 8s; allowing stop.";
   }
 
   if (error instanceof RuntimeError) {
@@ -361,11 +361,11 @@ function buildWarningMessage(error: unknown): string {
       error.code === "MISSING_TURN_END" ||
       error.code === "TURN_INTERRUPTED"
     ) {
-      return "Kimi review gate returned malformed output; allowing stop.";
+      return "K3 review gate returned malformed output; allowing stop.";
     }
 
     if (error.code === "MAX_STEPS_REACHED") {
-      return "Kimi review gate exhausted its step budget; allowing stop.";
+      return "K3 review gate exhausted its step budget; allowing stop.";
     }
 
     // v0.4 codes from the deleted wire/* path. Kept here so a stale
@@ -383,7 +383,7 @@ function buildWarningMessage(error: unknown): string {
       error.code === "CLI_ABORTED" ||
       error.code === "CLI_NO_SESSION_ID"
     ) {
-      return "Kimi review gate is unavailable in this environment; allowing stop.";
+      return "K3 review gate is unavailable in this environment; allowing stop.";
     }
   }
 
@@ -392,7 +392,7 @@ function buildWarningMessage(error: unknown): string {
     return warning;
   }
 
-  return "Kimi review gate failed unexpectedly; allowing stop.";
+  return "K3 review gate failed unexpectedly; allowing stop.";
 }
 
 async function extractLastUserMessage(transcriptPath?: string): Promise<string | null> {

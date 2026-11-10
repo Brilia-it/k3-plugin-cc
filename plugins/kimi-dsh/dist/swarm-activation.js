@@ -483,7 +483,7 @@ async function readWebSocketAgentState(web, sessionId, signal, failureCode) {
                 send({
                     type: "client_hello",
                     id: helloId,
-                    payload: { client_id: "kimi-plugin-cc-swarm-activation" },
+                    payload: { client_id: "k3-plugin-cc-swarm-activation" },
                 });
             };
             const onMessage = (event) => {

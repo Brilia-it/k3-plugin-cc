@@ -10,11 +10,11 @@ import { createMcpFixture, McpClient, modernMeta } from "../helpers/mcp.js";
 describe("MCP real-node hook enforcement", () => {
   test("a mock-backed ask succeeds without a Node override or hook-check skip", async () => {
     const fixture = await createMcpFixture("mcp-hook-success");
-    fixture.env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH = path.join(fixture.data, "invocation.json");
+    fixture.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH = path.join(fixture.data, "invocation.json");
     let client: McpClient | undefined;
     try {
-      expect(fixture.env.KIMI_PLUGIN_CC_NODE_BIN).toBeUndefined();
-      expect(fixture.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK).toBeUndefined();
+      expect(fixture.env.K3_PLUGIN_CC_NODE_BIN).toBeUndefined();
+      expect(fixture.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK).toBeUndefined();
       client = await McpClient.legacy(fixture);
       const started = await client.request("tools/call", {
         name: "kimi_ask",
@@ -28,7 +28,7 @@ describe("MCP real-node hook enforcement", () => {
         await Bun.sleep(100);
       }
       expect(result.content[0].text).toContain("Ask answer from mock Kimi.");
-      expect(existsSync(fixture.env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH)).toBe(true);
+      expect(existsSync(fixture.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH)).toBe(true);
     } finally {
       if (client) await client.close();
       await fixture.cleanup();
@@ -40,7 +40,7 @@ describe("MCP real-node hook enforcement", () => {
     const configPath = path.join(fixture.kimiHome, "config.toml");
     const config = await readFile(configPath, "utf8");
     await writeFile(configPath, config.replaceAll("approval-hook.js", "not-our-hook.js"), "utf8");
-    fixture.env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH = path.join(fixture.data, "invocation.json");
+    fixture.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH = path.join(fixture.data, "invocation.json");
     let client: McpClient | undefined;
     try {
       client = await McpClient.modern(fixture);
@@ -53,7 +53,7 @@ describe("MCP real-node hook enforcement", () => {
       expect(started.isError).toBe(true);
       expect(started.content[0].text).toContain("ASK_HOOK_NOT_INSTALLED");
       expect(started.structuredContent.error.code).toBe("MCP_CHILD_LAUNCH_FAILED");
-      expect(existsSync(fixture.env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH)).toBe(false);
+      expect(existsSync(fixture.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH)).toBe(false);
 
       const store = new JobStore(resolvePluginPaths(fixture.env));
       try {

@@ -5,7 +5,7 @@ describe("GHSA-395f-4hp3-45gv: linear shell token finalization", () => {
   for (const modulePath of [
     "../../runtime/vendor/shell-quote/parse.ts",
     "../../dist/vendor/shell-quote/parse.js",
-    "../../plugins/kimi-codex/dist/vendor/shell-quote/parse.js",
+    "../../plugins/k3-codex/dist/vendor/shell-quote/parse.js",
   ]) {
     test(modulePath, () => {
       const script = `

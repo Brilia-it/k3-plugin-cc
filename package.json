@@ -1,5 +1,5 @@
 {
-  "name": "kimi-plugin-cc",
+  "name": "k3-plugin-cc",
   "version": "2.5.6",
   "description": "Kimi for Claude Code, Codex, and DeepSeek Harness: code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP tools through the local Kimi Code CLI.",
   "type": "module",
@@ -14,13 +14,13 @@
     }
   },
   "scripts": {
-    "check": "bun run build && bun run check:contracts && bun run check:surfaces && bunx tsc --noEmit && bun test && git diff --exit-code -- dist plugins/kimi-codex plugins/kimi-dsh && UNTRACKED=\"$(git ls-files --others --exclude-standard -- dist plugins/kimi-codex plugins/kimi-dsh)\" && { [ -z \"$UNTRACKED\" ] || { echo \"drift gate: untracked dist/codex/dsh files (stage them and re-run check):\"; echo \"$UNTRACKED\"; exit 1; }; }",
+    "check": "bun run build && bun run check:contracts && bun run check:surfaces && bunx tsc --noEmit && bun test && git diff --exit-code -- dist plugins/k3-codex plugins/kimi-dsh && UNTRACKED=\"$(git ls-files --others --exclude-standard -- dist plugins/k3-codex plugins/kimi-dsh)\" && { [ -z \"$UNTRACKED\" ] || { echo \"drift gate: untracked dist/codex/dsh files (stage them and re-run check):\"; echo \"$UNTRACKED\"; exit 1; }; }",
     "check:surfaces": "bun run scripts/generate-surfaces.ts --check",
     "generate:surfaces": "bun run scripts/generate-surfaces.ts",
     "build": "rm -rf dist && bunx tsc -p tsconfig.build.json && mkdir -p dist/vendor/shell-quote dist/vendor/smol-toml && cp runtime/vendor/shell-quote/LICENSE dist/vendor/shell-quote/LICENSE && cp runtime/vendor/smol-toml/*.js runtime/vendor/smol-toml/LICENSE dist/vendor/smol-toml/ && echo '{\"type\":\"module\"}' > dist/package.json",
     "companion": "node --import tsx runtime/companion.ts",
     "test": "bun test",
-    "smoke:real": "KIMI_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts --path-ignore-patterns '**/worktrees/**'",
+    "smoke:real": "K3_PLUGIN_CC_SMOKE=1 bun test tests/runtime/real-binary-smoke.test.ts --path-ignore-patterns '**/worktrees/**'",
     "check:package": "node scripts/check-package.mjs && node scripts/check-dsh-package.mjs",
     "check:consumer-security": "node scripts/check-consumer-security.mjs",
     "check:contracts": "node scripts/check-contract-size.mjs"
@@ -123,7 +123,7 @@
     "commands/",
     "hooks/",
     "dist/",
-    "plugins/kimi-codex/",
+    "plugins/k3-codex/",
     "plugins/kimi-dsh/",
     "scripts/companion.sh",
     "scripts/review-gate-hook.sh",

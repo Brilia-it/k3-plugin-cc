@@ -34,7 +34,7 @@ describe("setup command parsing", () => {
   });
 
   test("CLI setup --check retains actionable stdout and exits nonzero on failure", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "kimi-plugin-cc-setup-cli-"));
+    const root = await mkdtemp(path.join(tmpdir(), "k3-plugin-cc-setup-cli-"));
     const kimiHome = path.join(root, "kimi-home");
     const pluginData = path.join(root, "plugin-data");
     await mkdir(kimiHome, { recursive: true });
@@ -46,11 +46,11 @@ describe("setup command parsing", () => {
         ...process.env,
         KIMI_CODE_HOME: kimiHome,
         CLAUDE_PLUGIN_DATA: pluginData,
-        KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
       });
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toContain("managed block is NOT installed");
-      expect(result.stdout).toContain("Next step: Run /kimi:setup");
+      expect(result.stdout).toContain("Next step: Run /k3:setup");
       // The tsx loader may emit Node deprecation warnings (e.g. DEP0205
       // module.register() on Node >= 25) that are environment noise, not
       // companion output — strip them before asserting a clean stderr.

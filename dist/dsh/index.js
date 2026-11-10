@@ -6,7 +6,7 @@ import z from "@deepseek-ai/schemastery";
 import { NO_START_CAPABILITIES, } from "@deepseek-ai/dsh-subagent";
 import { DSH_COMPANION_OPERATIONS, runCompanionCommand, startCompanionRun, } from "./companion.js";
 import { parseDurationMs } from "../parsing.js";
-export const name = "kimi-plugin-cc";
+export const name = "k3-plugin-cc";
 export const inject = ["subagents", "subprocess"];
 export const DSH_TOOL_GUIDANCE = [
     "Kimi delegation tools have different write boundaries:",
@@ -29,18 +29,18 @@ export const Config = z.object({
     reviewBase: z.string().min(1),
 });
 export function defaultDshDataRoot(env = process.env) {
-    const explicit = env.KIMI_PLUGIN_CC_DATA;
+    const explicit = env.K3_PLUGIN_CC_DATA;
     if (explicit !== undefined) {
         if (!path.isAbsolute(explicit)) {
-            throw new Error("kimi-plugin-cc: KIMI_PLUGIN_CC_DATA must be absolute");
+            throw new Error("k3-plugin-cc: K3_PLUGIN_CC_DATA must be absolute");
         }
         return path.normalize(explicit);
     }
     const dshHome = env.DSH_HOME ?? path.join(env.HOME || homedir(), ".dsh");
     if (!path.isAbsolute(dshHome)) {
-        throw new Error("kimi-plugin-cc: DSH_HOME must be absolute");
+        throw new Error("k3-plugin-cc: DSH_HOME must be absolute");
     }
-    return path.join(dshHome, "plugin-data", "kimi-plugin-cc");
+    return path.join(dshHome, "plugin-data", "k3-plugin-cc");
 }
 function resolveConfig(config) {
     const resolved = {
@@ -54,17 +54,17 @@ function resolveConfig(config) {
         reviewBase: config.reviewBase,
     };
     if (!path.isAbsolute(resolved.dataRoot)) {
-        throw new Error("kimi-plugin-cc: dataRoot must be absolute");
+        throw new Error("k3-plugin-cc: dataRoot must be absolute");
     }
     if (!Number.isFinite(resolved.disposeGraceMs) || resolved.disposeGraceMs < DEFAULT_DISPOSE_GRACE_MS || resolved.disposeGraceMs > MAX_TIMER_DELAY_MS) {
-        throw new Error(`kimi-plugin-cc: disposeGraceMs must be at least ${DEFAULT_DISPOSE_GRACE_MS} and no greater than ${MAX_TIMER_DELAY_MS}`);
+        throw new Error(`k3-plugin-cc: disposeGraceMs must be at least ${DEFAULT_DISPOSE_GRACE_MS} and no greater than ${MAX_TIMER_DELAY_MS}`);
     }
     if (!Number.isSafeInteger(resolved.maxOutputBytes) || resolved.maxOutputBytes <= 0) {
-        throw new Error("kimi-plugin-cc: maxOutputBytes must be a positive safe integer");
+        throw new Error("k3-plugin-cc: maxOutputBytes must be a positive safe integer");
     }
     for (const [field, value] of [["model", resolved.model], ["thinkingEffort", resolved.thinkingEffort], ["reviewBase", resolved.reviewBase]]) {
         if (value?.startsWith("-"))
-            throw new Error(`kimi-plugin-cc: ${field} must not start with '-'`);
+            throw new Error(`k3-plugin-cc: ${field} must not start with '-'`);
     }
     if (resolved.budget !== undefined)
         parseDurationMs(resolved.budget, "--budget", "dsh.config", "safety");
@@ -113,7 +113,7 @@ export function apply(ctx, config) {
     }
     ctx.inject(["systemPrompt"], (promptCtx) => {
         promptCtx.systemPrompt.section({
-            name: "kimi-plugin-cc:tool-boundaries",
+            name: "k3-plugin-cc:tool-boundaries",
             order: promptCtx.systemPrompt.getSectionOrder("TOOL_SUBAGENT"),
             text: () => DSH_TOOL_GUIDANCE,
         });
@@ -139,8 +139,8 @@ export function apply(ctx, config) {
             return { kind: "success", text: text.length > 0 ? text : "Kimi command completed." };
         };
         commandCtx.commands.register({
-            definitionId: CommandDefinitionId("kimi-plugin-cc/dsh/setup"),
-            name: "kimi-setup",
+            definitionId: CommandDefinitionId("k3-plugin-cc/dsh/setup"),
+            name: "k3-setup",
             description: "Install, check, or remove the DSH-owned Kimi PreToolUse hook; list configured models",
             input: { hint: "[--check|--uninstall|--models [--json]]" },
             recordInput: false,
@@ -150,14 +150,14 @@ export function apply(ctx, config) {
                     || (args.length === 1 && ["--check", "--uninstall", "--models"].includes(args[0]))
                     || (args.length === 2 && args[0] === "--models" && args[1] === "--json");
                 if (!valid) {
-                    return { kind: "error", text: "Usage: /kimi-setup [--check|--uninstall|--models [--json]]" };
+                    return { kind: "error", text: "Usage: /k3-setup [--check|--uninstall|--models [--json]]" };
                 }
                 return execute(invocation, ["setup", ...args]);
             },
         });
         for (const command of ["status", "result", "cancel"]) {
             commandCtx.commands.register({
-                definitionId: CommandDefinitionId(`kimi-plugin-cc/dsh/${command}`),
+                definitionId: CommandDefinitionId(`k3-plugin-cc/dsh/${command}`),
                 name: `kimi-${command}`,
                 description: `${command === "cancel" ? "Cancel" : command === "status" ? "Inspect" : "Return"} a companion Kimi job`,
                 input: { hint: "[job-id]" },

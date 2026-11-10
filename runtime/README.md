@@ -49,14 +49,14 @@ Every model command verifies the current host's hook before spawning the Kimi CL
 
 MCP launches attach only after cancellation handlers are installed, with a 60-second bound. Verified teardown can close a stalled launch; missing identity or inconclusive termination evidence keeps it starting and recoverable by ID. `kimi_pid` is recorded at actual spawn. Host workspace defaults are containment boundaries, not arbitrary overrides.
 
-`KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook verification only. It is a test and diagnostic option, not a repair path. It does not bypass engine certification, provenance, or the native-v2 preflight.
+`K3_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook verification only. It is a test and diagnostic option, not a repair path. It does not bypass engine certification, provenance, or the native-v2 preflight.
 
 Cancellation waits for process teardown. On POSIX systems, the runtime checks descendant identities before signaling and waits for a bounded period after forced termination. Windows lacks equivalent process-tree support.
 
-Slash-command and skill model operations return Kimi's prose. The review gate parses a JSON allow/block decision and permits the host to stop on malformed output. MCP returns protocol envelopes, task or launch handles, and structured job-control metadata. Enable the optional Claude Code Stop hook with `/kimi:setup --enable-review-gate`.
+Slash-command and skill model operations return Kimi's prose. The review gate parses a JSON allow/block decision and permits the host to stop on malformed output. MCP returns protocol envelopes, task or launch handles, and structured job-control metadata. Enable the optional Claude Code Stop hook with `/k3:setup --enable-review-gate`.
 
 Model selection follows the [model and provider contract](../docs/models.md). The plugin does not enforce a per-task thinking setting. `--thinking <effort>` requests effort for this process through `KIMI_MODEL_THINKING_EFFORT`; upstream provider/model rules can ignore it and stream-json cannot reveal whether it was honoured. `--no-thinking` is rejected; use `--thinking off`.
 
-The shell wrapper accepts `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT`. Data selection uses the explicit `KIMI_PLUGIN_CC_DATA` override, verified installed-package identity, or unambiguous legacy data variables for custom launches. Conflicts refuse before store access; see [plugin data ownership](../docs/invariants.md#5-plugin-data-ownership). Logs remain under the selected parent in `kimi-plugin-cc/logs/`. See [entry points and generated surfaces](../scripts/README.md).
+The shell wrapper accepts `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT`. Data selection uses the explicit `K3_PLUGIN_CC_DATA` override, verified installed-package identity, or unambiguous legacy data variables for custom launches. Conflicts refuse before store access; see [plugin data ownership](../docs/invariants.md#5-plugin-data-ownership). Logs remain under the selected parent in `k3-plugin-cc/logs/`. See [entry points and generated surfaces](../scripts/README.md).
 
 Production runs use `dist/companion.js` on Node. Development can use `tsx`; Bun installs dependencies and runs tests. The old Python Wire transport is historical and is not used by this runtime.

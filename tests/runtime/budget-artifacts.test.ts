@@ -28,16 +28,16 @@ async function invoke(args: string[], env: NodeJS.ProcessEnv) {
 function mockEnv(root: string, repo: string, scenario: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    KIMI_PLUGIN_CC_DATA: root,
+    K3_PLUGIN_CC_DATA: root,
     KIMI_CODE_HOME: path.join(root, "kimi-home"),
-    KIMI_PLUGIN_CC_WORKSPACE_CWD: repo,
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCli]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: scenario,
-    KIMI_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "5000",
-    KIMI_PLUGIN_CC_MOCK_SESSION_ID: "26242650-d95f-4805-80d9-c947d309b2c6",
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1", // transport integration, not a hook-enforcement test
-    KIMI_PLUGIN_CC_NODE_BIN: "node",
+    K3_PLUGIN_CC_WORKSPACE_CWD: repo,
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCli]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: scenario,
+    K3_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "5000",
+    K3_PLUGIN_CC_MOCK_SESSION_ID: "26242650-d95f-4805-80d9-c947d309b2c6",
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1", // transport integration, not a hook-enforcement test
+    K3_PLUGIN_CC_NODE_BIN: "node",
   };
 }
 
@@ -84,7 +84,7 @@ describe("compiled timeout artifacts", () => {
           expect((await invoke(["result", status.job_id], env)).stdout.trimEnd()).toBe(envelope.body.trimEnd());
           expect(await readFile(status.final_output_path, "utf8")).toBe(envelope.body);
           if (kind === "ask") {
-            const resumed = await invoke(["ask", "-r", "Continue"], { ...env, KIMI_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "0" });
+            const resumed = await invoke(["ask", "-r", "Continue"], { ...env, K3_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "0" });
             expect(resumed.code).toBe(0);
             const resumedStatus = JSON.parse((await invoke(["status", "--type", "ask"], env)).stdout);
             expect(resumedStatus.status).toBe("completed");
@@ -169,7 +169,7 @@ for (const [kind, command, run, scenario] of [
       expect(parent.budget_source).toBe("explicit");
       expect(parent.error.code).toBe(`${kind.toUpperCase()}_KIMI_RESPONSE_TIMEOUT`);
       expect(parent.error.details.budget_ms).toBe(2_700_000);
-      const quickEnv = { ...env, KIMI_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "0" };
+      const quickEnv = { ...env, K3_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "0" };
       for (const flags of [["-r"], ["--resume", parent.job_id], ["--resume", parent.kimi_session_id]]) {
         const continuation = await invoke([...command, ...flags, "--background", "--wait"], quickEnv);
         expect(continuation.code).toBe(0);
@@ -200,7 +200,7 @@ for (const [kind, flags, defaultBudget] of [["pursue", [], 2_700_000], ["swarm",
   test(`compiled ${kind} stores its effective safety budget, including defaults`, async () => {
     const root = await createTestPluginDataRoot("safety-budget");
     const repo = await createGitRepoFixture("safety-budget-repo");
-    const env = { ...mockEnv(root, repo, "ask-success"), KIMI_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "0" };
+    const env = { ...mockEnv(root, repo, "ask-success"), K3_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "0" };
     try {
       for (const budget of [[], ["--budget", "1h"]]) {
         const result = await invoke(["task", kind === "swarm-write" ? "swarm" : kind, ...flags, ...budget, "Inspect"], env);
@@ -220,9 +220,9 @@ for (const [kind, flags, defaultBudget] of [["pursue", [], 2_700_000], ["swarm",
 test("compiled native-v2 ask: a same-window session whose journal opens with a different prompt is never adopted", async () => {
   const root = await createTestPluginDataRoot("v2-budget-digest");
   const repo = await createGitRepoFixture("v2-budget-digest-repo");
-  const env: NodeJS.ProcessEnv = { ...mockEnv(root, repo, "ask-success"), KIMI_PLUGIN_CC_MOCK_VERSION: "2.2.0",
-    KIMI_PLUGIN_CC_MOCK_RECOVERABLE_V2: "1", KIMI_PLUGIN_CC_MOCK_SESSION_ID: "session_26242650-d95f-4805-80d9-c947d309b2c7",
-    KIMI_PLUGIN_CC_MOCK_JOURNAL_PROMPT_OVERRIDE: "a prompt this job never sent" };
+  const env: NodeJS.ProcessEnv = { ...mockEnv(root, repo, "ask-success"), K3_PLUGIN_CC_MOCK_VERSION: "2.2.0",
+    K3_PLUGIN_CC_MOCK_RECOVERABLE_V2: "1", K3_PLUGIN_CC_MOCK_SESSION_ID: "session_26242650-d95f-4805-80d9-c947d309b2c7",
+    K3_PLUGIN_CC_MOCK_JOURNAL_PROMPT_OVERRIDE: "a prompt this job never sent" };
   try {
     await invoke(["ask", "--budget", "1s", "Inspect"], env);
     const result = JSON.parse((await invoke(["result", "--json"], env)).stdout);
@@ -245,8 +245,8 @@ for (const [kind, command, scenario] of [
     const root = await createTestPluginDataRoot("v2-budget-recovery");
     const repo = await createGitRepoFixture("v2-budget-repo");
     const sessionId = "session_26242650-d95f-4805-80d9-c947d309b2c6";
-    const env: NodeJS.ProcessEnv = { ...mockEnv(root, repo, scenario), KIMI_PLUGIN_CC_MOCK_VERSION: "2.2.0",
-      KIMI_PLUGIN_CC_MOCK_RECOVERABLE_V2: "1", KIMI_PLUGIN_CC_MOCK_SESSION_ID: sessionId };
+    const env: NodeJS.ProcessEnv = { ...mockEnv(root, repo, scenario), K3_PLUGIN_CC_MOCK_VERSION: "2.2.0",
+      K3_PLUGIN_CC_MOCK_RECOVERABLE_V2: "1", K3_PLUGIN_CC_MOCK_SESSION_ID: sessionId };
     try {
       // Rescue exercises the detached-worker route; the other commands run foreground.
       await invoke([...command, "--budget", "1s", ...(kind === "rescue" ? ["--background", "--wait"] : []), "Inspect"], env);
@@ -256,7 +256,7 @@ for (const [kind, command, scenario] of [
       expect(result.error.details).toMatchObject({ kimi_session_id: sessionId, kimi_session_id_source: "recovered_session_dir" });
       expect(result.error.details.session_recovery).toBeUndefined();
       if (kind !== "ask" && kind !== "rescue") return;
-      const quickEnv = { ...env, KIMI_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "0" };
+      const quickEnv = { ...env, K3_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS: "0" };
       const resume = await invoke([...command, "--resume", result.job_id], quickEnv);
       expect(resume).toMatchObject({ code: 0 });
       const continued = JSON.parse((await invoke(["result", "--json"], env)).stdout);
@@ -285,8 +285,8 @@ for (const [kind, command, scenario] of [
 test("compiled native-v2 timeout reports why session recovery found none", async () => {
   const root = await createTestPluginDataRoot("v2-budget-no-session");
   const repo = await createGitRepoFixture("v2-budget-no-session-repo");
-  const env = { ...mockEnv(root, repo, "ask-success"), KIMI_PLUGIN_CC_MOCK_VERSION: "2.2.0",
-    KIMI_PLUGIN_CC_MOCK_RECOVERABLE_V2: "1", KIMI_PLUGIN_CC_MOCK_NO_SESSION_STORE: "1" };
+  const env = { ...mockEnv(root, repo, "ask-success"), K3_PLUGIN_CC_MOCK_VERSION: "2.2.0",
+    K3_PLUGIN_CC_MOCK_RECOVERABLE_V2: "1", K3_PLUGIN_CC_MOCK_NO_SESSION_STORE: "1" };
   try {
     await invoke(["ask", "--budget", "1s", "Inspect"], env);
     const result = JSON.parse((await invoke(["result", "--json"], env)).stdout);

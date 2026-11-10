@@ -229,10 +229,10 @@ export class JobStore {
         catch (error) {
             if (isSqliteConstraintError(error)) {
                 if (input.command_type === "rescue") {
-                    throw new RuntimeError("RESCUE_ALREADY_RUNNING", `A rescue job for session ${input.kimi_session_id ?? "<unknown>"} is already running in this repo. Use /kimi:status to find it.`, "rescue.resume", error instanceof Error ? { cause: error } : undefined);
+                    throw new RuntimeError("RESCUE_ALREADY_RUNNING", `A rescue job for session ${input.kimi_session_id ?? "<unknown>"} is already running in this repo. Use /k3:status to find it.`, "rescue.resume", error instanceof Error ? { cause: error } : undefined);
                 }
                 if (input.command_type === "ask") {
-                    throw new RuntimeError("ASK_ALREADY_RUNNING", `An ask session ${input.kimi_session_id ?? "<unknown>"} is already running in this repo. Use /kimi:status to find it.`, "ask.resume", error instanceof Error ? { cause: error } : undefined);
+                    throw new RuntimeError("ASK_ALREADY_RUNNING", `An ask session ${input.kimi_session_id ?? "<unknown>"} is already running in this repo. Use /k3:status to find it.`, "ask.resume", error instanceof Error ? { cause: error } : undefined);
                 }
             }
             throw translateSqliteError(error);
@@ -510,7 +510,7 @@ function createSqliteAdapter(filename) {
         nodeSqlite = require("node:sqlite");
     }
     catch (error) {
-        throw new RuntimeError("JOB_STORE_UNSUPPORTED_RUNTIME", "kimi-plugin-cc requires Node >= 22.5 for its built-in node:sqlite module. Upgrade Node, or set KIMI_PLUGIN_CC_NODE_BIN to a qualifying binary.", "job-store", error instanceof Error ? { cause: error } : undefined);
+        throw new RuntimeError("JOB_STORE_UNSUPPORTED_RUNTIME", "k3-plugin-cc requires Node >= 22.5 for its built-in node:sqlite module. Upgrade Node, or set K3_PLUGIN_CC_NODE_BIN to a qualifying binary.", "job-store", error instanceof Error ? { cause: error } : undefined);
     }
     const db = new nodeSqlite.DatabaseSync(filename);
     return {
@@ -606,7 +606,7 @@ function isSqliteBusyError(error) {
 }
 function translateSqliteError(error) {
     if (isSqliteBusyError(error)) {
-        return new RuntimeError("JOB_STORE_BUSY", "The plugin job store is locked by another process. Wait a moment and retry, or check for stuck rescue workers with /kimi:status.", "job-store", error instanceof Error ? { cause: error } : undefined);
+        return new RuntimeError("JOB_STORE_BUSY", "The plugin job store is locked by another process. Wait a moment and retry, or check for stuck rescue workers with /k3:status.", "job-store", error instanceof Error ? { cause: error } : undefined);
     }
     if (error instanceof RuntimeError) {
         return error;

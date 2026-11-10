@@ -108,7 +108,7 @@ try {
   });
   const archive = path.join(destination, `${pkg.name}-${pkg.version}.tgz`);
   const files = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n');
-  const allowed = /^(?:package\/(?:package\.json|\.mcp\.json|README\.md|LICENSE|CHANGELOG\.md)|package\/(?:\.claude-plugin|\.agents\/plugins|agents|commands|hooks|dist|plugins\/kimi-codex|plugins\/kimi-dsh|docs)\/|package\/scripts\/(?:companion|review-gate-hook)\.sh$)/;
+  const allowed = /^(?:package\/(?:package\.json|\.mcp\.json|README\.md|LICENSE|CHANGELOG\.md)|package\/(?:\.claude-plugin|\.agents\/plugins|agents|commands|hooks|dist|plugins\/k3-codex|plugins\/kimi-dsh|docs)\/|package\/scripts\/(?:companion|review-gate-hook)\.sh$)/;
   const syncConflictCopy = /(?:^|\/)[^/]* [0-9]+(?:\.[^/]*)?(?:\/|$)/;
   for (const file of files) {
     assert(!file.split('/').includes('..'), file);
@@ -129,7 +129,7 @@ try {
     HOME: path.join(scratch, 'home'),
     DSH_HOME: dshHome,
     KIMI_CODE_HOME: path.join(scratch, 'kimi-home'),
-    KIMI_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: '1',
+    K3_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: '1',
   };
   runDsh(['plugin', '--profile', 'web', 'add', archive], { cwd: workspace, env });
   runDsh(['plugin', '--profile', 'web', 'audit', '--prod', '--audit-level', 'high'], { cwd: workspace, env });

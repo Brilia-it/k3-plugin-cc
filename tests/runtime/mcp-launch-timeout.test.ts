@@ -32,8 +32,8 @@ describe("MCP attachment timeout", () => {
         env: {
           ...fixture.env,
           MCP_TEST_WORKSPACE: fixture.repo,
-          KIMI_PLUGIN_CC_MOCK_DELAY_MS: "30000",
-          KIMI_PLUGIN_CC_NODE_BIN: await installSlowNode(fixture, 5),
+          K3_PLUGIN_CC_MOCK_DELAY_MS: "30000",
+          K3_PLUGIN_CC_NODE_BIN: await installSlowNode(fixture, 5),
         },
         encoding: "utf8",
         timeout: 15_000,
@@ -91,8 +91,8 @@ describe("MCP attachment timeout", () => {
         env: {
           ...fixture.env,
           MCP_TEST_WORKSPACE: fixture.repo,
-          KIMI_PLUGIN_CC_MOCK_DELAY_MS: "30000",
-          KIMI_PLUGIN_CC_NODE_BIN: await installSlowNode(fixture, 5),
+          K3_PLUGIN_CC_MOCK_DELAY_MS: "30000",
+          K3_PLUGIN_CC_NODE_BIN: await installSlowNode(fixture, 5),
         },
         encoding: "utf8",
         timeout: 15_000,
@@ -217,8 +217,8 @@ describe("MCP attachment timeout", () => {
         env: {
           ...fixture.env,
           MCP_TEST_WORKSPACE: fixture.repo,
-          KIMI_PLUGIN_CC_MOCK_DELAY_MS: "30000",
-          KIMI_PLUGIN_CC_NODE_BIN: await installSlowNode(fixture, 5),
+          K3_PLUGIN_CC_MOCK_DELAY_MS: "30000",
+          K3_PLUGIN_CC_NODE_BIN: await installSlowNode(fixture, 5),
         },
         encoding: "utf8",
         timeout: 15_000,
@@ -262,7 +262,7 @@ async function installSlowNode(fixture: McpFixture, seconds: number): Promise<st
   const launcher = path.join(fixture.data, `slow-node-${seconds}.sh`);
   await writeFile(
     launcher,
-    `#!/bin/sh\nsleep ${seconds}\nunset KIMI_PLUGIN_CC_NODE_BIN\nexec ${JSON.stringify(stableNode)} "$@"\n`,
+    `#!/bin/sh\nsleep ${seconds}\nunset K3_PLUGIN_CC_NODE_BIN\nexec ${JSON.stringify(stableNode)} "$@"\n`,
     { mode: 0o755 },
   );
   return launcher;

@@ -19,7 +19,7 @@ The full check covers:
 - Claude surface hashes and generated Codex/DSH surfaces
 - TypeScript types
 - the test suite, including real-process MCP protocol, task recovery, ownership, cancellation, and hook-enforcement coverage
-- changed or untracked files in `dist/`, `plugins/kimi-codex/`, and `plugins/kimi-dsh/`
+- changed or untracked files in `dist/`, `plugins/k3-codex/`, and `plugins/kimi-dsh/`
 
 `bun run check:package` additionally packs the release tarball and runs modern MCP discovery plus legacy initialization on all three extracted compiled distributions. These checks use mock-backed or protocol-only fixtures and make no provider calls.
 
@@ -47,7 +47,7 @@ Legacy-v1 binaries use the applicable legacy lanes. For a new native-v2 candidat
 
 The local harness copies selected seed-home files into temporary Kimi homes: `config.toml`, `device_id`, `mcp.json`, and `tui.toml` when present. The OAuth token stores `credentials/` and `oauth/` are **symlinked, never copied** (since 2.2.1): a copied store that refreshes rotates the refresh token and leaves the real store with a revoked grant once the copy is removed. It does not touch the session store.
 
-The default seed home is `~/.kimi-code`. Setting API environment variables does not disable seed-file copying. To avoid copying personal credentials, set `KIMI_PLUGIN_CC_SMOKE_HOME` to a dedicated empty test home and supply authorized `KIMI_MODEL_*` credentials through the environment.
+The default seed home is `~/.kimi-code`. Setting API environment variables does not disable seed-file copying. To avoid copying personal credentials, set `K3_PLUGIN_CC_SMOKE_HOME` to a dedicated empty test home and supply authorized `KIMI_MODEL_*` credentials through the environment.
 
 Do not run a smoke against a personal seed home unless that use of the operator's login is explicitly authorized for that run. Run live controls and smokes sequentially. Copied token stores invalidated the operator's login twice (2026-09-15, 2026-10-15; `The provided authorization grant is invalid`, fixed only by `kimi login`) — never reintroduce copying, and never write an ad-hoc control that copies `~/.kimi-code/credentials`. Temporary homes are cleaned up by the harness (removing a symlink never touches the real store); inspect cleanup after an interrupted run.
 
@@ -67,7 +67,7 @@ To use API authentication without seeding personal files, first supply the autho
 
 ```sh
 SMOKE_SEED_DIR=$(mktemp -d)
-KIMI_PLUGIN_CC_SMOKE_HOME="$SMOKE_SEED_DIR" bun run smoke:real
+K3_PLUGIN_CC_SMOKE_HOME="$SMOKE_SEED_DIR" bun run smoke:real
 ```
 
 The seed directory is empty and can be removed afterward. Choose provider type and endpoint through the supported `KIMI_MODEL_*` settings if your account requires them. A configured model or an existing credential file is not proof that authentication works.
@@ -83,7 +83,7 @@ op-agent run --env-file ~/.secrets.agent.op -- bash -c '
   export KIMI_MODEL_NAME="kimi-for-coding"
   export KIMI_MODEL_PROVIDER_TYPE="kimi"
   export KIMI_MODEL_BASE_URL="https://api.kimi.com/coding/v1"
-  export KIMI_PLUGIN_CC_SMOKE_HOME="$(mktemp -d)"
+  export K3_PLUGIN_CC_SMOKE_HOME="$(mktemp -d)"
   bun run smoke:real
 '
 ```
@@ -102,7 +102,7 @@ SMOKE_BIN_DIR=$(mktemp -d)
   printf '%s\n' '{"name":"kimi-smoke","private":true}' > package.json
   npm install --no-package-lock --no-save @moonshot-ai/kimi-code@2.5.2
 )
-KIMI_PLUGIN_CC_KIMI_BIN="$SMOKE_BIN_DIR/node_modules/.bin/kimi" bun run smoke:real
+K3_PLUGIN_CC_KIMI_BIN="$SMOKE_BIN_DIR/node_modules/.bin/kimi" bun run smoke:real
 ```
 
 This changes only the binary used by the smoke. It does not change authentication or the seed-home requirement. Inspect the full result: skipped tests and unmet fan-out preconditions are not passes. Do not hide the test's exit status behind a shell pipeline.

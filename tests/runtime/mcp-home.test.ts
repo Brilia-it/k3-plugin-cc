@@ -9,7 +9,7 @@ describe("MCP Kimi-home resolution", () => {
   test("a relative KIMI_CODE_HOME resolves against the operation workspace", async () => {
     const fixture = await createMcpFixture("mcp-relative-home");
     fixture.env.KIMI_CODE_HOME = "kimi-home";
-    fixture.env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH = path.join(fixture.data, "invocation.json");
+    fixture.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH = path.join(fixture.data, "invocation.json");
     let client: McpClient | undefined;
     try {
       const setup = spawnSync(path.join(fixture.pluginRoot, "scripts/companion.sh"), ["setup"], {
@@ -31,7 +31,7 @@ describe("MCP Kimi-home resolution", () => {
         await Bun.sleep(100);
       }
       expect(result.isError).toBe(false);
-      const invocation = JSON.parse(await readFile(fixture.env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH, "utf8"));
+      const invocation = JSON.parse(await readFile(fixture.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH, "utf8"));
       expect(invocation.env.KIMI_CODE_HOME).toBe(path.join(fixture.repo, "kimi-home"));
     } finally {
       if (client) await client.close();

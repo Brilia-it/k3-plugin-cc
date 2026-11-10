@@ -16,7 +16,7 @@ let store: JobStore;
 let spawnedAt: number;
 beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "session-recovery-"));
-  const paths = resolvePluginPaths({ KIMI_PLUGIN_CC_DATA: root });
+  const paths = resolvePluginPaths({ K3_PLUGIN_CC_DATA: root });
   await ensurePluginPaths(paths);
   store = new JobStore(paths);
   spawnedAt = Date.now();

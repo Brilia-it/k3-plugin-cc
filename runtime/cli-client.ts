@@ -1,6 +1,6 @@
 // Subprocess client for `kimi -p --output-format stream-json`.
 //
-// Per-job env (`KIMI_PLUGIN_CC_CMD`) is set on this spawn so the
+// Per-job env (`K3_PLUGIN_CC_CMD`) is set on this spawn so the
 // PreToolUse hook can branch per command (review vs rescue vs ask). It is
 // passed via the spawn `env` option, not exported to a shell, so concurrent
 // jobs never share an env block.
@@ -55,7 +55,7 @@ const DESCENDANT_SNAPSHOT_TIMEOUT = Symbol("descendant-snapshot-timeout");
 export interface CliClientOptions {
   /** Working directory for the kimi subprocess. */
   cwd: string;
-  /** Environment block. KIMI_PLUGIN_CC_CMD is overlaid from `commandLabel`. */
+  /** Environment block. K3_PLUGIN_CC_CMD is overlaid from `commandLabel`. */
   env: NodeJS.ProcessEnv;
   /** Resolved kimi binary path (or bare name if it's on PATH). */
   command: string;
@@ -73,7 +73,7 @@ export interface CliClientOptions {
   commandLabel?: string;
   /**
    * Trusted workspace root for write-capable labels, exported to the spawn as
-   * KIMI_PLUGIN_CC_WORKSPACE_ROOT. The hook confines writes to THIS path instead
+   * K3_PLUGIN_CC_WORKSPACE_ROOT. The hook confines writes to THIS path instead
    * of trusting the hook payload's `cwd`,
    * removing any dependence on upstream payload-cwd semantics: the model running
    * inside kimi cannot forge an env var on the already-spawned process. Set by
@@ -86,7 +86,7 @@ export interface CliClientOptions {
    * exported to the spawn as KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY (kimi-code
    * 0.18.0+). Older binaries silently ignore the unknown env var, so
    * on < 0.18 the soft --cap prompt-count hint is the only count bound. Only
-   * /kimi:swarm sets this (from --max-concurrency, distinct from the soft --cap
+   * /k3:swarm sets this (from --max-concurrency, distinct from the soft --cap
    * total-count hint). Upstream's `resolveSwarmMaxConcurrency` THROWS on a
    * non-positive-integer value; the swarm parser rejects anything that isn't a
    * positive `Number.isInteger` (the same predicate upstream applies), so every
@@ -159,7 +159,7 @@ export interface CliClientResult {
    * Out-of-band goal-mode summary from a headless `/goal` run (kimi-code
    * 0.8.0+): goalId, terminal status, reason, turns/tokens/wallClock. Undefined
    * for ordinary (non-goal) runs. Captured first-announce-wins and filtered
-   * from records[], mirroring the resume-hint meta record. /kimi:pursue
+   * from records[], mirroring the resume-hint meta record. /k3:pursue
    * consumes it; goalId is distinct from the resume-hint sessionId.
    */
   goalSummary?: GoalSummaryRecord;
@@ -1085,8 +1085,8 @@ const KIMI_LEGACY_FORCED_VALUE = "1";
 function buildArgs(opts: CliClientOptions): string[] {
   const args: string[] = [...(opts.prefixArgs ?? [])];
   args.push("--output-format", "stream-json");
-  const smokeCandidate = opts.executionPlan.certification === "test-bypass" && opts.env.KIMI_PLUGIN_CC_SMOKE === "1"
-    ? opts.env.KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE
+  const smokeCandidate = opts.executionPlan.certification === "test-bypass" && opts.env.K3_PLUGIN_CC_SMOKE === "1"
+    ? opts.env.K3_PLUGIN_CC_SMOKE_V2_CANDIDATE
     : undefined;
   if (
     opts.resumeSessionId === undefined &&
@@ -1138,10 +1138,10 @@ export function buildKimiCliEnvironment(opts: CliClientEnvironmentOptions): Node
   // Rescue and pursue share the write label. Only the immutable execution
   // plan can grant pursue's narrow goal-metadata access; never trust ambient
   // state inherited from another plugin job.
-  env.KIMI_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
+  env.K3_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
   env.KIMI_CODE_HOME = resolveKimiHome(opts.env, opts.cwd);
   if (opts.commandLabel !== undefined) {
-    env.KIMI_PLUGIN_CC_CMD = opts.commandLabel;
+    env.K3_PLUGIN_CC_CMD = opts.commandLabel;
   }
   if (opts.swarmMaxConcurrency !== undefined) {
     env.KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY = String(opts.swarmMaxConcurrency);
@@ -1149,7 +1149,7 @@ export function buildKimiCliEnvironment(opts: CliClientEnvironmentOptions): Node
   if (opts.trustedWorkspaceRoot !== undefined) {
     // Trusted allowlist root for write-capable PreToolUse cases. Forge-proof
     // (env on the spawned process; the model cannot alter it). See field doc.
-    env.KIMI_PLUGIN_CC_WORKSPACE_ROOT = opts.trustedWorkspaceRoot;
+    env.K3_PLUGIN_CC_WORKSPACE_ROOT = opts.trustedWorkspaceRoot;
   }
   return env;
 }

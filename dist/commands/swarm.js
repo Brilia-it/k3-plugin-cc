@@ -21,7 +21,7 @@ import { readArtifact, renderManagedJobOutput, writeArtifact } from "../render.j
 import { hookRefusalDetails, hookRefusalRetryProtocol, maybeWarnHookMissing, verifyHookInstalled, } from "../hooks/install.js";
 import { assertCliResultSuccess, reassembleProseFromRecords, warnIfSessionIdMissing, warnHookEscapes } from "./cli-helpers.js";
 import { buildKimiSessionTitle, syncKimiSessionTitle } from "../session-title.js";
-// /kimi:swarm — parallel fan-out, read-only by default and runtime-foreground-only.
+// /k3:swarm — parallel fan-out, read-only by default and runtime-foreground-only.
 // A finite wall-clock budget bounds the whole run. --cap is a SOFT total-count
 // prompt hint; --max-concurrency is a HARD peak ceiling enforced on kimi-code
 // 0.18.0+. The plugin always exports that setting; older read-only swarms retain
@@ -149,7 +149,7 @@ export async function runSwarm(argv, context) {
     const parsed = parseSwarmArgs(argv);
     const objective = parsed.objective?.trim();
     if (!objective) {
-        throw new RuntimeError("INVALID_ARGS", "/kimi:swarm requires an objective. Usage: /kimi:swarm [--write] [--budget 30m] [--cap N] [--max-concurrency N] [-m model] <objective>", "swarm.parse");
+        throw new RuntimeError("INVALID_ARGS", "/k3:swarm requires an objective. Usage: /k3:swarm [--write] [--budget 30m] [--cap N] [--max-concurrency N] [-m model] <objective>", "swarm.parse");
     }
     return parsed.write
         ? runWriteSwarm(parsed, objective, context)
@@ -239,11 +239,11 @@ async function runWriteSwarm(parsed, objective, context) {
         // worktree cwd, not from the user's tree.
         assertWriteSwarmPreconditions(repoIdentity);
         if (!(await hasBornHead(context.cwd))) {
-            throw new RuntimeError("WRITE_SWARM_NO_HEAD", "/kimi:swarm --write needs a git repository with at least one commit (HEAD). This repo has an unborn HEAD; make an initial commit first.", "swarm.precondition");
+            throw new RuntimeError("WRITE_SWARM_NO_HEAD", "/k3:swarm --write needs a git repository with at least one commit (HEAD). This repo has an unborn HEAD; make an initial commit first.", "swarm.precondition");
         }
         // Abandoned trees are recovery evidence, never age-based garbage.
         if (await isWorkingTreeDirty(context.cwd)) {
-            context.stderr.write("[kimi-plugin-cc] /kimi:swarm --write bases its worktree on HEAD — your uncommitted changes are NOT visible to the swarm. Commit or stash them first if the swarm needs them.\n");
+            context.stderr.write("[k3-plugin-cc] /k3:swarm --write bases its worktree on HEAD — your uncommitted changes are NOT visible to the swarm. Commit or stash them first if the swarm needs them.\n");
         }
         const prompt = buildSwarmWritePrompt(objective, parsed.cap);
         const jobId = allocateJobId(context);
@@ -332,7 +332,7 @@ async function runWriteSwarm(parsed, objective, context) {
         }
         finally {
             if (preserveWorktree) {
-                context.stderr.write(`[kimi-plugin-cc] swarm-write patch capture or session cleanup failed; worktree retained at ${worktreePath}.\n`);
+                context.stderr.write(`[k3-plugin-cc] swarm-write patch capture or session cleanup failed; worktree retained at ${worktreePath}.\n`);
             }
             else {
                 await removeWorktree(repoIdentity.repoRoot, worktreePath);
@@ -346,7 +346,7 @@ async function runWriteSwarm(parsed, objective, context) {
 /** Refuse --write outside a git repo (git worktree add has nothing to fork). */
 function assertWriteSwarmPreconditions(repoIdentity) {
     if (!repoIdentity.isGitRepo) {
-        throw new RuntimeError("WRITE_SWARM_NOT_A_REPO", "/kimi:swarm --write requires a git repository (it works in a throwaway worktree off HEAD). The current directory is not inside a git repo.", "swarm.precondition");
+        throw new RuntimeError("WRITE_SWARM_NOT_A_REPO", "/k3:swarm --write requires a git repository (it works in a throwaway worktree off HEAD). The current directory is not inside a git repo.", "swarm.precondition");
     }
 }
 /**
@@ -363,7 +363,7 @@ async function capturePatchArtifact(paths, jobId, worktreePath, stderr, onFailur
     }
     catch (error) {
         onFailure?.();
-        stderr.write(`[kimi-plugin-cc] swarm-write patch capture failed for job ${jobId}: ${error.message ?? String(error)}\n`);
+        stderr.write(`[k3-plugin-cc] swarm-write patch capture failed for job ${jobId}: ${error.message ?? String(error)}\n`);
         return null;
     }
 }
@@ -402,16 +402,16 @@ writeMode) {
     // Both modes fan out subagents and require the PreToolUse hook: read mode
     // enforces read-only policy, while write mode confines writes to the trusted
     // worktree. Fail closed before spawning.
-    if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+    if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
         const installStatus = await verifyHookInstalled(context.env);
         if (!installStatus.installed) {
             maybeWarnHookMissing(installStatus, "swarm", context.stderr);
             const classified = new RuntimeError("SWARM_HOOK_NOT_INSTALLED", [
-                "/kimi:swarm refuses to run without the kimi-plugin-cc PreToolUse hook.",
+                "/k3:swarm refuses to run without the k3-plugin-cc PreToolUse hook.",
                 "Swarm fans out multiple subagents; the hook is the ONLY thing keeping every",
                 "one of them read-only, so a missing hook means no enforcement across the fan-out.",
                 `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-                "Repair by running Claude Code /kimi:setup or Codex $kimi-setup, then retry.",
+                "Repair by running Claude Code /k3:setup or Codex $k3-setup, then retry.",
                 hookRefusalRetryProtocol(context.env),
             ].join(" "), "swarm.hook-check", { details: hookRefusalDetails(installStatus) });
             try {
@@ -630,7 +630,7 @@ writeMode) {
             artifactPath = await writeArtifact(paths, job, rendered.rendered);
         }
         catch (writeError) {
-            context.stderr.write(`[kimi-plugin-cc] swarm artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`);
+            context.stderr.write(`[k3-plugin-cc] swarm artifact write failed for job ${job.job_id}; raw output preserved in error details.\n`);
             const classified = new RuntimeError("SWARM_ARTIFACT_WRITE_FAILED", `Failed to write swarm artifact: ${writeError.message ?? String(writeError)}`, "swarm.artifact", {
                 ...(writeError instanceof Error ? { cause: writeError } : {}),
                 details: { rawOutput: finalText },
@@ -663,7 +663,7 @@ writeMode) {
         }
         if (cleanupFailure) {
             writeMode?.onPatchCaptureFailure?.();
-            context.stderr.write(`[kimi-plugin-cc] swarm session cleanup also failed: ${cleanupFailure.message}\n`);
+            context.stderr.write(`[k3-plugin-cc] swarm session cleanup also failed: ${cleanupFailure.message}\n`);
         }
         let captureFailed = writeMode !== undefined && error instanceof RuntimeError && error.code === "SWARM_PATCH_CAPTURE_FAILED";
         if (writeMode && !(error instanceof RuntimeError && error.code === "SWARM_PATCH_CAPTURE_FAILED")) {
@@ -672,7 +672,7 @@ writeMode) {
             if (recovery && captured)
                 recovery.patchPath = captured.path;
             if (captured && !captured.empty) {
-                context.stderr.write(`[kimi-plugin-cc] swarm-write run ended early; partial patch captured at ${captured.path}.\n`);
+                context.stderr.write(`[k3-plugin-cc] swarm-write run ended early; partial patch captured at ${captured.path}.\n`);
             }
         }
         const recoveryDetails = {
@@ -732,7 +732,7 @@ writeMode) {
                 finishRecoveryRecord(store, recovery);
             if (recovery && !recovery.complete) {
                 writeMode?.onPatchCaptureFailure?.();
-                context.stderr.write(`[kimi-plugin-cc] recovery record retained: companion.sh recover-swarm ${job.job_id} (preview).\n`);
+                context.stderr.write(`[k3-plugin-cc] recovery record retained: companion.sh recover-swarm ${job.job_id} (preview).\n`);
             }
         }
         catch (error) {

@@ -11,10 +11,10 @@ for (const command of [["ask"], ["review"], ["task", "challenge"], ["task", "res
   test(`compiled ${command.join(" ")} forwards and persists requested effort, leaves ambient alone`, async () => {
     const data = await createTestPluginDataRoot("thinking-effort");
     const invocation = path.join(data, "invocation.json");
-    const env: NodeJS.ProcessEnv = { ...process.env, KIMI_PLUGIN_CC_DATA: data,
-      KIMI_CODE_HOME: path.join(data, "home"), KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
-      KIMI_PLUGIN_CC_KIMI_BIN: "bun", KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([path.resolve("tests/helpers/mock-kimi-cli-v1.ts")]),
-      KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocation, KIMI_PLUGIN_CC_MOCK_SCENARIO: "ask-success" };
+    const env: NodeJS.ProcessEnv = { ...process.env, K3_PLUGIN_CC_DATA: data,
+      KIMI_CODE_HOME: path.join(data, "home"), K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+      K3_PLUGIN_CC_KIMI_BIN: "bun", K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([path.resolve("tests/helpers/mock-kimi-cli-v1.ts")]),
+      K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocation, K3_PLUGIN_CC_MOCK_SCENARIO: "ask-success" };
     delete env.KIMI_MODEL_THINKING_EFFORT;
     try {
       for (const [flags, ambient, expected] of [
@@ -40,10 +40,10 @@ for (const command of [["ask"], ["review"], ["task", "challenge"], ["task", "res
 test("resume does not inherit requested thinking effort", async () => {
   const data = await createTestPluginDataRoot("thinking-resume");
   const invocation = path.join(data, "invocation.json");
-  const env: NodeJS.ProcessEnv = { ...process.env, KIMI_PLUGIN_CC_DATA: data,
-    KIMI_CODE_HOME: path.join(data, "home"), KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun", KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([path.resolve("tests/helpers/mock-kimi-cli-v1.ts")]),
-    KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocation, KIMI_PLUGIN_CC_MOCK_SCENARIO: "ask-success" };
+  const env: NodeJS.ProcessEnv = { ...process.env, K3_PLUGIN_CC_DATA: data,
+    KIMI_CODE_HOME: path.join(data, "home"), K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun", K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([path.resolve("tests/helpers/mock-kimi-cli-v1.ts")]),
+    K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocation, K3_PLUGIN_CC_MOCK_SCENARIO: "ask-success" };
   delete env.KIMI_MODEL_THINKING_EFFORT;
   try {
     await exec("node", [companion, "ask", "--thinking", "off", "inspect"], { env });

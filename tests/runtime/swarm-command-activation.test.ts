@@ -54,9 +54,9 @@ async function createFixture(scenario: string, write: boolean): Promise<Fixture>
       PATH: process.env.PATH,
       CLAUDE_PLUGIN_DATA: pluginData,
       KIMI_CODE_HOME: home,
-      KIMI_PLUGIN_CC_KIMI_BIN: nodeCommand,
-      KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mockWebPath]),
-      KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+      K3_PLUGIN_CC_KIMI_BIN: nodeCommand,
+      K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mockWebPath]),
+      K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
       MOCK_KIMI_WEB_SCENARIO: scenario,
       MOCK_KIMI_WEB_LOG: logPath,
       MOCK_KIMI_WEB_PRINT_PROSE: proseSentinel,
@@ -207,7 +207,7 @@ async function runSwarmFault(
     "objective",
     options.budgetMs ?? 10_000,
     1,
-    { env: { KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1" }, stderr: { write() {} } },
+    { env: { K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1" }, stderr: { write() {} } },
     options.write
       ? {
           workspaceRoot: "/virtual/worktree",

@@ -13,7 +13,7 @@ export async function resolveMcpWorkspace(
   env: NodeJS.ProcessEnv,
   requested?: string,
 ): Promise<McpWorkspace> {
-  const defaultCandidate = env.KIMI_PLUGIN_CC_MCP_WORKSPACE;
+  const defaultCandidate = env.K3_PLUGIN_CC_MCP_WORKSPACE;
   const candidate = requested ?? defaultCandidate;
   if (!candidate) {
     throw new RuntimeError(

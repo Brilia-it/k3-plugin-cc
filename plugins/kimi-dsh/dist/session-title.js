@@ -18,7 +18,7 @@ const DISPLAY_NAMES = {
     "swarm-write": "Swarm Write",
 };
 export function buildKimiSessionTitle(command, summary) {
-    const prefix = `Kimi ${DISPLAY_NAMES[command] ?? "Session"}`;
+    const prefix = `K3 ${DISPLAY_NAMES[command] ?? "Session"}`;
     const normalized = promptMetadataText(summary ?? "") ?? "";
     return shortenForTitle(normalized ? `${prefix}: ${normalized}` : prefix, KIMI_SESSION_TITLE_MAX_LENGTH);
 }
@@ -126,7 +126,7 @@ export async function syncKimiSessionTitle(options) {
         next.lastPrompt = preview;
     }
     if (!options.preserveTitle && !customTitle && !generatedTitle) {
-        next.title = promptMetadataText(options.title)?.slice(0, KIMI_SESSION_TITLE_MAX_LENGTH) ?? "Kimi Session";
+        next.title = promptMetadataText(options.title)?.slice(0, KIMI_SESSION_TITLE_MAX_LENGTH) ?? "K3 Session";
         // Native UI generation must remain eligible; a deterministic fallback is not
         // a human rename. Legacy engines retain their existing custom-title behavior.
         next.isCustomTitle = !nativeV2;
@@ -289,5 +289,5 @@ function formatSessionIdForLog(sessionId) {
     return JSON.stringify(normalizeTitleFragment(sessionId));
 }
 function warn(stderr, message) {
-    stderr?.write(`[kimi-plugin-cc] ${message}.\n`);
+    stderr?.write(`[k3-plugin-cc] ${message}.\n`);
 }

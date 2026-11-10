@@ -13,12 +13,12 @@ export function resolvePluginDataRoot(
   env: NodeJS.ProcessEnv,
   packageRoot = loadedPackageRoot,
 ): string {
-  const explicit = env.KIMI_PLUGIN_CC_DATA;
+  const explicit = env.K3_PLUGIN_CC_DATA;
   if (explicit !== undefined) {
     if (!path.isAbsolute(explicit)) {
       throw new RuntimeError(
         "INVALID_PLUGIN_DATA",
-        "KIMI_PLUGIN_CC_DATA must be an absolute directory path, not an empty or relative value.",
+        "K3_PLUGIN_CC_DATA must be an absolute directory path, not an empty or relative value.",
         "paths",
       );
     }
@@ -33,9 +33,9 @@ export function resolvePluginDataRoot(
     if (shared.some((value) => !path.isAbsolute(value) || !sameDataRoot(value, expected))) {
       throw new RuntimeError(
         "PLUGIN_DATA_CONFLICT",
-        "Shared plugin data variables do not match this installation. Remove the conflicting variables or set KIMI_PLUGIN_CC_DATA to the intended Kimi data directory. No data was moved.",
+        "Shared plugin data variables do not match this installation. Remove the conflicting variables or set K3_PLUGIN_CC_DATA to the intended Kimi data directory. No data was moved.",
         "paths",
-        { details: { expected_data_root: expected, override_variable: "KIMI_PLUGIN_CC_DATA" } },
+        { details: { expected_data_root: expected, override_variable: "K3_PLUGIN_CC_DATA" } },
       );
     }
     return expected;
@@ -47,20 +47,20 @@ export function resolvePluginDataRoot(
   if (shared.length === 2 && !sameDataRoot(shared[0]!, shared[1]!)) {
     throw new RuntimeError(
       "PLUGIN_DATA_CONFLICT",
-      "CLAUDE_PLUGIN_DATA and PLUGIN_DATA disagree. Set KIMI_PLUGIN_CC_DATA to the intended Kimi data directory before retrying. No data was moved.",
+      "CLAUDE_PLUGIN_DATA and PLUGIN_DATA disagree. Set K3_PLUGIN_CC_DATA to the intended Kimi data directory before retrying. No data was moved.",
       "paths",
     );
   }
   if (shared[0]) return shared[0];
-  if (env.KIMI_PLUGIN_CC_SHELL_LAUNCH === "1" && (env.CODEX_HOME || env.HOME)) {
+  if (env.K3_PLUGIN_CC_SHELL_LAUNCH === "1" && (env.CODEX_HOME || env.HOME)) {
     const dataRoot = env.CODEX_HOME
       ? path.join(env.CODEX_HOME, "plugins", "data")
       : path.join(env.HOME!, ".codex", "plugins", "data");
-    return path.join(dataRoot, "kimi-marketplace-kimi");
+    return path.join(dataRoot, "brilia-k3-marketplace-k3");
   }
   throw new RuntimeError(
     "MISSING_PLUGIN_DATA",
-    "Set KIMI_PLUGIN_CC_DATA to an absolute writable data directory. Custom launches may also use an unambiguous CLAUDE_PLUGIN_DATA or PLUGIN_DATA value.",
+    "Set K3_PLUGIN_CC_DATA to an absolute writable data directory. Custom launches may also use an unambiguous CLAUDE_PLUGIN_DATA or PLUGIN_DATA value.",
     "paths",
   );
 }

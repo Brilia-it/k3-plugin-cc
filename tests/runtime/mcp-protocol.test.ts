@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { MCP_TOOL_DEFINITIONS } from "../../runtime/mcp/operations.js";
 import { resolvePluginPaths } from "../../runtime/paths.js";
-import { KIMI_PLUGIN_CC_VERSION } from "../../runtime/version.js";
+import { K3_PLUGIN_CC_VERSION } from "../../runtime/version.js";
 import { createMcpFixture, MCP_MODERN_VERSION, McpClient, modernMeta, type McpFixture } from "../helpers/mcp.js";
 
 const expectedToolNames = [
@@ -45,7 +45,7 @@ class RawMcpClient {
   constructor(fixture: McpFixture) {
     this.child = spawn(path.join(fixture.pluginRoot, "scripts/companion.sh"), ["mcp"], {
       cwd: fixture.repo,
-      env: { ...fixture.env, KIMI_PLUGIN_CC_MCP_WORKSPACE: fixture.repo },
+      env: { ...fixture.env, K3_PLUGIN_CC_MCP_WORKSPACE: fixture.repo },
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.child.stdout!.on("data", (chunk: Buffer) => this.accept(chunk));
@@ -189,7 +189,7 @@ describe("MCP protocol discovery and tool schemas", () => {
         supportedVersions: [MCP_MODERN_VERSION],
         capabilities: { tools: {}, extensions: { "io.modelcontextprotocol/tasks": {} } },
         _meta: {
-          "io.modelcontextprotocol/serverInfo": { name: "kimi-plugin-cc", version: KIMI_PLUGIN_CC_VERSION },
+          "io.modelcontextprotocol/serverInfo": { name: "k3-plugin-cc", version: K3_PLUGIN_CC_VERSION },
         },
         ttlMs: 0,
         cacheScope: "private",
@@ -218,7 +218,7 @@ describe("MCP protocol discovery and tool schemas", () => {
       expect(initialized).toEqual({
         protocolVersion: "2025-06-18",
         capabilities: { tools: {} },
-        serverInfo: { name: "kimi-plugin-cc", version: KIMI_PLUGIN_CC_VERSION },
+        serverInfo: { name: "k3-plugin-cc", version: K3_PLUGIN_CC_VERSION },
       });
 
       const listed = await client.request("tools/list", {});

@@ -5,8 +5,8 @@ configured model for one task without changing that default.
 
 ## See configured models
 
-In Claude Code, run `/kimi:setup --models`. In Codex, ask `$kimi-setup` to list
-models. In DSH, run `/kimi-setup --models` (or `--models --json`). The underlying command is:
+In Claude Code, run `/k3:setup --models`. In Codex, ask `$k3-setup` to list
+models. In DSH, run `/k3-setup --models` (or `--models --json`). The underlying command is:
 
 ```sh
 "<plugin-root>/scripts/companion.sh" setup --models
@@ -25,8 +25,8 @@ Provider catalogs refreshed by Kimi may add models not yet present locally.
 Say “review this with my configured fast model” or pass its exact alias:
 
 ```text
-/kimi:review -m 'my-provider/my-model' review this diff
-/kimi:ask -m 'my-provider/my-model' explain the cache
+/k3:review -m 'my-provider/my-model' review this diff
+/k3:ask -m 'my-provider/my-model' explain the cache
 ```
 
 The Claude agents and Codex skills list models when you request a model in
@@ -35,11 +35,11 @@ several, and guide setup when there is none. They do not guess model IDs or
 silently substitute the default after an error. An explicit `-m` remains a
 pass-through alias, so upstream can resolve it or report an error.
 
-DSH activations are one-shot and do not expose per-call model fields. Set `model` in the bundle's `kimi-plugin-cc` profile row to use one exact configured alias for every delegation from that profile; omit it to use the native Kimi default. This does not change the saved default or add fallback selection.
+DSH activations are one-shot and do not expose per-call model fields. Set `model` in the bundle's `k3-plugin-cc` profile row to use one exact configured alias for every delegation from that profile; omit it to use the native Kimi default. This does not change the saved default or add fallback selection.
 
 Omitting `-m` uses the default for a **fresh** session. A resumed session keeps
 its previous model unless you supply `-m`. The optional review gate also uses
-the default unless `KIMI_PLUGIN_CC_REVIEW_GATE_MODEL` explicitly selects an alias.
+the default unless `K3_PLUGIN_CC_REVIEW_GATE_MODEL` explicitly selects an alias.
 Swarm `-m` selects the coordinator; upstream `[secondary_model]` settings can
 select different models for its children.
 
@@ -93,4 +93,4 @@ DSH forwards the profile's `thinkingEffort` value as `--thinking <effort>` on ev
 
 Jobs persist nullable `thinking_effort`; status and `result --json` expose `thinking_effort_requested`, not observed effort. Detached ask/rescue workers replay the request. A resume without `--thinking` exports no new override (any ambient operator value remains). No config.toml write occurs.
 
-The review gate requests `off` by default. `KIMI_PLUGIN_CC_REVIEW_GATE_THINKING=inherit` exports no override; another non-empty value is lowercased and must match the same regex. Unset or empty means `off`; an invalid value makes the gate skip visibly. The gate remains fail-open on its 8 s timeout: a BYO provider or always-thinking model can ignore the request, and even an honoured request does not guarantee completion within the budget.
+The review gate requests `off` by default. `K3_PLUGIN_CC_REVIEW_GATE_THINKING=inherit` exports no override; another non-empty value is lowercased and must match the same regex. Unset or empty means `off`; an invalid value makes the gate skip visibly. The gate remains fail-open on its 8 s timeout: a BYO provider or always-thinking model can ignore the request, and even an honoured request does not guarantee completion within the budget.

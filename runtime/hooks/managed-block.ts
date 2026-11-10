@@ -1,4 +1,4 @@
-// Shared parser for the kimi-plugin-cc managed block in
+// Shared parser for the k3-plugin-cc managed block in
 // ~/.kimi-code/config.toml. Setup and the verifier use this one grammar;
 // install-paths.ts separately owns the canonical command bytes and drift
 // classification used here after a mismatch.
@@ -9,13 +9,13 @@
 //
 // A valid block has this line-oriented shape:
 //
-//   # === BEGIN kimi-plugin-cc-managed:<host-id> (vX.Y.Z) ===
+//   # === BEGIN k3-plugin-cc-managed:<host-id> (vX.Y.Z) ===
 //   ... optional comments ...
 //   [[hooks]]
 //   event = "PreToolUse"
 //   command = "'/abs/path/to/node' '/abs/path/to/approval-hook.js'"
 //   timeout = <integer>
-//   # === END kimi-plugin-cc-managed:<host-id> ===
+//   # === END k3-plugin-cc-managed:<host-id> ===
 //
 // Critical rules:
 //
@@ -65,7 +65,7 @@ export interface ManagedBlockEntry {
   invalidReason?: string;
 }
 
-const MARKER_TAG = "kimi-plugin-cc-managed";
+const MARKER_TAG = "k3-plugin-cc-managed";
 
 /**
  * Plain install removes unpaired marker comments for every host and leaves each
@@ -73,19 +73,19 @@ const MARKER_TAG = "kimi-plugin-cc-managed";
  * markers, so it would disarm a healthy block and keep another host's orphan.
  */
 export const ORPHAN_MARKER_REMEDY =
-  "Run /kimi:setup (without --uninstall or --check) to repair: install removes orphaned managed marker comments for every host and keeps each host's hook table. A scoped --uninstall does not remove another host's orphan marker. Another tool rewriting ~/.kimi-code/config.toml usually causes this.";
+  "Run /k3:setup (without --uninstall or --check) to repair: install removes orphaned managed marker comments for every host and keeps each host's hook table. A scoped --uninstall does not remove another host's orphan marker. Another tool rewriting ~/.kimi-code/config.toml usually causes this.";
 
 /**
- * Strict BEGIN matcher. Accepts `# === BEGIN kimi-plugin-cc-managed`
+ * Strict BEGIN matcher. Accepts `# === BEGIN k3-plugin-cc-managed`
  * with an optional `:<host-id>` suffix, an optional ` (vX.Y.Z)` suffix,
  * and trailing ` ===`. Group 1 captures the host id (undefined = legacy).
  * Anything else (random comment containing the tag, mid-line embedded
  * marker) is not a managed-block marker.
  */
 const BEGIN_LINE_RE =
-  /^#\s*===\s*BEGIN\s+kimi-plugin-cc-managed(?::([A-Za-z0-9._-]+))?(?:\s+\([^)]+\))?\s*===\s*$/;
+  /^#\s*===\s*BEGIN\s+k3-plugin-cc-managed(?::([A-Za-z0-9._-]+))?(?:\s+\([^)]+\))?\s*===\s*$/;
 const END_LINE_RE =
-  /^#\s*===\s*END\s+kimi-plugin-cc-managed(?::([A-Za-z0-9._-]+))?\s*===\s*$/;
+  /^#\s*===\s*END\s+k3-plugin-cc-managed(?::([A-Za-z0-9._-]+))?\s*===\s*$/;
 
 /** TOML basic string for `command = "..."`. Captures the inner value. */
 const COMMAND_LINE_RE = /^command\s*=\s*"((?:[^"\\]|\\.)*)"\s*$/;
@@ -263,12 +263,12 @@ function validateBlockBody(rawBody: string[]): {
       // canonical command). Binding the block to exactly one [[hooks]] table
       // keeps the verifier from blessing a command-less hook.
       invalidReason =
-        "block contains an unexpected TOML table — only a single [[hooks]] table is allowed. Reinstall with /kimi:setup to repair.";
+        "block contains an unexpected TOML table — only a single [[hooks]] table is allowed. Reinstall with /k3:setup to repair.";
       break;
     }
     if (MATCHER_LINE_RE.test(line)) {
       invalidReason =
-        'block contains a `matcher = ...` line — kimi-code compiles matchers as JS regex (`new RegExp("*")` throws and disables the hook). Reinstall with /kimi:setup to repair.';
+        'block contains a `matcher = ...` line — kimi-code compiles matchers as JS regex (`new RegExp("*")` throws and disables the hook). Reinstall with /k3:setup to repair.';
       break;
     }
     if (EVENT_LINE_RE.test(line)) {
@@ -321,11 +321,11 @@ function validateBlockBody(rawBody: string[]): {
         );
       if (hasMatcher) {
         invalidReason =
-          "block contains a `matcher` key (in a quoted or dotted spelling the line scanner misses) — kimi-code compiles matchers as JS regex and disables the hook. Reinstall with /kimi:setup to repair.";
+          "block contains a `matcher` key (in a quoted or dotted spelling the line scanner misses) — kimi-code compiles matchers as JS regex and disables the hook. Reinstall with /k3:setup to repair.";
       }
     } catch {
       invalidReason =
-        "block body is not valid TOML in isolation — cannot confirm it carries no hook-disabling matcher. Reinstall with /kimi:setup to repair.";
+        "block body is not valid TOML in isolation — cannot confirm it carries no hook-disabling matcher. Reinstall with /k3:setup to repair.";
     }
   }
 
@@ -569,7 +569,7 @@ export function evaluateInstalled(
         installed: true,
         via: "bare-table",
         note:
-          "this host's managed-block markers are missing (kimi-code rewrites its config on login/settings changes and strips all comments), but the hook table with the exact canonical command is present and enforcing. Run /kimi:setup to re-adorn the markers.",
+          "this host's managed-block markers are missing (kimi-code rewrites its config on login/settings changes and strips all comments), but the hook table with the exact canonical command is present and enforcing. Run /k3:setup to re-adorn the markers.",
         state,
       };
     }
@@ -595,7 +595,7 @@ export function evaluateInstalled(
       installed: false,
       reason: `duplicate managed blocks detected at lines ${state.beginLines
         .map((line) => line + 1)
-        .join(", ")}. Run /kimi:setup --uninstall, then /kimi:setup.`,
+        .join(", ")}. Run /k3:setup --uninstall, then /k3:setup.`,
       state,
     };
   }
@@ -622,7 +622,7 @@ export function evaluateInstalled(
       installed: false,
       reason:
         classified ??
-        `installed block's command does not match the canonical command this companion would write. Run /kimi:setup to refresh. expected ${expectedCommand}; got ${state.commandPath}.`,
+        `installed block's command does not match the canonical command this companion would write. Run /k3:setup to refresh. expected ${expectedCommand}; got ${state.commandPath}.`,
       state,
       drift: classifyHookCommandDrift(state.commandPath, expectedCommand),
     };
@@ -631,7 +631,7 @@ export function evaluateInstalled(
     return {
       installed: false,
       reason:
-        "the managed block's hook table carries a matcher or an unexpected key OUTSIDE the marked body (e.g. after the END marker) — kimi-code would load it and disable the hook. Run /kimi:setup --uninstall, then /kimi:setup to repair.",
+        "the managed block's hook table carries a matcher or an unexpected key OUTSIDE the marked body (e.g. after the END marker) — kimi-code would load it and disable the hook. Run /k3:setup --uninstall, then /k3:setup to repair.",
       state,
     };
   }
@@ -746,7 +746,7 @@ export function findBareApprovalHookTables(contents: string): BareHookTable[] {
  * `ownedBy` restricts results to the host derived from each command and is
  * required for scoped pruning: another host's marker-less table may be its live
  * hook after a config rewrite. Omit `ownedBy` only for the explicit every-host
- * `/kimi:setup --uninstall --all` sweep. Non-canonical and hand-rolled hooks are
+ * `/k3:setup --uninstall --all` sweep. Non-canonical and hand-rolled hooks are
  * not claimed.
  */
 export function findUnmanagedApprovalHookBlocks(

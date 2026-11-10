@@ -33,7 +33,7 @@ describe("MCP terminal result semantics", () => {
 
   test("a budget timeout preserves partial output marked as not a final answer", async () => {
     const fixture = await createMcpFixture("mcp-timeout-artifact");
-    fixture.env.KIMI_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS = "3000";
+    fixture.env.K3_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS = "3000";
     let client: McpClient | undefined;
     try {
       client = await McpClient.modern(fixture);

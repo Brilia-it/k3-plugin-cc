@@ -1,5 +1,5 @@
 import { formatError, RuntimeError } from "../errors.js";
-import { KIMI_PLUGIN_CC_VERSION } from "../version.js";
+import { K3_PLUGIN_CC_VERSION } from "../version.js";
 import { cancelMcpJob, getMcpJobResult, getMcpJobStatus, getMcpTaskView } from "./job-control.js";
 import { launchMcpOperation } from "./launcher.js";
 import { buildMcpOperationInvocation, isMcpModelToolName, MCP_TOOL_DEFINITIONS, } from "./operations.js";
@@ -31,7 +31,7 @@ export function createMcpMessageHandler(env) {
                     resultType: "complete",
                     supportedVersions: [MODERN_VERSION],
                     capabilities: { tools: {}, extensions: { [TASKS_EXTENSION]: {} } },
-                    _meta: { [SERVER_INFO_META]: { name: "kimi-plugin-cc", version: KIMI_PLUGIN_CC_VERSION } },
+                    _meta: { [SERVER_INFO_META]: { name: "k3-plugin-cc", version: K3_PLUGIN_CC_VERSION } },
                     ttlMs: 0,
                     cacheScope: "private",
                 });
@@ -45,7 +45,7 @@ export function createMcpMessageHandler(env) {
                 return response(id, {
                     protocolVersion: requested,
                     capabilities: { tools: {} },
-                    serverInfo: { name: "kimi-plugin-cc", version: KIMI_PLUGIN_CC_VERSION },
+                    serverInfo: { name: "k3-plugin-cc", version: K3_PLUGIN_CC_VERSION },
                 });
             }
             if (method === "notifications/initialized")

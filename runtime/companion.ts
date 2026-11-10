@@ -22,7 +22,7 @@ async function main(argv: string[]): Promise<void> {
     return;
   }
   const [command, ...rest] = argv as [string | undefined, ...string[]];
-  const cwd = process.env.KIMI_PLUGIN_CC_WORKSPACE_CWD || process.cwd();
+  const cwd = process.env.K3_PLUGIN_CC_WORKSPACE_CWD || process.cwd();
   const context: CommandContext = {
     cwd,
     env: {

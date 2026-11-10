@@ -4,7 +4,7 @@ import path from "node:path";
 import { resolvePluginDataRoot } from "./plugin-data.js";
 export function resolvePluginPaths(env) {
     const claudePluginData = resolvePluginDataRoot(env);
-    const pluginRoot = path.join(claudePluginData, "kimi-plugin-cc");
+    const pluginRoot = path.join(claudePluginData, "k3-plugin-cc");
     return {
         claudePluginData,
         pluginRoot,

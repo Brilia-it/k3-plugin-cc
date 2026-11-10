@@ -17,7 +17,7 @@ import { resolveKimiHome } from "../kimi-home.js";
  * the script for readability and its pinned interpreter for executability,
  * because a spawn failure is ALLOW to kimi-code's hook runner.
  *
- * `KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook-install refusal gates and
+ * `K3_PLUGIN_CC_SKIP_HOOK_CHECK=1` bypasses hook-install refusal gates and
  * the review gate's enforcement check for tests/diagnostics. It does not bypass
  * the independent native-v2 preflight in cli-client.
  */
@@ -42,7 +42,7 @@ export interface HookInstallStatus {
    * would be ambiguous to a non-human caller.
    *
    * `"node-bin-not-executable"` is the sole value today, and it marks the ONE
-   * refusal whose remedy is NOT "run /kimi:setup": setup cannot repair a broken
+   * refusal whose remedy is NOT "run /k3:setup": setup cannot repair a broken
    * Node install. Every other refusal emits an identical `{config_path}`
    * payload, so without this an agent caller cannot tell them apart and would
    * guess. See LLM-caller discipline in AGENTS.md.
@@ -56,12 +56,12 @@ export async function verifyHookInstalled(
   env: NodeJS.ProcessEnv,
 ): Promise<HookInstallStatus> {
   const configPath = resolveKimiCodeConfigPath(env);
-  if (env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
+  if (env.K3_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
     return { installed: true, configPath };
   }
 
   // Canonical expected shell command for the current env. If this
-  // can't be resolved (KIMI_PLUGIN_CC_NODE_BIN not absolute,
+  // can't be resolved (K3_PLUGIN_CC_NODE_BIN not absolute,
   // install-paths module can't infer plugin root, etc.) treat the hook
   // as un-verifiable — installed=false with a structured reason. The
   // caller's stderr warning surfaces the underlying error code.
@@ -129,7 +129,7 @@ export async function verifyHookInstalled(
   } catch {
     return {
       installed: false,
-      reason: `hook script ${expected.hookScriptPath} is missing or unreadable — run /kimi:setup to reinstall`,
+      reason: `hook script ${expected.hookScriptPath} is missing or unreadable — run /k3:setup to reinstall`,
       configPath,
     };
   }
@@ -138,7 +138,7 @@ export async function verifyHookInstalled(
   // moves that change the recomputed command are already refused as drift; this
   // check covers only unchanged command bytes whose Node token fails X_OK now:
   //
-  //   1. An absolute KIMI_PLUGIN_CC_NODE_BIN override names a dead interpreter
+  //   1. An absolute K3_PLUGIN_CC_NODE_BIN override names a dead interpreter
   //      other than the running process, so launch never proved it executable.
   //   2. The interpreter is chmodded after launch. realpathSync still resolves
   //      it, the preferred path and command bytes stay unchanged, but X_OK fails.
@@ -164,7 +164,7 @@ export async function verifyHookInstalled(
       reason:
         `hook interpreter ${expected.nodeBin} is missing or not executable, so the PreToolUse hook ` +
         `cannot spawn (kimi-code reads a failed hook as ALLOW). Repair the Node install, or set ` +
-        `KIMI_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /kimi:setup.`,
+        `K3_PLUGIN_CC_NODE_BIN to a valid Node >=22.5 executable and run /k3:setup.`,
       configPath,
       refusalKind: "node-bin-not-executable",
       nodeBin: expected.nodeBin,
@@ -205,7 +205,7 @@ export function hookRefusalDetails(status: HookInstallStatus): Record<string, un
   return {
     config_path: status.configPath,
     // Routes the caller to "tell the human to repair Node" instead of the
-    // default "run /kimi:setup and retry" reflex. Never co-occurs with `drift`:
+    // default "run /k3:setup and retry" reflex. Never co-occurs with `drift`:
     // drift requires the equality check to FAIL, this requires it to PASS.
     ...(status.refusalKind !== undefined
       ? { refusal_kind: status.refusalKind, node_bin: status.nodeBin }
@@ -228,7 +228,7 @@ export function formatHookMissingWarning(
 ): string {
   return [
     "",
-    "WARNING: kimi-plugin-cc safety hook is NOT installed (or is invalid).",
+    "WARNING: k3-plugin-cc safety hook is NOT installed (or is invalid).",
     `  Command: ${commandLabel}`,
     `  Config:  ${status.configPath}`,
     `  Reason:  ${status.reason ?? "unknown"}`,
@@ -240,14 +240,14 @@ export function formatHookMissingWarning(
     "  This command will not start a Kimi model run until enforcement is",
     "  repaired (the review gate skips instead of blocking stop).",
     "",
-    "  Fix: run Claude Code `/kimi:setup` or Codex `$kimi-setup` to install",
+    "  Fix: run Claude Code `/k3:setup` or Codex `$k3-setup` to install",
     "  or repair this host's managed block in",
     "  ~/.kimi-code/config.toml. If you use nvm, asdf, mise, or fnm, you",
-    "  must re-run `/kimi:setup` after any Node version switch — the",
+    "  must re-run `/k3:setup` after any Node version switch — the",
     "  verifier pins the absolute Node binary path and a switch invalidates",
     "  the previously-installed block by design. See docs/safety.md.",
     "",
-    "  KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 explicitly bypasses hook-verification",
+    "  K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 explicitly bypasses hook-verification",
     "  refusals and restores un-enforced `permission: auto` execution. It does",
     "  NOT bypass the experimental-v2 safety refusal. Reserve it for tests or",
     "  diagnostics where the hook risk is intentional.",

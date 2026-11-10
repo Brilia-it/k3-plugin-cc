@@ -54,14 +54,14 @@ describe("MCP workspace containment", () => {
     const outside = await createGitRepoFixture("mcp-workspace-outside");
     const nested = path.join(fixture.repo, "nested");
     await mkdir(nested);
-    fixture.env.KIMI_PLUGIN_CC_MCP_WORKSPACE = fixture.repo;
+    fixture.env.K3_PLUGIN_CC_MCP_WORKSPACE = fixture.repo;
     try {
       const allowed = await resolveMcpWorkspace(fixture.env, nested);
       expect(allowed.cwd).toBe(nested);
       await expect(resolveMcpWorkspace(fixture.env, outside)).rejects.toMatchObject({
         code: "MCP_WORKSPACE_OUTSIDE_DEFAULT",
       });
-      const env = { ...fixture.env, KIMI_PLUGIN_CC_MCP_WORKSPACE: undefined };
+      const env = { ...fixture.env, K3_PLUGIN_CC_MCP_WORKSPACE: undefined };
       const explicit = await resolveMcpWorkspace(env, outside);
       expect(explicit.cwd).toBe(outside);
     } finally {

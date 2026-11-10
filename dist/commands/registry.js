@@ -63,7 +63,7 @@ export const COMMAND_REGISTRY = {
  * `undefined` and surface as an unclassified `TypeError` at the
  * destructure call site. Throwing a classified `RuntimeError` here
  * keeps the failure path within the command-layer error model so
- * /kimi:status and /kimi:result render it correctly.
+ * /k3:status and /k3:result render it correctly.
  */
 export function getManagedCommandConfig(commandType) {
     const config = COMMAND_REGISTRY[commandType];

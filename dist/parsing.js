@@ -32,7 +32,7 @@ export function validateThinkingEffort(value, stage = "args.parse", lowercase = 
 export const PURSUE_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --turns <N>";
 export const SWARM_SUPPORTED_FLAGS = "-m/--model <name>, --thinking <off|low|medium|high>, --budget <30m|1h|90s>, --cap <N>, --max-concurrency <N>, --write";
 /**
- * Parser for /kimi:swarm. Foreground-only: no --background/--fresh/--resume.
+ * Parser for /k3:swarm. Foreground-only: no --background/--fresh/--resume.
  * Trailing tokens are the objective.
  */
 export function parseSwarmArgs(argv) {
@@ -169,7 +169,7 @@ export function parseDurationMs(token, flag, stage, budgetKind) {
     return ms;
 }
 /**
- * Parser for /kimi:pursue (autonomous goal mode). Foreground-only in the
+ * Parser for /k3:pursue (autonomous goal mode). Foreground-only in the
  * prototype: no --background/--fresh/--resume (the goalId/sessionId split makes
  * session resume unreliable — see pursue.ts). Trailing tokens are the objective.
  */

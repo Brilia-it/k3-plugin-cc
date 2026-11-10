@@ -6,7 +6,7 @@ After a user-command run settles, the plugin fills missing prompt-preview metada
 
 ## Native generated titles
 
-New native-v2 sessions receive a readable fallback such as `Kimi Review: ...`. The fallback is marked **replaceable**, so native title generation can replace it. Existing manual titles and already-generated titles remain unchanged. Older plugin titles marked custom are also preserved because they cannot always be distinguished from a human rename.
+New native-v2 sessions receive a readable fallback such as `K3 Review: ...`. The fallback is marked **replaceable**, so native title generation can replace it. Existing manual titles and already-generated titles remain unchanged. Older plugin titles marked custom are also preserved because they cannot always be distinguished from a human rename.
 
 In Kimi Code Desktop 1.0.1, open the session's **Rename** control and select **Gen Title** to generate a title from its conversation. Native automatic generation also runs after an eligible turn finishes in Desktop. Merely opening an already-completed plugin session does not trigger it. Kimi's native generator uses its managed login; unavailable authentication or backend errors can leave the fallback in place.
 
@@ -21,7 +21,7 @@ scripts/companion.sh repair-sessions
 scripts/companion.sh repair-sessions --apply
 ```
 
-The first command previews changes in the current repository; the second applies them. Add `--all` to cover repositories in that host's plugin job store. Claude Code and Codex have separate stores, so run against each relevant host. For a checkout repairing an existing host, select its data parent explicitly with `KIMI_PLUGIN_CC_DATA`; do not point it at the inner `kimi-plugin-cc` directory.
+The first command previews changes in the current repository; the second applies them. Add `--all` to cover repositories in that host's plugin job store. Claude Code and Codex have separate stores, so run against each relevant host. For a checkout repairing an existing host, select its data parent explicitly with `K3_PLUGIN_CC_DATA`; do not point it at the inner `k3-plugin-cc` directory.
 
 The command reports JSON status counts and job/session IDs, without prompt bodies. It only considers completed, proven native-v2 user-command sessions and excludes sessions with a running job in that store. It recovers the original prompt from a bounded invocation-log prefix and verifies its digest against the job record. It leaves job records, logs, journals, titles and existing nonempty previews unchanged. No model is invoked.
 

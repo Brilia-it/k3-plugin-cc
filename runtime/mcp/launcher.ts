@@ -265,7 +265,7 @@ function signalVerifiedIdentity(identity: ProcessIdentity, signal: NodeJS.Signal
 }
 
 async function resolveNodeBinary(env: NodeJS.ProcessEnv): Promise<string> {
-  const override = env.KIMI_PLUGIN_CC_NODE_BIN;
+  const override = env.K3_PLUGIN_CC_NODE_BIN;
   const binary = override ? override : preferStableNodePath(process.execPath);
   if (binary.includes("/") || binary.includes("\\")) {
     try {
@@ -282,15 +282,15 @@ async function resolveNodeBinary(env: NodeJS.ProcessEnv): Promise<string> {
 function sanitizedChildEnv(env: NodeJS.ProcessEnv, paths: PluginPaths, workspace: string): NodeJS.ProcessEnv {
   return {
     ...env,
-    KIMI_PLUGIN_CC_WORKSPACE_CWD: workspace,
-    KIMI_PLUGIN_CC_MCP_WORKSPACE: workspace,
-    KIMI_PLUGIN_CC_DATA: path.resolve(paths.claudePluginData),
+    K3_PLUGIN_CC_WORKSPACE_CWD: workspace,
+    K3_PLUGIN_CC_MCP_WORKSPACE: workspace,
+    K3_PLUGIN_CC_DATA: path.resolve(paths.claudePluginData),
     KIMI_CODE_HOME: resolveKimiHome(env, workspace),
-    KIMI_PLUGIN_CC_WORKSPACE_ROOT: undefined,
-    KIMI_PLUGIN_CC_CMD: undefined,
-    KIMI_PLUGIN_CC_OPERATION: undefined,
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: undefined,
-    KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: undefined,
+    K3_PLUGIN_CC_WORKSPACE_ROOT: undefined,
+    K3_PLUGIN_CC_CMD: undefined,
+    K3_PLUGIN_CC_OPERATION: undefined,
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: undefined,
+    K3_PLUGIN_CC_SKIP_VERSION_PROBE: undefined,
     KIMI_CODE_TRUST_WORKSPACE: undefined,
     KIMI_CODE_EXPERIMENTAL_FLAG: undefined,
   };

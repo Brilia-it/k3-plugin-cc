@@ -117,7 +117,7 @@ async function createFixture(scenario = "success"): Promise<Fixture> {
       HOME: root,
       PATH: process.env.PATH,
       KIMI_CODE_HOME: home,
-      KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+      K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
       MOCK_KIMI_WEB_SCENARIO: scenario,
       MOCK_KIMI_WEB_LOG: logPath,
       MOCK_KIMI_WEB_TOKEN: tokenCanary,
@@ -332,9 +332,9 @@ describe("swarm web lifecycle", () => {
         KIMI_CODE_TRUST_WORKSPACE: null,
         KIMI_MODEL_THINKING_EFFORT: "high",
         KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY: "3",
-        KIMI_PLUGIN_CC_OPERATION: "swarm-write",
-        KIMI_PLUGIN_CC_CMD: "swarm-write",
-        KIMI_PLUGIN_CC_WORKSPACE_ROOT: fixture.cwd,
+        K3_PLUGIN_CC_OPERATION: "swarm-write",
+        K3_PLUGIN_CC_CMD: "swarm-write",
+        K3_PLUGIN_CC_WORKSPACE_ROOT: fixture.cwd,
       });
 
       await deactivateSwarmSession({ ...options, ...identity });

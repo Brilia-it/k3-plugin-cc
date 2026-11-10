@@ -30,16 +30,16 @@ export async function createMcpFixture(
     ...process.env,
     CLAUDE_PLUGIN_ROOT: pluginRoot,
     PLUGIN_ROOT: pluginRoot,
-    KIMI_PLUGIN_CC_DATA: data,
+    K3_PLUGIN_CC_DATA: data,
     KIMI_CODE_HOME: kimiHome,
-    KIMI_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: "1",
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCli]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: options.scenario ?? "ask-success",
-    KIMI_PLUGIN_CC_MOCK_DELAY_MS: options.delayMs ?? "0",
+    K3_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCli]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: options.scenario ?? "ask-success",
+    K3_PLUGIN_CC_MOCK_DELAY_MS: options.delayMs ?? "0",
   };
-  delete env.KIMI_PLUGIN_CC_NODE_BIN;
-  delete env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK;
+  delete env.K3_PLUGIN_CC_NODE_BIN;
+  delete env.K3_PLUGIN_CC_SKIP_HOOK_CHECK;
   const setup = spawnSync(path.join(pluginRoot, "scripts/companion.sh"), ["setup"], {
     cwd: repo,
     env,
@@ -84,7 +84,7 @@ export class McpClient {
   constructor(private readonly fixture: McpFixture) {
     this.child = spawn(path.join(fixture.pluginRoot, "scripts/companion.sh"), ["mcp"], {
       cwd: fixture.repo,
-      env: { ...fixture.env, KIMI_PLUGIN_CC_MCP_WORKSPACE: fixture.repo },
+      env: { ...fixture.env, K3_PLUGIN_CC_MCP_WORKSPACE: fixture.repo },
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.child.stdout!.on("data", (chunk) => this.accept(chunk));

@@ -138,7 +138,7 @@ describe("MCP stdio framing", () => {
       };
       const handler = createMcpMessageHandler({
         ...fixture.env,
-        KIMI_PLUGIN_CC_MCP_WORKSPACE: fixture.repo,
+        K3_PLUGIN_CC_MCP_WORKSPACE: fixture.repo,
       });
       const frames = await runStdio([frame(discovery), frame(notification)], handler, true);
 

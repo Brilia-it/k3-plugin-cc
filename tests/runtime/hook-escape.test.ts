@@ -89,11 +89,11 @@ for (const command of [["ask"], ["review"], ["task", "challenge"], ["task", "swa
     test(`compiled ${command.join(" ")} hook escape ${scenario}: detection evidence, never a failure`, async () => {
       const data = await createTestPluginDataRoot("escape-integration");
       const toolName = command.includes("rescue") || command.includes("pursue") ? "EnterPlanMode" : "Write";
-      const env = { ...process.env, KIMI_PLUGIN_CC_MOCK_HOOK_TOOL: toolName, KIMI_PLUGIN_CC_DATA: data, KIMI_CODE_HOME: path.join(data, "home"),
-        KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1", KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-        KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([path.resolve("tests/helpers/mock-kimi-cli-v1.ts")]),
-        KIMI_PLUGIN_CC_MOCK_VERSION: "2.2.0", KIMI_PLUGIN_CC_MOCK_RECOVERABLE_V2: "1",
-        KIMI_PLUGIN_CC_MOCK_SCENARIO: `hook-escape-${scenario}` };
+      const env = { ...process.env, K3_PLUGIN_CC_MOCK_HOOK_TOOL: toolName, K3_PLUGIN_CC_DATA: data, KIMI_CODE_HOME: path.join(data, "home"),
+        K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1", K3_PLUGIN_CC_KIMI_BIN: "bun",
+        K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([path.resolve("tests/helpers/mock-kimi-cli-v1.ts")]),
+        K3_PLUGIN_CC_MOCK_VERSION: "2.2.0", K3_PLUGIN_CC_MOCK_RECOVERABLE_V2: "1",
+        K3_PLUGIN_CC_MOCK_SCENARIO: `hook-escape-${scenario}` };
       try {
         const run = await exec("node", [path.resolve("dist/companion.js"), ...command, "inspect"], { env });
         const status = JSON.parse((await exec("node", [path.resolve("dist/companion.js"), "status"], { env })).stdout);
@@ -121,10 +121,10 @@ for (const command of [["ask"], ["review"], ["task", "challenge"], ["task", "swa
 
 test("budget abort with a pending pure denial stays a timeout and carries the unresolved finding in details", async () => {
   const data = await createTestPluginDataRoot("escape-budget");
-  const env = { ...process.env, KIMI_PLUGIN_CC_DATA: data, KIMI_CODE_HOME: path.join(data, "home"),
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1", KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([path.resolve("tests/helpers/mock-kimi-cli-v1.ts")]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: "hook-escape-unresolved", KIMI_PLUGIN_CC_MOCK_HOOK_PENDING_MS: "5000" };
+  const env = { ...process.env, K3_PLUGIN_CC_DATA: data, KIMI_CODE_HOME: path.join(data, "home"),
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1", K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([path.resolve("tests/helpers/mock-kimi-cli-v1.ts")]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: "hook-escape-unresolved", K3_PLUGIN_CC_MOCK_HOOK_PENDING_MS: "5000" };
   try {
     await expect(exec("node", [path.resolve("dist/companion.js"), "ask", "--budget", "1s", "inspect"], { env })).rejects.toMatchObject({ code: 1 });
     const status = JSON.parse((await exec("node", [path.resolve("dist/companion.js"), "status"], { env })).stdout);

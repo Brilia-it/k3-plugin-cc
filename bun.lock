@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "kimi-plugin-cc",
+      "name": "k3-plugin-cc",
       "dependencies": {
         "@deepseek-ai/dsh-brand": "0.2.1-rc.5",
         "@deepseek-ai/schemastery": "3.18.5",

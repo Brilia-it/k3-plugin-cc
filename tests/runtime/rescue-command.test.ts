@@ -72,18 +72,18 @@ function makeMockEnv(
   return {
     ...process.env,
     CLAUDE_PLUGIN_DATA: pluginDataRoot,
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: scenario,
-    KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-    KIMI_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
-    KIMI_PLUGIN_CC_NODE_BIN: "node",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: scenario,
+    K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+    K3_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
+    K3_PLUGIN_CC_NODE_BIN: "node",
     // Tests bypass the rescue hook-installation refusal — the mock
     // doesn't go through kimi-code's hook system, so the real hook
     // contract isn't being exercised here. Hook policy is tested
     // separately in approval-policy.test.ts, rescue-approval.test.ts,
     // and approval-hook-subprocess.test.ts.
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
   };
 }
 
@@ -133,7 +133,7 @@ describe("rescue command lifecycle", () => {
     const env = {
       ...makeMockEnv(pluginDataRoot, "rescue-success", invocationPath),
       KIMI_CODE_HOME: kimiHome,
-      KIMI_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
+      K3_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
     };
 
     try {
@@ -145,8 +145,8 @@ describe("rescue command lifecycle", () => {
       const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as {
         argv: string[];
         env: {
-          KIMI_PLUGIN_CC_CMD: string | null;
-          KIMI_PLUGIN_CC_WORKSPACE_ROOT: string | null;
+          K3_PLUGIN_CC_CMD: string | null;
+          K3_PLUGIN_CC_WORKSPACE_ROOT: string | null;
         };
       };
       const status = JSON.parse(
@@ -167,18 +167,18 @@ describe("rescue command lifecycle", () => {
       expect(status.phase).toBe("done");
       expect(status.kimi_session_id).toBe(sessionId);
       expect(spawnedPrompt).toBe(`${EXPECTED_RESCUE_PROMPT_PREFIX}Implement the requested fix`);
-      expect(state.title).toBe("Kimi Rescue: Implement the requested fix");
+      expect(state.title).toBe("K3 Rescue: Implement the requested fix");
       const store = new JobStore(resolvePluginPaths(env));
       try {
         expect(store.getJob(status.job_id)?.prompt_digest).toBe(digestPrompt(spawnedPrompt));
       } finally {
         store.close();
       }
-      // The hook gets KIMI_PLUGIN_CC_CMD=rescue so it can call
+      // The hook gets K3_PLUGIN_CC_CMD=rescue so it can call
       // evaluateRescueHookRequest. That env propagation is the only
       // runtime-side signal that selects the rescue policy.
-      expect(invocation.env.KIMI_PLUGIN_CC_CMD).toBe("rescue");
-      expect(invocation.env.KIMI_PLUGIN_CC_WORKSPACE_ROOT).toBe(repoRoot);
+      expect(invocation.env.K3_PLUGIN_CC_CMD).toBe("rescue");
+      expect(invocation.env.K3_PLUGIN_CC_WORKSPACE_ROOT).toBe(repoRoot);
       expect(invocation.argv).toContain("--output-format");
       expect(invocation.argv).toContain("stream-json");
       // v1.0 alpha.4: rescue runs thinking-on always. Locks the contract
@@ -400,7 +400,7 @@ describe("rescue command lifecycle", () => {
     const pluginDataRoot = await createTestPluginDataRoot("rescue-background-cancel");
     const repoRoot = await createGitRepoFixture("rescue-background-cancel-repo");
     const invocationPath = path.join(pluginDataRoot, "rescue-background-cancel.jsonl");
-    // Mock holds the response for 5s so /kimi:cancel races the close
+    // Mock holds the response for 5s so /k3:cancel races the close
     // event. cli-client's SIGKILL escalation guarantees the subprocess
     // doesn't outlive the cancel even if it ignores SIGTERM.
     const env = makeMockEnv(pluginDataRoot, "rescue-cancel", invocationPath, { delayMs: 5_000 });

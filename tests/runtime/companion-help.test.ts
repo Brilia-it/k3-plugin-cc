@@ -17,9 +17,9 @@ for (const command of commands) {
       const result = await exec("node", [companion, ...args], {
         env: {
           ...process.env,
-          KIMI_PLUGIN_CC_DATA: "/dev/null/not-a-directory",
+          K3_PLUGIN_CC_DATA: "/dev/null/not-a-directory",
           KIMI_CODE_HOME: "/dev/null/not-a-directory",
-          KIMI_PLUGIN_CC_KIMI_BIN: "/no-such-kimi",
+          K3_PLUGIN_CC_KIMI_BIN: "/no-such-kimi",
         },
       });
       expect(result.stdout.trim()).toBe(companionHelp(args)!);
@@ -40,7 +40,7 @@ test("help stops at -- and wins before it, even after prose or an unknown flag",
 });
 
 test("direct ask/rescue commands return parser help before hook or state access", async () => {
-  const context = { cwd: "/no-such-workspace", env: { KIMI_PLUGIN_CC_DATA: "/dev/null/not-a-directory" }, stdout: process.stdout, stderr: process.stderr };
+  const context = { cwd: "/no-such-workspace", env: { K3_PLUGIN_CC_DATA: "/dev/null/not-a-directory" }, stdout: process.stdout, stderr: process.stderr };
   expect(await runAsk(["--budget", "--help"], context)).toContain("Usage: companion.sh ask");
   expect(await runRescue(["--background", "-h"], context)).toContain("Usage: companion.sh task rescue");
 });

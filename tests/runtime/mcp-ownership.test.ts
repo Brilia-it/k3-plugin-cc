@@ -35,7 +35,7 @@ describe("MCP task ownership and data-root isolation", () => {
 
       const foreground = spawnSync(path.join(first.pluginRoot, "scripts/companion.sh"), ["ask", "--fresh", "Create a CLI-only job"], {
         cwd: first.repo,
-        env: { ...first.env, KIMI_PLUGIN_CC_MOCK_DELAY_MS: "0" },
+        env: { ...first.env, K3_PLUGIN_CC_MOCK_DELAY_MS: "0" },
         encoding: "utf8",
       });
       expect(foreground.status).toBe(0);
@@ -72,7 +72,7 @@ describe("MCP task ownership and data-root isolation", () => {
     const fixture = await createMcpFixture("mcp-data-conflict");
     const other = path.join(fixture.data, "other-data");
     const env: NodeJS.ProcessEnv = { ...fixture.env, CLAUDE_PLUGIN_DATA: path.join(fixture.data, "shared-a"), PLUGIN_DATA: other };
-    delete env.KIMI_PLUGIN_CC_DATA;
+    delete env.K3_PLUGIN_CC_DATA;
     try {
       const result = spawnSync(path.join(fixture.pluginRoot, "scripts/companion.sh"), ["mcp"], {
         cwd: fixture.repo,

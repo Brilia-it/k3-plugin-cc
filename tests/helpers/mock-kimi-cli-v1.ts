@@ -4,7 +4,7 @@
 // review_gate. Rescue (PR 3) still uses the v0.4 mock until rescue is ported.
 //
 // Scenario surface mirrors mock-kimi-cli.ts so test files migrate by
-// pointing `KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` at this file instead.
+// pointing `K3_PLUGIN_CC_KIMI_PREFIX_ARGS` at this file instead.
 // Scenarios that don't map cleanly (e.g. rescue-approval flows) are
 // stubbed with a clear error so we catch test drift loudly.
 //
@@ -16,29 +16,29 @@
 // The mock honors the same scenario env vars as the v0.4 mock so tests
 // can switch transports by changing one path:
 //
-//   KIMI_PLUGIN_CC_MOCK_SCENARIO      ask-success / review-success / review-gate-* / etc.
-//   KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH  optional path where argv is logged
-//   KIMI_PLUGIN_CC_MOCK_DELAY_MS      delay before emitting records (cancellation tests)
-//   KIMI_PLUGIN_CC_MOCK_SESSION_ID    override session id announced in stderr
+//   K3_PLUGIN_CC_MOCK_SCENARIO      ask-success / review-success / review-gate-* / etc.
+//   K3_PLUGIN_CC_MOCK_INVOCATION_PATH  optional path where argv is logged
+//   K3_PLUGIN_CC_MOCK_DELAY_MS      delay before emitting records (cancellation tests)
+//   K3_PLUGIN_CC_MOCK_SESSION_ID    override session id announced in stderr
 
 import { decideHookOutcome } from "../../runtime/hooks/approval-policy.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const scenario = process.env.KIMI_PLUGIN_CC_MOCK_SCENARIO ?? "ask-success";
-const invocationPath = process.env.KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH;
-const delayMs = Number(process.env.KIMI_PLUGIN_CC_MOCK_DELAY_MS ?? "0");
+const scenario = process.env.K3_PLUGIN_CC_MOCK_SCENARIO ?? "ask-success";
+const invocationPath = process.env.K3_PLUGIN_CC_MOCK_INVOCATION_PATH;
+const delayMs = Number(process.env.K3_PLUGIN_CC_MOCK_DELAY_MS ?? "0");
 
 // Session id resolution mirrors kimi-code: if the caller passes `-r <id>`,
 // echo that id back (the resume target persists across the call). Otherwise
 // mint a fresh uuid per invocation so concurrent fresh runs don't collide.
-// KIMI_PLUGIN_CC_MOCK_SESSION_ID can override the fresh path for tests that
+// K3_PLUGIN_CC_MOCK_SESSION_ID can override the fresh path for tests that
 // need predictable ids without piping through -r.
 const sessionId = resolveAnnouncedSessionId();
 
 function resolveAnnouncedSessionId(): string {
-  const override = process.env.KIMI_PLUGIN_CC_MOCK_SESSION_ID;
+  const override = process.env.K3_PLUGIN_CC_MOCK_SESSION_ID;
   if (override) return override;
   const argv = process.argv.slice(2);
   const dashR = argv.indexOf("-r");
@@ -58,7 +58,7 @@ async function main(): Promise<void> {
   // job. Keep this branch side-effect free so invocation assertions still
   // describe the real prompt spawn rather than the probe.
   if (process.argv.slice(2).includes("--version")) {
-    process.stdout.write(`${process.env.KIMI_PLUGIN_CC_MOCK_VERSION ?? "0.39.0"}\n`);
+    process.stdout.write(`${process.env.K3_PLUGIN_CC_MOCK_VERSION ?? "0.39.0"}\n`);
     process.exit(0);
   }
 
@@ -72,9 +72,9 @@ async function main(): Promise<void> {
         scenario,
         env: {
           KIMI_MODEL_THINKING_EFFORT: process.env.KIMI_MODEL_THINKING_EFFORT ?? null,
-          KIMI_PLUGIN_CC_CMD: process.env.KIMI_PLUGIN_CC_CMD ?? null,
-          KIMI_PLUGIN_CC_WORKSPACE_ROOT:
-            process.env.KIMI_PLUGIN_CC_WORKSPACE_ROOT ?? null,
+          K3_PLUGIN_CC_CMD: process.env.K3_PLUGIN_CC_CMD ?? null,
+          K3_PLUGIN_CC_WORKSPACE_ROOT:
+            process.env.K3_PLUGIN_CC_WORKSPACE_ROOT ?? null,
           KIMI_CODE_HOME: process.env.KIMI_CODE_HOME ?? null,
         },
       })}\n`,
@@ -86,12 +86,12 @@ async function main(): Promise<void> {
     await sleep(delayMs);
   }
 
-  const recoverableV2 = process.env.KIMI_PLUGIN_CC_MOCK_RECOVERABLE_V2 === "1";
+  const recoverableV2 = process.env.K3_PLUGIN_CC_MOCK_RECOVERABLE_V2 === "1";
   if (recoverableV2) {
-    process.stdout.write(`${JSON.stringify({ role: "meta", type: "system.version", version: process.env.KIMI_PLUGIN_CC_MOCK_VERSION })}\n`);
+    process.stdout.write(`${JSON.stringify({ role: "meta", type: "system.version", version: process.env.K3_PLUGIN_CC_MOCK_VERSION })}\n`);
     // A real v2 turn creates state before work, but announces only at turn end.
     // Never overwrite an existing journal on resume (the preflight reads it).
-    if (!process.argv.includes("-r") && process.env.KIMI_PLUGIN_CC_MOCK_NO_SESSION_STORE !== "1") {
+    if (!process.argv.includes("-r") && process.env.K3_PLUGIN_CC_MOCK_NO_SESSION_STORE !== "1") {
       const dir = path.join(process.env.KIMI_CODE_HOME!, "sessions/wd_mock", sessionId);
       await mkdir(path.join(dir, "agents/main"), { recursive: true });
       await writeFile(path.join(dir, "state.json"), JSON.stringify({
@@ -100,7 +100,7 @@ async function main(): Promise<void> {
       const argv = process.argv.slice(2);
       const promptArg = argv.indexOf("-p");
       const prompt = promptArg >= 0 ? argv[promptArg + 1] ?? "" : "";
-      const text = process.env.KIMI_PLUGIN_CC_MOCK_JOURNAL_PROMPT_OVERRIDE ?? prompt;
+      const text = process.env.K3_PLUGIN_CC_MOCK_JOURNAL_PROMPT_OVERRIDE ?? prompt;
       await writeFile(path.join(dir, "agents/main/wire.jsonl"), [
         JSON.stringify({ type: "metadata", protocol_version: "1.5", created_at: Date.now() }),
         JSON.stringify({ type: "turn.prompt", agentId: "main", input: [{ type: "text", text }], origin: { kind: "user" } }),
@@ -110,21 +110,21 @@ async function main(): Promise<void> {
   }
   if (scenario.startsWith("hook-escape-")) {
     const toolInput = { path: "/tmp/mock-hook-escape", content: "unsafe" };
-    const toolName = process.env.KIMI_PLUGIN_CC_MOCK_HOOK_TOOL ?? "Write";
+    const toolName = process.env.K3_PLUGIN_CC_MOCK_HOOK_TOOL ?? "Write";
     const call = { id: "escape-1", type: "function", function: { name: toolName, arguments: JSON.stringify(toolInput) } };
     process.stdout.write(JSON.stringify({ role: "assistant", tool_calls: [call] }) + "\n");
-    if (process.env.KIMI_PLUGIN_CC_MOCK_HOOK_PENDING_MS) await sleep(Number(process.env.KIMI_PLUGIN_CC_MOCK_HOOK_PENDING_MS));
+    if (process.env.K3_PLUGIN_CC_MOCK_HOOK_PENDING_MS) await sleep(Number(process.env.K3_PLUGIN_CC_MOCK_HOOK_PENDING_MS));
     if (scenario !== "hook-escape-unresolved") {
       const decision = await decideHookOutcome({ tool_name: toolName, tool_input: toolInput }, {
-        commandLabel: process.env.KIMI_PLUGIN_CC_CMD, operationKind: process.env.KIMI_PLUGIN_CC_OPERATION,
-        trustedWorkspaceRoot: process.env.KIMI_PLUGIN_CC_WORKSPACE_ROOT,
+        commandLabel: process.env.K3_PLUGIN_CC_CMD, operationKind: process.env.K3_PLUGIN_CC_OPERATION,
+        trustedWorkspaceRoot: process.env.K3_PLUGIN_CC_WORKSPACE_ROOT,
       });
       process.stdout.write(JSON.stringify({ role: "tool", tool_call_id: call.id,
         content: scenario === "hook-escape-denied" ? decision.reason : "ok: wrote file" }) + "\n");
     }
     // The run always finishes with prose (or, under the review gate, its JSON verdict):
     // the monitor is detection evidence, so the job must complete normally.
-    const gate = process.env.KIMI_PLUGIN_CC_CMD === "review_gate";
+    const gate = process.env.K3_PLUGIN_CC_CMD === "review_gate";
     if (scenario === "hook-escape-executed") {
       // The run continues after a mismatch (detection only); this sentinel proves it.
       await sleep(300);
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
   // (extractSessionIdFromStderr) captures the id.
   if (!recoverableV2) process.stderr.write(`To resume this session: kimi -r ${sessionId}\n`);
   // Emit work and the resume hint before holding, to exercise budget capture.
-  const postOutputDelay = Number(process.env.KIMI_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS ?? "0");
+  const postOutputDelay = Number(process.env.K3_PLUGIN_CC_MOCK_POST_OUTPUT_DELAY_MS ?? "0");
   if (postOutputDelay > 0) await sleep(postOutputDelay);
   if (recoverableV2) process.stdout.write(`${JSON.stringify({ role: "meta", type: "session.resume_hint", session_id: sessionId, command: `kimi -r ${sessionId}`, content: `To resume this session: kimi -r ${sessionId}` })}\n`);
   process.exit(0);
@@ -294,7 +294,7 @@ function recordsForScenario(name: string): AssistantContentRecord[] {
 
     case "rescue-cancel":
       // Long-form rescue prose used by cancel tests. The delay env var
-      // (KIMI_PLUGIN_CC_MOCK_DELAY_MS) decides whether the mock finishes
+      // (K3_PLUGIN_CC_MOCK_DELAY_MS) decides whether the mock finishes
       // before SIGTERM lands. Without a delay the call completes
       // normally, which doubles as a positive smoke test.
       return [

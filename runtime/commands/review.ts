@@ -48,7 +48,7 @@ export async function runReview(
     );
   }
 
-  if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
+  if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK !== "1") {
     await requireReadOnlyHookInstalled(context, commandType);
   }
 
@@ -199,7 +199,7 @@ async function requireReadOnlyHookInstalled(
   context: CommandContext,
   commandType: "review" | "challenge",
 ): Promise<void> {
-  if (context.env.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
+  if (context.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK === "1") {
     return;
   }
 
@@ -212,10 +212,10 @@ async function requireReadOnlyHookInstalled(
   throw new RuntimeError(
     `${commandType.toUpperCase()}_HOOK_NOT_INSTALLED`,
     [
-      `${commandType} refuses to run without the canonical kimi-plugin-cc PreToolUse hook.`,
+      `${commandType} refuses to run without the canonical k3-plugin-cc PreToolUse hook.`,
       `Hook check failed: ${installStatus.reason ?? "unknown"}.`,
-      "Run /kimi:setup or $kimi-setup to install or repair this host's managed block.",
-      "Set KIMI_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
+      "Run /k3:setup or $k3-setup to install or repair this host's managed block.",
+      "Set K3_PLUGIN_CC_SKIP_HOOK_CHECK=1 only if you intentionally accept un-enforced execution.",
       hookRefusalRetryProtocol(context.env),
     ].join(" "),
     `${commandType}.hook-check`,

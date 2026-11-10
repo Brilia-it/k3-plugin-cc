@@ -182,7 +182,7 @@ async function runSyntheticScenario(
     env: {
       ...fixture.env,
       MCP_TEST_WORKSPACE: fixture.repo,
-      KIMI_PLUGIN_CC_NODE_BIN: slowCompanion,
+      K3_PLUGIN_CC_NODE_BIN: slowCompanion,
     },
     encoding: "utf8",
     timeout: 15_000,

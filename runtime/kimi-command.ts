@@ -4,12 +4,12 @@ import { RuntimeError } from "./errors.js";
  * Resolve the kimi binary command + prefix args for cli-client calls.
  * Environment overrides support tests and non-default Node setups:
  *
- *   - KIMI_PLUGIN_CC_KIMI_BIN
+ *   - K3_PLUGIN_CC_KIMI_BIN
  *       Override the binary path. Defaults to "kimi" (resolved via PATH).
  *       Tests typically set this to the Node binary so they can spawn
  *       `node --import tsx mock-kimi-stream.ts`.
  *
- *   - KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS
+ *   - K3_PLUGIN_CC_KIMI_PREFIX_ARGS
  *       JSON array of extra argv prepended before `--output-format`.
  *       Used by tests to inject `["--import","tsx","/path/to/mock.ts"]`
  *       so the spawn line becomes
@@ -22,8 +22,8 @@ export interface ResolvedKimiCommand {
 }
 
 export function resolveKimiCliCommand(env: NodeJS.ProcessEnv): ResolvedKimiCommand {
-  const command = env.KIMI_PLUGIN_CC_KIMI_BIN || "kimi";
-  const raw = env.KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS;
+  const command = env.K3_PLUGIN_CC_KIMI_BIN || "kimi";
+  const raw = env.K3_PLUGIN_CC_KIMI_PREFIX_ARGS;
   if (!raw) {
     return { command, prefixArgs: [] };
   }
@@ -41,18 +41,18 @@ export function resolveKimiCliCommand(env: NodeJS.ProcessEnv): ResolvedKimiComma
   if (!Array.isArray(parsed)) {
     throw new RuntimeError(
       "INVALID_ENV",
-      "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS must be a JSON array of strings.",
+      "K3_PLUGIN_CC_KIMI_PREFIX_ARGS must be a JSON array of strings.",
       "kimi-command.env",
-      { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw, retryable_after_setup: false } },
+      { details: { env_var: "K3_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw, retryable_after_setup: false } },
     );
   }
   for (const entry of parsed) {
     if (typeof entry !== "string") {
       throw new RuntimeError(
         "INVALID_ENV",
-        "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS entries must be strings.",
+        "K3_PLUGIN_CC_KIMI_PREFIX_ARGS entries must be strings.",
         "kimi-command.env",
-        { details: { env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw, retryable_after_setup: false } },
+        { details: { env_var: "K3_PLUGIN_CC_KIMI_PREFIX_ARGS", value: raw, retryable_after_setup: false } },
       );
     }
   }
@@ -93,13 +93,13 @@ export function assertPrefixArgsSafe(prefixArgs: readonly string[], raw?: string
     if (RESERVED_PREFIX_FLAGS.has(flag)) {
       throw new RuntimeError(
         "INVALID_ENV",
-        `KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS must not contain the reserved kimi flag "${flag}". ` +
+        `K3_PLUGIN_CC_KIMI_PREFIX_ARGS must not contain the reserved kimi flag "${flag}". ` +
           "The prefix is a launcher shim only; session, engine, plan, prompt, model, and " +
           "output-format flags are owned by the plugin and would bypass its safety checks.",
         "kimi-command.env",
         {
           details: {
-            env_var: "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS",
+            env_var: "K3_PLUGIN_CC_KIMI_PREFIX_ARGS",
             reserved_flag: flag,
             value: raw,
             retryable_after_setup: false,

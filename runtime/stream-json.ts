@@ -108,7 +108,7 @@ export type StreamJsonRecord =
  * the session.resume_hint. Unlike assistant/tool/meta records it carries NO
  * `role` field — it is keyed by `type: "goal.summary"`.
  *
- * It is OUT-OF-BAND metadata for our wrapper (the /kimi:pursue job store
+ * It is OUT-OF-BAND metadata for our wrapper (the /k3:pursue job store
  * consumes turns/tokens/wallClock/status), not consumer-facing prose. To keep
  * the role-keyed `StreamJsonRecord` union — and its `.role` consumers
  * (reassembleProseFromRecords, onRecord callbacks) — untouched, it is surfaced

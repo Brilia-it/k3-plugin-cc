@@ -18,7 +18,7 @@ import {
   CODEX_SKILLS,
   PLUGIN_VERSION,
 } from "../../scripts/surface-registry.js";
-import { KIMI_PLUGIN_CC_VERSION } from "../../runtime/version.js";
+import { K3_PLUGIN_CC_VERSION } from "../../runtime/version.js";
 import { resolvePluginPaths } from "../../runtime/paths.js";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..");
@@ -78,7 +78,7 @@ describe("Codex sidecar surfaces", () => {
           command: "${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh",
           args: ["mcp"],
           env: {
-            KIMI_PLUGIN_CC_MCP_WORKSPACE: "${CLAUDE_PROJECT_DIR}",
+            K3_PLUGIN_CC_MCP_WORKSPACE: "${CLAUDE_PROJECT_DIR}",
           },
         },
       },
@@ -87,15 +87,15 @@ describe("Codex sidecar surfaces", () => {
 
   test("Codex MCP launch is plugin-relative and excludes dangerous environment variables", async () => {
     const supportedEnvVars = [
-      "KIMI_PLUGIN_CC_DATA",
+      "K3_PLUGIN_CC_DATA",
       "CLAUDE_PLUGIN_DATA",
       "PLUGIN_DATA",
       "KIMI_CODE_HOME",
-      "KIMI_PLUGIN_CC_KIMI_BIN",
-      "KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS",
-      "KIMI_PLUGIN_CC_NODE_BIN",
-      "KIMI_PLUGIN_CC_HOOK_SCRIPT",
-      "KIMI_PLUGIN_CC_HOST_ID",
+      "K3_PLUGIN_CC_KIMI_BIN",
+      "K3_PLUGIN_CC_KIMI_PREFIX_ARGS",
+      "K3_PLUGIN_CC_NODE_BIN",
+      "K3_PLUGIN_CC_HOOK_SCRIPT",
+      "K3_PLUGIN_CC_HOST_ID",
       "KIMI_MODEL_NAME",
       "KIMI_MODEL_API_KEY",
       "KIMI_MODEL_PROVIDER_TYPE",
@@ -132,11 +132,11 @@ describe("Codex sidecar surfaces", () => {
       "CLAUDE_PLUGIN_ROOT",
       "PLUGIN_ROOT",
       "CLAUDE_PROJECT_DIR",
-      "KIMI_PLUGIN_CC_MCP_WORKSPACE",
-      "KIMI_PLUGIN_CC_WORKSPACE_ROOT",
-      "KIMI_PLUGIN_CC_WORKSPACE_CWD",
-      "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK",
-      "KIMI_PLUGIN_CC_SKIP_VERSION_PROBE",
+      "K3_PLUGIN_CC_MCP_WORKSPACE",
+      "K3_PLUGIN_CC_WORKSPACE_ROOT",
+      "K3_PLUGIN_CC_WORKSPACE_CWD",
+      "K3_PLUGIN_CC_SKIP_HOOK_CHECK",
+      "K3_PLUGIN_CC_SKIP_VERSION_PROBE",
       "KIMI_CODE_TRUST_WORKSPACE",
       "KIMI_CODE_LEGACY_FLAG",
       "KIMI_CODE_EXPERIMENTAL_FLAG",
@@ -154,9 +154,9 @@ describe("Codex sidecar surfaces", () => {
     ) as typeof CODEX_MARKETPLACE;
 
     expect(marketplace).toEqual(CODEX_MARKETPLACE);
-    expect(marketplace.name).toBe("kimi-marketplace");
+    expect(marketplace.name).toBe("brilia-k3-marketplace");
     expect(marketplace.plugins[0].name).toBe("kimi");
-    expect(marketplace.plugins[0].source.path).toBe("./plugins/kimi-codex");
+    expect(marketplace.plugins[0].source.path).toBe("./plugins/k3-codex");
     expect(marketplace.plugins[0].policy.installation).toBe("AVAILABLE");
     expect(marketplace.plugins[0].policy.authentication).toBe("ON_INSTALL");
   });
@@ -216,11 +216,11 @@ describe("Codex/Claude surface separation", () => {
 });
 
 describe("version single-sourcing", () => {
-  test("PLUGIN_VERSION === KIMI_PLUGIN_CC_VERSION === package.json version", async () => {
+  test("PLUGIN_VERSION === K3_PLUGIN_CC_VERSION === package.json version", async () => {
     const pkg = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8")) as {
       version: string;
     };
-    expect(PLUGIN_VERSION).toBe(KIMI_PLUGIN_CC_VERSION);
+    expect(PLUGIN_VERSION).toBe(K3_PLUGIN_CC_VERSION);
     expect(PLUGIN_VERSION).toBe(pkg.version);
   });
 
@@ -228,7 +228,7 @@ describe("version single-sourcing", () => {
     const manifest = JSON.parse(
       await readFile(path.join(repoRoot, CODEX_PLUGIN_SUBDIR, ".codex-plugin/plugin.json"), "utf8"),
     ) as { version: string };
-    expect(manifest.version).toBe(KIMI_PLUGIN_CC_VERSION);
+    expect(manifest.version).toBe(K3_PLUGIN_CC_VERSION);
   });
 });
 
@@ -239,7 +239,7 @@ describe("plugin data dir precedence (Claude vs Codex env aliases)", () => {
       PLUGIN_DATA: "/tmp/codex-data",
     };
     expect(() => resolvePluginPaths(env)).toThrow("disagree");
-    const resolved = resolvePluginPaths({ ...env, KIMI_PLUGIN_CC_DATA: "/tmp/selected-kimi-data" });
+    const resolved = resolvePluginPaths({ ...env, K3_PLUGIN_CC_DATA: "/tmp/selected-kimi-data" });
     expect(resolved.claudePluginData).toBe("/tmp/selected-kimi-data");
   });
 

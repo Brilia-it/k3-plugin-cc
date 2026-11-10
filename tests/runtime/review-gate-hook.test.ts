@@ -34,9 +34,9 @@ describe("review gate stop hook", () => {
         {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
         },
         {
           cwd: process.cwd(),
@@ -84,13 +84,13 @@ describe("review gate stop hook", () => {
         {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
-          KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-          KIMI_PLUGIN_CC_REVIEW_GATE_MODEL: selectedModel,
-          KIMI_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
-          KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
+          K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+          K3_PLUGIN_CC_REVIEW_GATE_MODEL: selectedModel,
+          K3_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
+          K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
           KIMI_CODE_HOME: kimiHome,
         },
         {
@@ -103,16 +103,16 @@ describe("review gate stop hook", () => {
 
       const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as {
         argv: string[];
-        env: { KIMI_PLUGIN_CC_CMD: string | null };
+        env: { K3_PLUGIN_CC_CMD: string | null };
       };
 
       expect(output.decision).toBe("block");
-      expect(output.reason).toContain("Kimi review gate blocked stop");
+      expect(output.reason).toContain("K3 review gate blocked stop");
       expect(output.reason).toContain("Requested fix still missing");
       // v1.0: review_gate command label propagates via env, not argv.
       // The agent-file / --session flags are gone — kimi-code does not
       // load YAML agent profiles and assigns its own session id.
-      expect(invocation.env.KIMI_PLUGIN_CC_CMD).toBe("review_gate");
+      expect(invocation.env.K3_PLUGIN_CC_CMD).toBe("review_gate");
       expect(invocation.argv).toContain("--output-format");
       expect(invocation.argv).toContain("stream-json");
       const promptFlagIndex = invocation.argv.indexOf("-p");
@@ -176,11 +176,11 @@ describe("review gate stop hook", () => {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
           KIMI_CODE_HOME: kimiHome,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
-          KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-          KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "",
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
+          K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+          K3_PLUGIN_CC_SKIP_HOOK_CHECK: "",
         },
         {
           cwd: process.cwd(),
@@ -218,10 +218,10 @@ describe("review gate stop hook", () => {
         {
           ...process.env,
           PLUGIN_DATA: pluginDataRoot,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
-          KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
+          K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
         },
         {
           cwd: process.cwd(),
@@ -236,7 +236,7 @@ describe("review gate stop hook", () => {
       );
 
       expect(output.decision).toBe("block");
-      expect(output.reason).toContain("Kimi review gate blocked stop");
+      expect(output.reason).toContain("K3 review gate blocked stop");
       expect(output.reason).toContain("Requested fix still missing");
     } finally {
       await cleanupTestPath(pluginDataRoot);
@@ -268,10 +268,10 @@ describe("review gate stop hook", () => {
         {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block-medium",
-          KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block-medium",
+          K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
         },
         {
           cwd: process.cwd(),
@@ -313,10 +313,10 @@ describe("review gate stop hook", () => {
         {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-malformed",
-          KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-malformed",
+          K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
         },
         {
           cwd: process.cwd(),
@@ -327,7 +327,7 @@ describe("review gate stop hook", () => {
       );
 
       expect(output.decision).toBeUndefined();
-      expect(output.systemMessage).toBe("Kimi review gate returned malformed output; allowing stop.");
+      expect(output.systemMessage).toBe("K3 review gate returned malformed output; allowing stop.");
     } finally {
       await cleanupTestPath(pluginDataRoot);
     }
@@ -355,9 +355,9 @@ describe("review gate stop hook", () => {
         {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
         },
         {
           cwd: process.cwd(),
@@ -449,9 +449,9 @@ describe("review gate resolves a relative KIMI_CODE_HOME against the payload cwd
       ...process.env,
       CLAUDE_PLUGIN_ROOT: process.cwd(),
       CLAUDE_PLUGIN_DATA: pluginDataRoot,
-      KIMI_PLUGIN_CC_NODE_BIN: nodeExecPath,
+      K3_PLUGIN_CC_NODE_BIN: nodeExecPath,
     };
-    delete hostEnv.KIMI_PLUGIN_CC_SKIP_HOOK_CHECK;
+    delete hostEnv.K3_PLUGIN_CC_SKIP_HOOK_CHECK;
 
     try {
       await seedKimiSession(kimiHome, sessionId);
@@ -485,11 +485,11 @@ describe("review gate resolves a relative KIMI_CODE_HOME against the payload cwd
       const output = await invokeHook(
         {
           ...hostEnv,
-          KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-          KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-          KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
-          KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-          KIMI_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
+          K3_PLUGIN_CC_KIMI_BIN: "bun",
+          K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+          K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-block",
+          K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+          K3_PLUGIN_CC_MOCK_SESSION_ID: sessionId,
           KIMI_CODE_HOME: relHome,
         },
         {
@@ -515,13 +515,13 @@ describe("review gate resolves a relative KIMI_CODE_HOME against the payload cwd
 test.each([undefined, "inherit", "high"])("gate thinking request %j reaches the child and job", async (thinking) => {
   const data = await createTestPluginDataRoot("gate-thinking");
   const invocation = path.join(data, "invocation.json");
-  const env: NodeJS.ProcessEnv = { ...process.env, KIMI_PLUGIN_CC_DATA: data,
-    KIMI_CODE_HOME: path.join(data, "home"), KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun", KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: "review-gate-allow", KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocation };
+  const env: NodeJS.ProcessEnv = { ...process.env, K3_PLUGIN_CC_DATA: data,
+    KIMI_CODE_HOME: path.join(data, "home"), K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun", K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: "review-gate-allow", K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocation };
   delete env.KIMI_MODEL_THINKING_EFFORT;
-  if (thinking === undefined) delete env.KIMI_PLUGIN_CC_REVIEW_GATE_THINKING;
-  else env.KIMI_PLUGIN_CC_REVIEW_GATE_THINKING = thinking;
+  if (thinking === undefined) delete env.K3_PLUGIN_CC_REVIEW_GATE_THINKING;
+  else env.K3_PLUGIN_CC_REVIEW_GATE_THINKING = thinking;
   try {
     const paths = resolvePluginPaths(env);
     await mkdir(paths.pluginRoot, { recursive: true });
@@ -540,10 +540,10 @@ test.each([undefined, "inherit", "high"])("gate thinking request %j reaches the 
 
 test.each(["executed", "unresolved"])("compiled Stop-hook wiring on hook escape %s: stays fail-open, annotates, persists the finding", async (kind) => {
   const data = await createTestPluginDataRoot("gate-escape");
-  const env = { ...process.env, KIMI_PLUGIN_CC_DATA: data,
-    KIMI_CODE_HOME: path.join(data, "home"), KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun", KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: `hook-escape-${kind}` };
+  const env = { ...process.env, K3_PLUGIN_CC_DATA: data,
+    KIMI_CODE_HOME: path.join(data, "home"), K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun", K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: `hook-escape-${kind}` };
   try {
     const paths = resolvePluginPaths(env);
     await mkdir(paths.pluginRoot, { recursive: true });

@@ -28,9 +28,9 @@ Controls used the read-only Agent Keys API key, resolved only into each process,
 
 ## Candidate and production matrices
 
-Both matrices ran through the new pre-authorized monitor route, `~/.local/bin/kimi-plugin-cc-monitor-smoke`. It installs the exact binary once under `~/.cache/kimi-plugin-cc-monitor/` (same `dist/main.mjs` SHA-256 as above), uses the read-only Agent Keys API key, seeds from an empty temp home and redacts the log.
+Both matrices ran through the new pre-authorized monitor route, `~/.local/bin/k3-plugin-cc-monitor-smoke`. It installs the exact binary once under `~/.cache/k3-plugin-cc-monitor/` (same `dist/main.mjs` SHA-256 as above), uses the read-only Agent Keys API key, seeds from an empty temp home and redacts the log.
 
-- **Candidate** (`candidate-smoke.log`, `KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE=2.5.2`): **24 tests with 167 assertions and no skips in 391.42 seconds**. Review, challenge, ask and review_gate each received a same-call managed Write denial. Real rescue confinement, the Bash.cwd denial, resume and plan-taint refusal, and both pursue outcomes passed. Six goal turns each had a managed Write denial, and the goal workspace was empty at settlement. Write-swarm captured a **278-byte** child-authored patch with a clean user tree and removed worktree, and denied the out-of-root write.
+- **Candidate** (`candidate-smoke.log`, `K3_PLUGIN_CC_SMOKE_V2_CANDIDATE=2.5.2`): **24 tests with 167 assertions and no skips in 391.42 seconds**. Review, challenge, ask and review_gate each received a same-call managed Write denial. Real rescue confinement, the Bash.cwd denial, resume and plan-taint refusal, and both pursue outcomes passed. Six goal turns each had a managed Write denial, and the goal workspace was empty at settlement. Write-swarm captured a **278-byte** child-authored patch with a clean user tree and removed worktree, and denied the out-of-root write.
 - **Production table** (`production-smoke.log`, candidate override unset): **24 tests with 167 assertions and no skips in 399.68 seconds**. It independently repeated the same evidence. Six of seven goal turns carried managed denials; the seventh was cut by the budget abort, and the workspace was empty at settlement. Write-swarm again captured a 278-byte patch.
 
 A scan of both logs found no key material.

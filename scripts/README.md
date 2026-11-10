@@ -15,11 +15,11 @@ The shell entry points run the compiled Node runtime while preserving the caller
 | `audit-subscription-recovery.ts` | Offline, exact-source evidence that terminal quota/recovery metadata is unavailable |
 | `audit-source.ts` | Extract pinned declarations with the TypeScript 7 async API and transpile probe code with Bun |
 
-Both shell entry points accept `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT` and otherwise use their parent directory. Data selection happens in the runtime. Standard cache installs verify shared data variables against the current package's host-specific directory. Use the absolute `KIMI_PLUGIN_CC_DATA` override for a deliberate custom location; conflicting shared values fail before store access. Checkouts retain unambiguous legacy data variables and the Codex fallback under `CODEX_HOME` or `HOME` when neither is set. A fully sanitized launch with no home needs an explicit data root. See [plugin data ownership](../docs/invariants.md#5-plugin-data-ownership).
+Both shell entry points accept `CLAUDE_PLUGIN_ROOT` or `PLUGIN_ROOT` and otherwise use their parent directory. Data selection happens in the runtime. Standard cache installs verify shared data variables against the current package's host-specific directory. Use the absolute `K3_PLUGIN_CC_DATA` override for a deliberate custom location; conflicting shared values fail before store access. Checkouts retain unambiguous legacy data variables and the Codex fallback under `CODEX_HOME` or `HOME` when neither is set. A fully sanitized launch with no home needs an explicit data root. See [plugin data ownership](../docs/invariants.md#5-plugin-data-ownership).
 
-`companion.sh` preserves the caller's directory in `KIMI_PLUGIN_CC_WORKSPACE_CWD`. It resolves Node from `KIMI_PLUGIN_CC_NODE_BIN` or `PATH` and requires Node.js 22.5 or newer.
+`companion.sh` preserves the caller's directory in `K3_PLUGIN_CC_WORKSPACE_CWD`. It resolves Node from `K3_PLUGIN_CC_NODE_BIN` or `PATH` and requires Node.js 22.5 or newer.
 
-After changing runtime code or shell scripts, run `bun run build && bun run generate:surfaces`. Review and stage `dist/`, `plugins/kimi-codex/`, and `plugins/kimi-dsh/`, then run `bun run check`. Never edit either generated package by hand.
+After changing runtime code or shell scripts, run `bun run build && bun run generate:surfaces`. Review and stage `dist/`, `plugins/k3-codex/`, and `plugins/kimi-dsh/`, then run `bun run check`. Never edit either generated package by hand.
 
 Live smoke scripts use model calls. Read the script and the [smoke run instructions](../docs/ci.md) before using them. They are not part of routine offline checks.
 

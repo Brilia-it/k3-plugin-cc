@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 // Execute shipped JS under Node, not Bun's .js -> .ts resolution. The stdout
 // refusal has no stderr fallback: losing it makes a busy session opaque.
 test("compiled distributions preserve the stdout-only CLI refusal", () => {
-  for (const root of ["./dist", "./plugins/kimi-codex/dist"]) {
+  for (const root of ["./dist", "./plugins/k3-codex/dist"]) {
     const script = `
       import assert from 'node:assert/strict';
       import { StreamJsonParser } from '${root}/stream-json.js';

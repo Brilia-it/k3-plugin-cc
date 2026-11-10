@@ -13,11 +13,11 @@ export const DSH_COMPANION_OPERATIONS = [
 ];
 export function companionTextTask(prompt) {
     if (prompt.length === 0 || prompt.some((block) => block.type !== "text")) {
-        throw new Error("kimi-plugin-cc: a delegation must contain only text blocks");
+        throw new Error("k3-plugin-cc: a delegation must contain only text blocks");
     }
     const text = prompt.map((block) => block.type === "text" ? block.text : "").join("\n\n");
     if (text.trim().length === 0) {
-        throw new Error("kimi-plugin-cc: a delegation must not be empty");
+        throw new Error("k3-plugin-cc: a delegation must not be empty");
     }
     return text;
 }
@@ -45,35 +45,35 @@ export function companionArgv(operation, prompt, companionPath, nodeBin = prefer
 export function companionEnvironment(dataRoot, cwd, env, nodeBin = preferStableNodePath(process.execPath)) {
     return {
         ...env,
-        KIMI_PLUGIN_CC_DATA: dataRoot,
-        KIMI_PLUGIN_CC_HOST_ID: "dsh",
-        KIMI_PLUGIN_CC_NODE_BIN: nodeBin,
-        KIMI_PLUGIN_CC_WORKSPACE_CWD: cwd,
+        K3_PLUGIN_CC_DATA: dataRoot,
+        K3_PLUGIN_CC_HOST_ID: "dsh",
+        K3_PLUGIN_CC_NODE_BIN: nodeBin,
+        K3_PLUGIN_CC_WORKSPACE_CWD: cwd,
         CLAUDE_PLUGIN_DATA: undefined,
         PLUGIN_DATA: undefined,
         CLAUDE_PLUGIN_ROOT: undefined,
         PLUGIN_ROOT: undefined,
-        KIMI_PLUGIN_CC_SHELL_LAUNCH: undefined,
-        KIMI_PLUGIN_CC_MCP_WORKSPACE: undefined,
-        KIMI_PLUGIN_CC_WORKSPACE_ROOT: undefined,
-        KIMI_PLUGIN_CC_HOOK_SCRIPT: undefined,
-        KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: undefined,
-        KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: undefined,
+        K3_PLUGIN_CC_SHELL_LAUNCH: undefined,
+        K3_PLUGIN_CC_MCP_WORKSPACE: undefined,
+        K3_PLUGIN_CC_WORKSPACE_ROOT: undefined,
+        K3_PLUGIN_CC_HOOK_SCRIPT: undefined,
+        K3_PLUGIN_CC_SKIP_HOOK_CHECK: undefined,
+        K3_PLUGIN_CC_SKIP_VERSION_PROBE: undefined,
         KIMI_CODE_TRUST_WORKSPACE: undefined,
     };
 }
 export async function startCompanionRun(request, operation, spec) {
     const prompt = companionTextTask(request.prompt);
     if (request.signal.aborted) {
-        throw new Error("kimi-plugin-cc: delegation was aborted before companion startup");
+        throw new Error("k3-plugin-cc: delegation was aborted before companion startup");
     }
-    const cwd = assertUsableCwd("kimi-plugin-cc", "child cwd", request.cwd ?? process.cwd());
+    const cwd = assertUsableCwd("k3-plugin-cc", "child cwd", request.cwd ?? process.cwd());
     const termination = new AbortController();
     let cancelled = false;
     const requestCancel = () => {
         cancelled = true;
         if (!termination.signal.aborted) {
-            termination.abort(new Error("kimi-plugin-cc: delegation cancelled"));
+            termination.abort(new Error("k3-plugin-cc: delegation cancelled"));
         }
     };
     const onAbort = () => requestCancel();
@@ -106,7 +106,7 @@ export async function startCompanionRun(request, operation, spec) {
                 outcome = await child.done;
             }
             catch (error) {
-                diagnostic = `Kimi ${operation} companion failed before producing a terminal exit`;
+                diagnostic = `K3 ${operation} companion failed before producing a terminal exit`;
                 throw error;
             }
             const collected = child.collected.stdout?.readFrom(0);
@@ -120,7 +120,7 @@ export async function startCompanionRun(request, operation, spec) {
                 ...(collected?.lossy ? ["stdout truncated"] : []),
                 ...(text.trim().length === 0 ? ["stdout empty"] : []),
             ];
-            diagnostic = `Kimi ${operation} companion failed (${facts.join("; ")})`;
+            diagnostic = `K3 ${operation} companion failed (${facts.join("; ")})`;
             return { output: [], diagnostic, stopReason: cancelled ? "aborted" : "error" };
         },
         collectOutput: () => [],

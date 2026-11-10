@@ -30,11 +30,11 @@ function makeMockEnv(pluginDataRoot: string, scenario: string, invocationPath: s
   return {
     ...process.env,
     CLAUDE_PLUGIN_DATA: pluginDataRoot,
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: scenario,
-    KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: scenario,
+    K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
   };
 }
 
@@ -598,7 +598,7 @@ describe("job-backed ask/status/result", () => {
   });
 
   test("sweep skips foreground jobs whose companion is still alive (no SIGTERM mid-render)", async () => {
-    // Regression for v0.2.3: a sibling shell running /kimi:status while the
+    // Regression for v0.2.3: a sibling shell running /k3:status while the
     // foreground review is mid-render would previously SIGTERM the live
     // companion when kimi_pid had just died. The sweeper must skip the
     // termination/markFailed step while the companion is still alive — it
@@ -942,7 +942,7 @@ function spawnLongRunningProcess(): ChildProcess {
 
 async function spawnSigtermIgnoringProcess(): Promise<ChildProcess> {
   // Long-running child that explicitly traps SIGTERM. Used to verify that
-  // /kimi:cancel of a review_gate job escalates to SIGKILL when SIGTERM is
+  // /k3:cancel of a review_gate job escalates to SIGKILL when SIGTERM is
   // ignored — the v0.2.4 fix for the wait-loop-skips-escalation bug. Wait for
   // an IPC ready signal so cancellation cannot race handler installation.
   const child = spawn(

@@ -13,7 +13,7 @@ const execFileAsync = promisify(execFile);
 // time) and, worse, pollutes any developer's actual kimi web session index
 // with PATCH attempts for invalid test session ids. Tests that need to
 // exercise announceSessionTitle explicitly can unset this in a local makeMockEnv.
-process.env.KIMI_PLUGIN_CC_DISABLE_WEB_ANNOUNCE ??= "1";
+process.env.K3_PLUGIN_CC_DISABLE_WEB_ANNOUNCE ??= "1";
 
 // Keep tests that do not explicitly seed KIMI_CODE_HOME from probing the
 // developer's real ~/.kimi-code session index during best-effort title sync.

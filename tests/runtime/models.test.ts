@@ -123,7 +123,7 @@ describe("safe model inventory", () => {
     try {
       const invoke = (args: string[]) => spawnSync(process.execPath, [path.join(process.cwd(), "runtime/companion.ts"), "setup", ...args], {
         cwd: root,
-        env: { ...process.env, KIMI_CODE_HOME: "home", KIMI_MODEL_NAME: undefined, CLAUDE_PLUGIN_DATA: path.join(root, "plugin-data"), KIMI_PLUGIN_CC_WORKSPACE_CWD: root },
+        env: { ...process.env, KIMI_CODE_HOME: "home", KIMI_MODEL_NAME: undefined, CLAUDE_PLUGIN_DATA: path.join(root, "plugin-data"), K3_PLUGIN_CC_WORKSPACE_CWD: root },
         encoding: "utf8",
       });
       const success = invoke(["--models", "--json"]);

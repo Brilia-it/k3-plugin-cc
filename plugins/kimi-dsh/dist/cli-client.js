@@ -1,6 +1,6 @@
 // Subprocess client for `kimi -p --output-format stream-json`.
 //
-// Per-job env (`KIMI_PLUGIN_CC_CMD`) is set on this spawn so the
+// Per-job env (`K3_PLUGIN_CC_CMD`) is set on this spawn so the
 // PreToolUse hook can branch per command (review vs rescue vs ask). It is
 // passed via the spawn `env` option, not exported to a shell, so concurrent
 // jobs never share an env block.
@@ -782,8 +782,8 @@ const KIMI_LEGACY_FORCED_VALUE = "1";
 function buildArgs(opts) {
     const args = [...(opts.prefixArgs ?? [])];
     args.push("--output-format", "stream-json");
-    const smokeCandidate = opts.executionPlan.certification === "test-bypass" && opts.env.KIMI_PLUGIN_CC_SMOKE === "1"
-        ? opts.env.KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE
+    const smokeCandidate = opts.executionPlan.certification === "test-bypass" && opts.env.K3_PLUGIN_CC_SMOKE === "1"
+        ? opts.env.K3_PLUGIN_CC_SMOKE_V2_CANDIDATE
         : undefined;
     if (opts.resumeSessionId === undefined &&
         ["2.5.0", "2.5.1", "2.5.2"].includes(opts.executionPlan.kimiVersion ?? smokeCandidate ?? "")) {
@@ -827,10 +827,10 @@ export function buildKimiCliEnvironment(opts) {
     // Rescue and pursue share the write label. Only the immutable execution
     // plan can grant pursue's narrow goal-metadata access; never trust ambient
     // state inherited from another plugin job.
-    env.KIMI_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
+    env.K3_PLUGIN_CC_OPERATION = opts.executionPlan.operationKind;
     env.KIMI_CODE_HOME = resolveKimiHome(opts.env, opts.cwd);
     if (opts.commandLabel !== undefined) {
-        env.KIMI_PLUGIN_CC_CMD = opts.commandLabel;
+        env.K3_PLUGIN_CC_CMD = opts.commandLabel;
     }
     if (opts.swarmMaxConcurrency !== undefined) {
         env.KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY = String(opts.swarmMaxConcurrency);
@@ -838,7 +838,7 @@ export function buildKimiCliEnvironment(opts) {
     if (opts.trustedWorkspaceRoot !== undefined) {
         // Trusted allowlist root for write-capable PreToolUse cases. Forge-proof
         // (env on the spawned process; the model cannot alter it). See field doc.
-        env.KIMI_PLUGIN_CC_WORKSPACE_ROOT = opts.trustedWorkspaceRoot;
+        env.K3_PLUGIN_CC_WORKSPACE_ROOT = opts.trustedWorkspaceRoot;
     }
     return env;
 }

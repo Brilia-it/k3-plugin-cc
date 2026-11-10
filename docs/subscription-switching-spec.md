@@ -192,7 +192,7 @@ Add subscription provenance to jobs and a `job_attempts` table with this minimum
 
 Keep parent job status `running` while switching, with `phase=subscription-switching`. Terminal job and attempt states are permanent. Claim the next attempt transactionally, with a unique active-attempt constraint. Persist validated session metadata even when an attempt fails; currently ask stores the session ID after its success assertion.
 
-Use the existing host-specific SQLite store for jobs. Use a separate shared-home session lease for coordination between plugin hosts: `<KIMI_CODE_HOME>/.kimi-plugin-cc/session-locks/<session-id-hash>.lock`. Store only owner host, job, process identity and a random ownership token. Apply no-follow reads, bounded acquisition and ownership-checked stale recovery. Never create locks in the credential directory.
+Use the existing host-specific SQLite store for jobs. Use a separate shared-home session lease for coordination between plugin hosts: `<KIMI_CODE_HOME>/.k3-plugin-cc/session-locks/<session-id-hash>.lock`. Store only owner host, job, process identity and a random ownership token. Apply no-follow reads, bounded acquisition and ownership-checked stale recovery. Never create locks in the credential directory.
 
 Lease a known session before resume; lease a fresh session as soon as its ID is announced. A busy or uncertain lease refuses. Different sessions may use different regional profiles concurrently. This lease coordinates plugin invocations; direct native Kimi writers require upstream exclusive-session protection or a documented recovery refusal before Stage B can ship.
 
@@ -214,7 +214,7 @@ Use structured `RuntimeError.details` for the selected region, failed attempt, c
 | `SUBSCRIPTION_SESSION_BUSY` | Wait for or cancel the session's existing task |
 | `SUBSCRIPTION_FALLBACK_EXHAUSTED` | Wait for allowance to reset or run a separate explicitly chosen route |
 
-All original safety refusals, timeout and cancellation errors retain their current codes. `/kimi:setup` is not the remedy for account quota or login errors.
+All original safety refusals, timeout and cancellation errors retain their current codes. `/k3:setup` is not the remedy for account quota or login errors.
 
 Add a `subscription` object and attempt summaries to status and `result --json`. Retain every existing top-level field and the existing meaning of completed/failed/cancelled. The ordinary result remains prose with deterministic metadata. Keep failed-attempt output separate; do not concatenate it into the successful answer.
 
@@ -229,7 +229,7 @@ Add a `subscription` object and attempt summaries to status and `result --json`.
 | User output | Status, result, renderer, Claude surfaces and `scripts/surface-registry.ts` | Same choices and visible switch evidence in both hosts |
 | Release contracts | `docs/models.md`, `docs/invariants.md`, AGENTS.md, README translations | Update present-tense contracts only when behavior ships |
 
-Generated `dist/` and `plugins/kimi-codex/` are rebuilt from sources. Stage A does not require the Stage B coordinator or attempt schema. No runtime feature flags or empty stubs are added by this documentation change.
+Generated `dist/` and `plugins/k3-codex/` are rebuilt from sources. Stage A does not require the Stage B coordinator or attempt schema. No runtime feature flags or empty stubs are added by this documentation change.
 
 ## Acceptance tests
 

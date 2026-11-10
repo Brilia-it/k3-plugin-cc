@@ -38,7 +38,7 @@ const hookScriptPath = path.join(repoRoot, "dist", "hooks", "approval-hook.js");
 let scratch: string;
 
 beforeAll(async () => {
-  scratch = await mkdtemp(path.join(tmpdir(), "kimi-plugin-cc-setup-"));
+  scratch = await mkdtemp(path.join(tmpdir(), "k3-plugin-cc-setup-"));
 });
 
 afterAll(async () => {
@@ -87,8 +87,8 @@ describe("setup managed-block installer", () => {
     expect(result.hookScriptPath).toBe(hookScriptPath);
 
     const contents = await readFile(configPath, "utf8");
-    expect(contents).toContain("=== BEGIN kimi-plugin-cc-managed");
-    expect(contents).toContain("=== END kimi-plugin-cc-managed");
+    expect(contents).toContain("=== BEGIN k3-plugin-cc-managed");
+    expect(contents).toContain("=== END k3-plugin-cc-managed");
     expect(contents).toContain('event = "PreToolUse"');
     expect(contents).toContain("approval-hook.js");
     // Empty matcher is critical — `new RegExp("*")` in kimi-code would
@@ -128,18 +128,18 @@ describe("setup managed-block installer", () => {
 
     expect(contents.startsWith('default_model = "kimi-code/kimi-for-coding"')).toBe(true);
     expect(contents).toContain('pattern = "Bash(ls)"');
-    expect(contents).toContain("=== BEGIN kimi-plugin-cc-managed");
+    expect(contents).toContain("=== BEGIN k3-plugin-cc-managed");
   });
 
   test("install refreshes a stale block in place when the hook path changed", async () => {
     const { env, configPath } = await makeCase("install-refresh");
     const stale = [
-      "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===",
+      "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===",
       "[[hooks]]",
       'event = "PreToolUse"',
       'command = "node /stale/path/approval-hook.js"',
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
     ].join("\n");
     await writeFile(configPath, stale, "utf8");
@@ -153,7 +153,7 @@ describe("setup managed-block installer", () => {
 
   test("install removes an orphaned legacy BEGIN without deleting surrounding content", async () => {
     const { env, configPath } = await makeCase("install-orphan-begin");
-    await writeFile(configPath, "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===\nuser_setting = true\n", "utf8");
+    await writeFile(configPath, "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===\nuser_setting = true\n", "utf8");
     const result = await runSetup([], makeContext(env));
     expect(result.warnings.join("\n")).toContain("orphaned managed marker");
     expect(await readFile(configPath, "utf8")).toContain("user_setting = true");
@@ -162,7 +162,7 @@ describe("setup managed-block installer", () => {
 
   test("install repairs an orphaned legacy END", async () => {
     const { env, configPath } = await makeCase("install-orphan-end");
-    await writeFile(configPath, "# === END kimi-plugin-cc-managed ===\n", "utf8");
+    await writeFile(configPath, "# === END k3-plugin-cc-managed ===\n", "utf8");
     const result = await runSetup([], makeContext(env));
     expect(result.probe).toBe("ok");
     expect(result.warnings.join("\n")).toContain("orphaned managed marker");
@@ -170,15 +170,15 @@ describe("setup managed-block installer", () => {
 
   test("install repairs a partially rewritten hooks array without touching another host", async () => {
     const { env, configPath } = await makeCase("partial-hooks-rewrite");
-    const foreign = "/home/u/.claude/plugins/cache/kimi-marketplace/kimi/2.2.1/dist/hooks/approval-hook.js";
-    const own = "/home/u/.codex/plugins/cache/kimi-marketplace/kimi/2.4.5/dist/hooks/approval-hook.js";
+    const foreign = "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/2.2.1/dist/hooks/approval-hook.js";
+    const own = "/home/u/.codex/plugins/cache/brilia-k3-marketplace/k3/2.4.5/dist/hooks/approval-hook.js";
     const seeded = [
       "[[hooks]]", 'event = "PreToolUse"', `command = "'${process.execPath}' '${foreign}'"`, "timeout = 15", "",
       "[[hooks]]", 'event = "PreToolUse"', `command = "'${process.execPath}' '${own}'"`, "timeout = 15",
-      "# === END kimi-plugin-cc-managed:codex ===", "", "[user_settings]", "keep = true", "",
+      "# === END k3-plugin-cc-managed:codex ===", "", "[user_settings]", "keep = true", "",
     ].join("\n");
     await writeFile(configPath, seeded, "utf8");
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "codex" };
     const result = await runSetup([], makeContext(codexEnv));
     const after = await readFile(configPath, "utf8");
     expect(result.probe).toBe("ok");
@@ -190,24 +190,24 @@ describe("setup managed-block installer", () => {
 
   test("mismatched host markers are repaired together without consuming content", async () => {
     const { env, configPath } = await makeCase("mismatched-host-markers");
-    const seeded = '# === BEGIN kimi-plugin-cc-managed:claude-code (v2.5.1) ===\nuser_setting = true\n# === END kimi-plugin-cc-managed:codex ===\n';
+    const seeded = '# === BEGIN k3-plugin-cc-managed:claude-code (v2.5.1) ===\nuser_setting = true\n# === END k3-plugin-cc-managed:codex ===\n';
     await writeFile(configPath, seeded, "utf8");
-    const result = await runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" }));
+    const result = await runSetup([], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" }));
     const after = await readFile(configPath, "utf8");
     expect(result.probe).toBe("ok");
     expect(after).toContain("user_setting = true");
-    expect(after).not.toContain("BEGIN kimi-plugin-cc-managed:claude-code");
-    expect((await runSetup(["--check"], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" }))).probe).toBe("ok");
+    expect(after).not.toContain("BEGIN k3-plugin-cc-managed:claude-code");
+    expect((await runSetup(["--check"], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" }))).probe).toBe("ok");
   });
 
   test.each(["claude-code", "codex"])("%s repairs a partially rewritten two-host hooks array", async (host) => {
     const { env, configPath } = await makeCase(`mismatched-hooks-${host}`);
-    const claude = "/home/u/.claude/plugins/cache/kimi-marketplace/kimi/2.2.1/dist/hooks/approval-hook.js";
-    const codex = "/home/u/.codex/plugins/cache/kimi-marketplace/kimi/2.4.5/dist/hooks/approval-hook.js";
+    const claude = "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/2.2.1/dist/hooks/approval-hook.js";
+    const codex = "/home/u/.codex/plugins/cache/brilia-k3-marketplace/k3/2.4.5/dist/hooks/approval-hook.js";
     const table = (hook: string) => `[[hooks]]\nevent = "PreToolUse"\ncommand = "'${process.execPath}' '${hook}'"\ntimeout = 15\n`;
-    const seeded = `# === BEGIN kimi-plugin-cc-managed:claude-code (v2.5.1) ===\n${table(claude)}\n${table(codex)}# === END kimi-plugin-cc-managed:codex ===\n`;
+    const seeded = `# === BEGIN k3-plugin-cc-managed:claude-code (v2.5.1) ===\n${table(claude)}\n${table(codex)}# === END k3-plugin-cc-managed:codex ===\n`;
     await writeFile(configPath, seeded, "utf8");
-    const context = makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: host });
+    const context = makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: host });
     expect((await runSetup([], context)).probe).toBe("ok");
     const after = await readFile(configPath, "utf8");
     expect(after).toContain(host === "codex" ? table(claude) : table(codex));
@@ -217,11 +217,11 @@ describe("setup managed-block installer", () => {
 
   test("orphan repair never rebinds quoted trailing fields onto another host's hook", async () => {
     const { env, configPath } = await makeCase("orphan-foreign-matcher");
-    const claude = "/home/u/.claude/plugins/cache/kimi-marketplace/kimi/2.2.1/dist/hooks/approval-hook.js";
-    const codex = "/home/u/.codex/plugins/cache/kimi-marketplace/kimi/2.4.5/dist/hooks/approval-hook.js";
-    const seeded = `# === BEGIN kimi-plugin-cc-managed:claude-code (v2.5.1) ===\n[[hooks]]\nevent = "PreToolUse"\ncommand = "'${process.execPath}' '${claude}'"\ntimeout = 15\n\n[[hooks]]\nevent = "PreToolUse"\ncommand = "'${process.execPath}' '${codex}'"\ntimeout = 15\n# === END kimi-plugin-cc-managed:codex ===\n\n"matcher" = "*"\n`;
+    const claude = "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/2.2.1/dist/hooks/approval-hook.js";
+    const codex = "/home/u/.codex/plugins/cache/brilia-k3-marketplace/k3/2.4.5/dist/hooks/approval-hook.js";
+    const seeded = `# === BEGIN k3-plugin-cc-managed:claude-code (v2.5.1) ===\n[[hooks]]\nevent = "PreToolUse"\ncommand = "'${process.execPath}' '${claude}'"\ntimeout = 15\n\n[[hooks]]\nevent = "PreToolUse"\ncommand = "'${process.execPath}' '${codex}'"\ntimeout = 15\n# === END k3-plugin-cc-managed:codex ===\n\n"matcher" = "*"\n`;
     await writeFile(configPath, seeded, "utf8");
-    const context = makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" });
+    const context = makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" });
     expect((await runSetup([], context)).probe).toBe("ok");
     const hooks = parseToml(await readFile(configPath, "utf8")).hooks as Array<Record<string, unknown>>;
     expect(hooks.find((hook) => String(hook.command).includes(claude))?.matcher).toBeUndefined();
@@ -230,9 +230,9 @@ describe("setup managed-block installer", () => {
 
   test.each(['"""', "'''"])("marker text inside TOML %s values survives install and uninstall", async (quote) => {
     const { env, configPath } = await makeCase(`string-marker-${quote === '"""' ? 'basic' : 'literal'}`);
-    const value = `custom = ${quote}\nkeep\n# === END kimi-plugin-cc-managed:codex ===\nmore\n${quote}\n`;
+    const value = `custom = ${quote}\nkeep\n# === END k3-plugin-cc-managed:codex ===\nmore\n${quote}\n`;
     await writeFile(configPath, value, "utf8");
-    const context = makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" });
+    const context = makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" });
     expect((await runSetup([], context)).probe).toBe("ok");
     expect(await readFile(configPath, "utf8")).toContain(value);
     await runSetup(["--uninstall"], context);
@@ -241,10 +241,10 @@ describe("setup managed-block installer", () => {
 
   test("a hook-shaped TOML string is never pruned as a live hook table", async () => {
     const { env, configPath } = await makeCase("string-hook-table");
-    const hook = "/home/u/.codex/plugins/cache/kimi-marketplace/kimi/2.4.5/dist/hooks/approval-hook.js";
+    const hook = "/home/u/.codex/plugins/cache/brilia-k3-marketplace/k3/2.4.5/dist/hooks/approval-hook.js";
     const content = `custom = '''\n[[hooks]]\nevent = "PreToolUse"\ncommand = "'${process.execPath}' '${hook}'"\ntimeout = 15\n'''\n`;
     await writeFile(configPath, content, "utf8");
-    const context = makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" });
+    const context = makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" });
     expect((await runSetup([], context)).probe).toBe("ok");
     expect(await readFile(configPath, "utf8")).toContain(content);
   });
@@ -252,19 +252,19 @@ describe("setup managed-block installer", () => {
   test.each(["install", "uninstall"])("%s preserves blank lines and mixed line endings inside TOML values", async (action) => {
     const { env, configPath } = await makeCase(`preserve-value-${action}`);
     const value = 'custom = """start\r\n\n\n\nend"""\n';
-    const hook = "/home/u/.codex/plugins/cache/kimi-marketplace/kimi/2.4.5/dist/hooks/approval-hook.js";
-    const seeded = `${value}[[hooks]]\nevent = "PreToolUse"\ncommand = "'${process.execPath}' '${hook}'"\ntimeout = 15\n# === END kimi-plugin-cc-managed:codex ===\n`;
+    const hook = "/home/u/.codex/plugins/cache/brilia-k3-marketplace/k3/2.4.5/dist/hooks/approval-hook.js";
+    const seeded = `${value}[[hooks]]\nevent = "PreToolUse"\ncommand = "'${process.execPath}' '${hook}'"\ntimeout = 15\n# === END k3-plugin-cc-managed:codex ===\n`;
     await writeFile(configPath, seeded, "utf8");
-    const context = makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" });
+    const context = makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" });
     await runSetup(action === "install" ? [] : ["--uninstall"], context);
     expect(await readFile(configPath, "utf8")).toContain(value);
   });
 
   test("orphan repair does not write when the hooks schema is invalid", async () => {
     const { env, configPath } = await makeCase("orphan-invalid-hook");
-    const seeded = '[[hooks]]\nevent = "PreToolUse"\ncommand = "some-hook"\nunknown_field = true\n# === END kimi-plugin-cc-managed:codex ===\n';
+    const seeded = '[[hooks]]\nevent = "PreToolUse"\ncommand = "some-hook"\nunknown_field = true\n# === END k3-plugin-cc-managed:codex ===\n';
     await writeFile(configPath, seeded, "utf8");
-    await expect(runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" }))).rejects.toMatchObject({ code: "SETUP_INVALID_HOOKS_CONFIG" });
+    await expect(runSetup([], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" }))).rejects.toMatchObject({ code: "SETUP_INVALID_HOOKS_CONFIG" });
     expect(await readFile(configPath, "utf8")).toBe(seeded);
   });
 
@@ -279,21 +279,21 @@ describe("setup managed-block installer", () => {
     expect(after.blockRemoved).toBe(true);
     const contents = await readFile(configPath, "utf8");
     expect(contents).toContain("user_setting = true");
-    expect(contents).not.toContain("kimi-plugin-cc-managed");
+    expect(contents).not.toContain("k3-plugin-cc-managed");
   });
 
   test("uninstall sweeps orphan markers so install can re-run", async () => {
     const { env, configPath } = await makeCase("uninstall-orphan-sweep");
     await writeFile(
       configPath,
-      "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===\nuser_setting = true\n",
+      "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===\nuser_setting = true\n",
       "utf8",
     );
 
     const uninstall = await runSetup(["--uninstall"], makeContext(env));
     expect(uninstall.blockRemoved).toBe(true);
     const sweptContents = await readFile(configPath, "utf8");
-    expect(sweptContents).not.toContain("kimi-plugin-cc-managed");
+    expect(sweptContents).not.toContain("k3-plugin-cc-managed");
     expect(sweptContents).toContain("user_setting = true");
 
     // Now a fresh install should succeed.
@@ -336,12 +336,12 @@ describe("setup managed-block installer", () => {
   test("--check on a stale hook path reports failure that points back to install", async () => {
     const { env, configPath } = await makeCase("check-stale-path");
     const stale = [
-      "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===",
+      "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===",
       "[[hooks]]",
       'event = "PreToolUse"',
       'command = "node /old/dist/hooks/approval-hook.js"',
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
     ].join("\n");
     await writeFile(configPath, stale, "utf8");
@@ -429,19 +429,19 @@ describe("setup managed-block installer", () => {
   test("install refuses when two managed blocks exist (concurrent setup races)", async () => {
     const { env, configPath } = await makeCase("install-duplicate-blocks");
     const dual = [
-      "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===",
+      "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===",
       "[[hooks]]",
       'event = "PreToolUse"',
       'command = "node /old/dist/hooks/approval-hook.js"',
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
-      "# === BEGIN kimi-plugin-cc-managed (v0.9.1) ===",
+      "# === BEGIN k3-plugin-cc-managed (v0.9.1) ===",
       "[[hooks]]",
       'event = "PreToolUse"',
       'command = "node /other/dist/hooks/approval-hook.js"',
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
     ].join("\n");
     await writeFile(configPath, dual, "utf8");
@@ -453,7 +453,7 @@ describe("setup managed-block installer", () => {
   test("uninstall preserves user content following an orphan BEGIN marker", async () => {
     const { env, configPath } = await makeCase("uninstall-preserves-after-orphan");
     const tainted = [
-      "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===",
+      "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===",
       "# orphan with no END",
       "",
       "user_setting = true",
@@ -468,7 +468,7 @@ describe("setup managed-block installer", () => {
     expect(after).toContain("user_setting = true");
     expect(after).toContain('another_user_setting = "preserve me"');
     // Marker line itself is removed.
-    expect(after).not.toContain("BEGIN kimi-plugin-cc-managed");
+    expect(after).not.toContain("BEGIN k3-plugin-cc-managed");
     // Warning surfaced so the user knows we touched orphan lines.
     expect(result.warnings.join("\n")).toContain("orphan marker");
   });
@@ -489,7 +489,7 @@ describe("setup managed-block installer", () => {
     await writeFile(apostrophePath, "process.stderr.write('deny'); process.exit(2);\n", "utf8");
     const result = await runSetup(
       [],
-      makeContext({ ...env, KIMI_PLUGIN_CC_HOOK_SCRIPT: apostrophePath }),
+      makeContext({ ...env, K3_PLUGIN_CC_HOOK_SCRIPT: apostrophePath }),
     );
     // The probe runs `/bin/sh -c "<command>"` with the exact string
     // written into the managed block. probe.ok === true means /bin/sh
@@ -504,15 +504,15 @@ describe("setup managed-block installer", () => {
     expect(contents).toContain("reilly/hook.js");
   });
 
-  test("install rejects KIMI_PLUGIN_CC_NODE_BIN that is not absolute", async () => {
+  test("install rejects K3_PLUGIN_CC_NODE_BIN that is not absolute", async () => {
     // PR 5 reviewer fix (Codex H1): the env override is honored
-    // verbatim, so a `KIMI_PLUGIN_CC_NODE_BIN=node` invocation would
+    // verbatim, so a `K3_PLUGIN_CC_NODE_BIN=node` invocation would
     // write bare `node` into the managed block and silently break the
     // absolute-path invariant kimi-code's /bin/sh -c spawn relies on.
     // Setup must reject the override up front.
     const { env } = await makeCase("install-bad-node-bin");
     await expect(
-      runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_NODE_BIN: "node" })),
+      runSetup([], makeContext({ ...env, K3_PLUGIN_CC_NODE_BIN: "node" })),
     ).rejects.toMatchObject({ code: "SETUP_NODE_BIN_NOT_ABSOLUTE" });
   });
 
@@ -525,7 +525,7 @@ describe("setup managed-block installer", () => {
     const { env } = await makeCase("install-unsafe-chars-path");
     const hostilePath = "/tmp/hook\"path/approval.js";
     await expect(
-      runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_HOOK_SCRIPT: hostilePath })),
+      runSetup([], makeContext({ ...env, K3_PLUGIN_CC_HOOK_SCRIPT: hostilePath })),
     ).rejects.toMatchObject({ code: "SETUP_HOOK_PATH_UNSAFE" });
   });
 
@@ -535,13 +535,13 @@ describe("setup managed-block installer", () => {
     // and silently disables the hook in kimi-code.
     const { env, configPath } = await makeCase("install-matcher-rejection");
     const sabotaged = [
-      "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===",
+      "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===",
       "[[hooks]]",
       'matcher = "*"',
       'event = "PreToolUse"',
       'command = "node /old/dist/hooks/approval-hook.js"',
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
     ].join("\n");
     await writeFile(configPath, sabotaged, "utf8");
@@ -574,7 +574,7 @@ describe("setup managed-block installer", () => {
     expect(after).toContain("user_setting = true\r\n");
     expect(after).toContain("another = 42\r\n");
     // The managed block we appended is also CRLF.
-    expect(after).toMatch(/=== BEGIN kimi-plugin-cc-managed[^\n]*\r\n/);
+    expect(after).toMatch(/=== BEGIN k3-plugin-cc-managed[^\n]*\r\n/);
   });
 
   test("install writes the config with mode 0o600 (audit M1 — preserves API-key secrecy)", async () => {
@@ -625,13 +625,13 @@ describe("setup managed-block installer", () => {
       fsConstants.O_CREAT |
       fsConstants.O_EXCL |
       (fsConstants.O_NOFOLLOW ?? 0);
-    // The lock file (config.toml.kimi-plugin-cc.lock*) shares the same
+    // The lock file (config.toml.k3-plugin-cc.lock*) shares the same
     // prefix as the config temp file, so also require the ".tmp" suffix
     // to isolate the call we care about.
     const configTmpCall = calls.find(
       (call) =>
         typeof call[0] === "string" &&
-        call[0].startsWith(`${configPath}.kimi-plugin-cc.`) &&
+        call[0].startsWith(`${configPath}.k3-plugin-cc.`) &&
         call[0].endsWith(".tmp"),
     );
     expect(configTmpCall).toBeDefined();
@@ -859,7 +859,7 @@ describe("setup managed-block installer", () => {
 
     const result = await runSetup([], makeContext(env));
     expect(result.probe).toBe("ok");
-    expect((await readFile(configPath, "utf8"))).toContain("kimi-plugin-cc-managed");
+    expect((await readFile(configPath, "utf8"))).toContain("k3-plugin-cc-managed");
     await expect(access(lockPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
@@ -915,7 +915,7 @@ describe("setup managed-block installer", () => {
     const after = await readFile(configPath, "utf8");
     expect(result.probe).toBe("ok");
     expect(after.startsWith(prefix)).toBe(true);
-    expect(after).toContain(`${suffix}\n# === BEGIN kimi-plugin-cc-managed`);
+    expect(after).toContain(`${suffix}\n# === BEGIN k3-plugin-cc-managed`);
     expect(after).not.toMatch(/^hooks\s*=/m);
     expect(after.match(/^\[\[hooks\]\]$/gm)).toHaveLength(2);
     expect(after).toContain('event = "Stop"\ncommand = "foreign-hook"\ntimeout = 9');
@@ -936,7 +936,7 @@ describe("setup managed-block installer", () => {
 
     const result = await runSetup([], makeContext({
       ...env,
-      KIMI_PLUGIN_CC_KIMI_BIN: kimiBin,
+      K3_PLUGIN_CC_KIMI_BIN: kimiBin,
     }));
     expect(result.probe).toBe("ok");
     expect(result.warnings.join("\n")).toContain("kimi-code version 0.99.0 is outside the versions");
@@ -1033,13 +1033,13 @@ describe("setup managed-block installer", () => {
       await writeFile(kimiBin, `#!/bin/sh\nprintf '%s\\n' '${setupVersion}'\n`, "utf8");
       await chmod(kimiBin, 0o700);
       await writeFile(configPath, contents, "utf8");
-      const result = await runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_KIMI_BIN: kimiBin }));
+      const result = await runSetup([], makeContext({ ...env, K3_PLUGIN_CC_KIMI_BIN: kimiBin }));
       expect(result.probe).toBe("ok");
       expect(await readFile(configPath, "utf8")).toContain(contents);
     },
   );
 
-  test("KIMI_PLUGIN_CC_SKIP_VERSION_PROBE does not bypass hook-schema version verification", async () => {
+  test("K3_PLUGIN_CC_SKIP_VERSION_PROBE does not bypass hook-schema version verification", async () => {
     if (process.platform === "win32") return;
     const { configPath } = await makeCase("skip-version-does-not-skip-schema");
     const kimiBin = path.join(path.dirname(configPath), "old-kimi");
@@ -1048,8 +1048,8 @@ describe("setup managed-block installer", () => {
     const contents = '[[hooks]]\nevent = "Interrupt"\ncommand = "foreign-hook"\n';
     const result = await validateKimiHookSetForEnvironment(contents, {
       ...process.env,
-      KIMI_PLUGIN_CC_KIMI_BIN: kimiBin,
-      KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+      K3_PLUGIN_CC_KIMI_BIN: kimiBin,
+      K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
     });
     expect(result.valid).toBe(false);
     expect(result.reason).toContain('event "Interrupt" requires kimi-code >= 0.14');
@@ -1097,7 +1097,7 @@ describe("setup managed-block installer", () => {
     expect(result.nextStep).toContain("invalid [[hooks]] entry");
   });
 
-  test("KIMI_PLUGIN_CC_HOOK_SCRIPT override is honored end-to-end", async () => {
+  test("K3_PLUGIN_CC_HOOK_SCRIPT override is honored end-to-end", async () => {
     const { env, configPath } = await makeCase("hook-script-override");
     const overridePath = path.join(scratch, "hook-script-override", "fake-hook.js");
     await mkdir(path.dirname(overridePath), { recursive: true });
@@ -1109,7 +1109,7 @@ describe("setup managed-block installer", () => {
       "utf8",
     );
 
-    const overrideEnv = { ...env, KIMI_PLUGIN_CC_HOOK_SCRIPT: overridePath };
+    const overrideEnv = { ...env, K3_PLUGIN_CC_HOOK_SCRIPT: overridePath };
     const result = await runSetup([], makeContext(overrideEnv));
     expect(result.probe).toBe("ok");
     const contents = await readFile(configPath, "utf8");
@@ -1123,10 +1123,10 @@ describe("setup managed-block installer", () => {
 function extractBlock(contents: string, host: string): string {
   const lines = contents.split("\n");
   const begin = lines.findIndex((l) =>
-    new RegExp(`BEGIN kimi-plugin-cc-managed:${host}\\b`).test(l),
+    new RegExp(`BEGIN k3-plugin-cc-managed:${host}\\b`).test(l),
   );
   const end = lines.findIndex(
-    (l, i) => i > begin && new RegExp(`END kimi-plugin-cc-managed:${host}\\b`).test(l),
+    (l, i) => i > begin && new RegExp(`END k3-plugin-cc-managed:${host}\\b`).test(l),
   );
   return lines.slice(begin, end + 1).join("\n");
 }
@@ -1134,16 +1134,16 @@ function extractBlock(contents: string, host: string): string {
 describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
   test("a new host block is placed after the existing managed block, not after foreign tables", async () => {
     const { env, configPath } = await makeCase("placement-after-managed");
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" };
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "codex" };
     await runSetup([], makeContext(claudeEnv));
     const foreign = '[models."magpie/x"]\nprovider = "magpie"\nmodel = "x"\n';
     await writeFile(configPath, `${await readFile(configPath, "utf8")}\n${foreign}`, "utf8");
 
     await runSetup([], makeContext(codexEnv));
     const after = await readFile(configPath, "utf8");
-    const claudeEnd = after.indexOf("# === END kimi-plugin-cc-managed:claude-code ===");
-    const codexBegin = after.indexOf("# === BEGIN kimi-plugin-cc-managed:codex");
+    const claudeEnd = after.indexOf("# === END k3-plugin-cc-managed:claude-code ===");
+    const codexBegin = after.indexOf("# === BEGIN k3-plugin-cc-managed:codex");
     const foreignAt = after.indexOf('[models."magpie/x"]');
     expect(claudeEnd).toBeGreaterThan(-1);
     expect(codexBegin).toBeGreaterThan(claudeEnd);
@@ -1156,31 +1156,31 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
 
   test("placement falls back to append when a field follows the existing block's END", async () => {
     const { env, configPath } = await makeCase("placement-trailing-field");
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" };
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "codex" };
     await runSetup([], makeContext(claudeEnv));
     const seeded = (await readFile(configPath, "utf8")).replace(
-      "# === END kimi-plugin-cc-managed:claude-code ===\n",
-      '# === END kimi-plugin-cc-managed:claude-code ===\n# gap comment\nnote = 1\n\n[user]\nkeep = true\n',
+      "# === END k3-plugin-cc-managed:claude-code ===\n",
+      '# === END k3-plugin-cc-managed:claude-code ===\n# gap comment\nnote = 1\n\n[user]\nkeep = true\n',
     );
     await writeFile(configPath, seeded, "utf8");
     await runSetup([], makeContext(codexEnv)).catch(() => undefined);
     const after = await readFile(configPath, "utf8");
     // A [[hooks]] header above `note = 1` would rebind that field to our table.
-    const codexAt = after.indexOf("BEGIN kimi-plugin-cc-managed:codex");
+    const codexAt = after.indexOf("BEGIN k3-plugin-cc-managed:codex");
     if (codexAt !== -1) expect(codexAt).toBeGreaterThan(after.indexOf("[user]"));
     expect(after).toContain("# gap comment\nnote = 1\n");
   });
 
   test("another host's orphan END: owner fails closed with plain-setup advice, other host stays enforcing, install repairs", async () => {
     const { env, configPath } = await makeCase("foreign-orphan-end");
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" };
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "codex" };
     await runSetup([], makeContext(claudeEnv));
     await runSetup([], makeContext(codexEnv));
     const healthy = await readFile(configPath, "utf8");
     // Reproduce the Magpie rewrite: codex's BEGIN marker and header comments vanish.
-    const begin = healthy.indexOf("# === BEGIN kimi-plugin-cc-managed:codex");
+    const begin = healthy.indexOf("# === BEGIN k3-plugin-cc-managed:codex");
     const table = healthy.indexOf("[[hooks]]", begin);
     await writeFile(configPath, healthy.slice(0, begin) + healthy.slice(table), "utf8");
 
@@ -1189,7 +1189,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     expect(codexBroken.probe).toBe("failed");
     expect(codexBroken.probeError).toContain("END-without-BEGIN");
     expect(codexBroken.nextStep).toContain("without --uninstall");
-    expect(codexBroken.nextStep).not.toContain("Run /kimi:setup --uninstall, then");
+    expect(codexBroken.nextStep).not.toContain("Run /k3:setup --uninstall, then");
     // Another host's orphan never blocks this host's intact block, but is reported.
     const claudeCheck = await runSetup(["--check"], makeContext(claudeEnv));
     expect(claudeCheck.probe).toBe("ok");
@@ -1198,20 +1198,20 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     const repaired = await runSetup([], makeContext(claudeEnv));
     expect(repaired.warnings.join("\n")).toContain("orphaned managed marker");
     const after = await readFile(configPath, "utf8");
-    expect(after).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
-    expect(after).not.toContain("END kimi-plugin-cc-managed:codex");
+    expect(after).toContain("BEGIN k3-plugin-cc-managed:claude-code");
+    expect(after).not.toContain("END k3-plugin-cc-managed:codex");
     expect((await runSetup(["--check"], makeContext(claudeEnv))).probe).toBe("ok");
     // Codex setup then re-adorns its markers.
     await runSetup([], makeContext(codexEnv));
     const readorned = await readFile(configPath, "utf8");
-    expect(readorned.match(/BEGIN kimi-plugin-cc-managed:codex/g)).toHaveLength(1);
+    expect(readorned.match(/BEGIN k3-plugin-cc-managed:codex/g)).toHaveLength(1);
     expect((await runSetup(["--check"], makeContext(claudeEnv))).probe).toBe("ok");
   });
 
   test("simultaneous dual-host setup serializes without lost updates", async () => {
     const { env, configPath } = await makeCase("dual-host-concurrent");
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" };
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "codex" };
 
     const [claude, codex] = await Promise.all([
       runSetup([], makeContext(claudeEnv)),
@@ -1221,27 +1221,27 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     expect(codex.probe).toBe("ok");
 
     const contents = await readFile(configPath, "utf8");
-    expect(contents.match(/BEGIN kimi-plugin-cc-managed:claude-code/g)).toHaveLength(1);
-    expect(contents.match(/BEGIN kimi-plugin-cc-managed:codex/g)).toHaveLength(1);
+    expect(contents.match(/BEGIN k3-plugin-cc-managed:claude-code/g)).toHaveLength(1);
+    expect(contents.match(/BEGIN k3-plugin-cc-managed:codex/g)).toHaveLength(1);
     expect((await runSetup(["--check"], makeContext(claudeEnv))).probe).toBe("ok");
     expect((await runSetup(["--check"], makeContext(codexEnv))).probe).toBe("ok");
   });
 
   test("two hosts coexist — setup in one host never clobbers the other's block", async () => {
     const { env, configPath } = await makeCase("dual-host-coexist");
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" };
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "codex" };
 
     await runSetup([], makeContext(claudeEnv));
     const afterClaude = await readFile(configPath, "utf8");
-    expect(afterClaude).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
+    expect(afterClaude).toContain("BEGIN k3-plugin-cc-managed:claude-code");
     const claudeBlock = extractBlock(afterClaude, "claude-code");
 
     const codexResult = await runSetup([], makeContext(codexEnv));
     expect(codexResult.blockWritten).toBe(true);
     const afterCodex = await readFile(configPath, "utf8");
-    expect(afterCodex).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
-    expect(afterCodex).toContain("BEGIN kimi-plugin-cc-managed:codex");
+    expect(afterCodex).toContain("BEGIN k3-plugin-cc-managed:claude-code");
+    expect(afterCodex).toContain("BEGIN k3-plugin-cc-managed:codex");
     // Claude's block is byte-identical after the Codex install.
     expect(extractBlock(afterCodex, "claude-code")).toBe(claudeBlock);
 
@@ -1258,28 +1258,28 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
   test("install migrates a legacy un-suffixed block to a host-scoped marker in place", async () => {
     const { env, configPath } = await makeCase("legacy-migrate");
     const legacy = [
-      "# === BEGIN kimi-plugin-cc-managed (v0.9.0) ===",
+      "# === BEGIN k3-plugin-cc-managed (v0.9.0) ===",
       "[[hooks]]",
       'event = "PreToolUse"',
       'command = "node /stale/approval-hook.js"',
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
     ].join("\n");
     await writeFile(configPath, legacy, "utf8");
 
-    await runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" }));
+    await runSetup([], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" }));
     const after = await readFile(configPath, "utf8");
-    expect(after).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
+    expect(after).toContain("BEGIN k3-plugin-cc-managed:claude-code");
     // Converted in place — exactly one block, not duplicated.
-    expect(after.match(/BEGIN kimi-plugin-cc-managed/g)?.length).toBe(1);
+    expect(after.match(/BEGIN k3-plugin-cc-managed/g)?.length).toBe(1);
     expect(after).not.toContain("/stale/approval-hook.js");
   });
 
   test("install prunes orphaned marker-less approval-hook [[hooks]] entries", async () => {
     const { env, configPath } = await makeCase("prune-orphans");
     const orphanHook =
-      "/home/u/.claude/plugins/cache/kimi-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
     const seeded = [
       "[[hooks]]",
       'event = "PreToolUse"',
@@ -1297,20 +1297,20 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     // (covered by the marker-strip suite).
     const result = await runSetup(
       [],
-      makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" }),
+      makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" }),
     );
     const after = await readFile(configPath, "utf8");
     // Orphan removed, user content preserved, our fresh block installed.
     expect(after).not.toContain(orphanHook);
     expect(after).toContain("user_setting = true");
-    expect(after).toContain("BEGIN kimi-plugin-cc-managed");
+    expect(after).toContain("BEGIN k3-plugin-cc-managed");
     expect(result.warnings.join("\n")).toContain("Pruned");
   });
 
   test("prune stops at a table header with a trailing comment (never eats the next table)", async () => {
     const { env, configPath } = await makeCase("prune-boundary-comment");
     const orphanHook =
-      "/home/u/.claude/plugins/cache/kimi-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
     // No blank line between the orphan hook and the user's permission rule, and
     // the table header carries an inline comment (Codex review scenario).
     const seeded = [
@@ -1326,7 +1326,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     await writeFile(configPath, seeded, "utf8");
 
     // Host-scoped prune (v1.8.2): run as the orphan's owning host.
-    await runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" }));
+    await runSetup([], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" }));
     const after = await readFile(configPath, "utf8");
     // Orphan hook removed…
     expect(after).not.toContain(orphanHook);
@@ -1337,8 +1337,8 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
 
   test("uninstall is host-scoped by default; --all removes every host", async () => {
     const { env, configPath } = await makeCase("uninstall-hosts");
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" };
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "codex" };
     await runSetup([], makeContext(claudeEnv));
     await runSetup([], makeContext(codexEnv));
 
@@ -1346,29 +1346,29 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     const scoped = await runSetup(["--uninstall"], makeContext(claudeEnv));
     expect(scoped.blockRemoved).toBe(true);
     let after = await readFile(configPath, "utf8");
-    expect(after).not.toContain("BEGIN kimi-plugin-cc-managed:claude-code");
-    expect(after).toContain("BEGIN kimi-plugin-cc-managed:codex");
+    expect(after).not.toContain("BEGIN k3-plugin-cc-managed:claude-code");
+    expect(after).toContain("BEGIN k3-plugin-cc-managed:codex");
 
     // Reinstall Claude, then --all clears everything.
     await runSetup([], makeContext(claudeEnv));
     const all = await runSetup(["--uninstall", "--all"], makeContext(codexEnv));
     expect(all.blockRemoved).toBe(true);
     after = await readFile(configPath, "utf8");
-    expect(after).not.toContain("kimi-plugin-cc-managed");
+    expect(after).not.toContain("k3-plugin-cc-managed");
   });
 
   test("install does NOT adopt or clobber another host's legacy block", async () => {
     const { env, configPath } = await makeCase("no-clobber-foreign-legacy");
     // A pre-1.7.0 legacy (un-suffixed) block whose command path is Codex's.
     const codexHook =
-      "/Users/x/.codex/plugins/cache/kimi-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js";
+      "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/k3/1.6.5/dist/hooks/approval-hook.js";
     const legacy = [
-      "# === BEGIN kimi-plugin-cc-managed (v1.6.5) ===",
+      "# === BEGIN k3-plugin-cc-managed (v1.6.5) ===",
       "[[hooks]]",
       'event = "PreToolUse"',
       `command = "'${process.execPath}' '${codexHook}'"`,
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
     ].join("\n");
     await writeFile(configPath, legacy, "utf8");
@@ -1376,40 +1376,40 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     // Claude installs: it must APPEND its own block and leave Codex's intact —
     // NOT convert the Codex-owned legacy block to a Claude block (the migration
     // clobber the whole change exists to prevent).
-    await runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" }));
+    await runSetup([], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" }));
     const after = await readFile(configPath, "utf8");
     expect(after).toContain(codexHook);
-    expect(after).toContain("BEGIN kimi-plugin-cc-managed:claude-code");
+    expect(after).toContain("BEGIN k3-plugin-cc-managed:claude-code");
   });
 
   test("default uninstall leaves another host's legacy block intact", async () => {
     const { env, configPath } = await makeCase("uninstall-keeps-foreign-legacy");
     const codexHook =
-      "/Users/x/.codex/plugins/cache/kimi-marketplace/kimi/1.6.5/dist/hooks/approval-hook.js";
+      "/Users/x/.codex/plugins/cache/brilia-k3-marketplace/k3/1.6.5/dist/hooks/approval-hook.js";
     const legacy = [
-      "# === BEGIN kimi-plugin-cc-managed (v1.6.5) ===",
+      "# === BEGIN k3-plugin-cc-managed (v1.6.5) ===",
       "[[hooks]]",
       'event = "PreToolUse"',
       `command = "'${process.execPath}' '${codexHook}'"`,
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
     ].join("\n");
     await writeFile(configPath, legacy, "utf8");
-    await runSetup([], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" }));
+    await runSetup([], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" }));
 
     // Claude's default uninstall removes only Claude's block — Codex's legacy
     // block (host-neutral marker, but Codex-owned command path) survives.
-    await runSetup(["--uninstall"], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" }));
+    await runSetup(["--uninstall"], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" }));
     const after = await readFile(configPath, "utf8");
     expect(after).toContain(codexHook);
-    expect(after).not.toContain("BEGIN kimi-plugin-cc-managed:claude-code");
+    expect(after).not.toContain("BEGIN k3-plugin-cc-managed:claude-code");
   });
 
   test("prune leaves an unmanaged hook that carries a matcher (not our grammar)", async () => {
     const { env, configPath } = await makeCase("prune-skips-matcher");
     const ourScript =
-      "/home/u/.claude/plugins/cache/kimi-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
     // Reuses approval-hook.js but with a matcher — a deliberate user hook, not
     // an orphan of ours. Must survive the prune.
     const seeded = [
@@ -1430,7 +1430,7 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
   test("install preserves but refuses an invalid unmanaged hook with a multi-line array", async () => {
     const { env, configPath } = await makeCase("prune-multiline-array");
     const ourScript =
-      "/home/u/.claude/plugins/cache/kimi-marketplace/kimi/1.5.0/dist/hooks/approval-hook.js";
+      "/home/u/.claude/plugins/cache/brilia-k3-marketplace/k3/1.5.0/dist/hooks/approval-hook.js";
     // A marker-less table that reuses approval-hook.js but also has a multi-line
     // array key — NOT our grammar. Must be left fully intact (no partial cut).
     const seeded = [
@@ -1464,25 +1464,25 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
     const { env, configPath } = await makeCase("uninstall-ambiguous-legacy");
     // Legacy block with a NON-canonical (bare-node) command — un-attributable.
     const legacy = [
-      "# === BEGIN kimi-plugin-cc-managed (v1.6.5) ===",
+      "# === BEGIN k3-plugin-cc-managed (v1.6.5) ===",
       "[[hooks]]",
       'event = "PreToolUse"',
       'command = "node /somewhere/dist/hooks/approval-hook.js"',
       "timeout = 15",
-      "# === END kimi-plugin-cc-managed ===",
+      "# === END k3-plugin-cc-managed ===",
       "",
     ].join("\n");
     await writeFile(configPath, legacy, "utf8");
 
     // Scoped uninstall (some other host) must NOT remove the ambiguous block.
-    await runSetup(["--uninstall"], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" }));
+    await runSetup(["--uninstall"], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" }));
     let after = await readFile(configPath, "utf8");
-    expect(after).toContain("BEGIN kimi-plugin-cc-managed");
+    expect(after).toContain("BEGIN k3-plugin-cc-managed");
 
     // --all clears it.
-    await runSetup(["--uninstall", "--all"], makeContext({ ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" }));
+    await runSetup(["--uninstall", "--all"], makeContext({ ...env, K3_PLUGIN_CC_HOST_ID: "codex" }));
     after = await readFile(configPath, "utf8");
-    expect(after).not.toContain("kimi-plugin-cc-managed");
+    expect(after).not.toContain("k3-plugin-cc-managed");
   });
 
   test("--all is rejected without --uninstall", async () => {
@@ -1496,17 +1496,17 @@ describe("setup host scoping (Claude Code ↔ Codex coexistence)", () => {
 
 describe("host-scoped orphan markers", () => {
   const blockFor = (host: string, cmd: string) =>
-    `# === BEGIN kimi-plugin-cc-managed:${host} (v2.5.4) ===\n[[hooks]]\nevent = "PreToolUse"\ncommand = "${cmd}"\ntimeout = 15\n# === END kimi-plugin-cc-managed:${host} ===\n`;
+    `# === BEGIN k3-plugin-cc-managed:${host} (v2.5.4) ===\n[[hooks]]\nevent = "PreToolUse"\ncommand = "${cmd}"\ntimeout = 15\n# === END k3-plugin-cc-managed:${host} ===\n`;
 
   test("own, legacy, and interleaved orphans still fail closed", async () => {
     const { parseManagedBlock } = await import("../../runtime/hooks/managed-block.js");
-    const own = `${blockFor("codex", "x")}# === END kimi-plugin-cc-managed:claude-code ===\n`;
+    const own = `${blockFor("codex", "x")}# === END k3-plugin-cc-managed:claude-code ===\n`;
     expect(parseManagedBlock(own, "claude-code").state.kind).toBe("orphan");
-    const legacy = `${blockFor("claude-code", "x")}# === END kimi-plugin-cc-managed ===\n`;
+    const legacy = `${blockFor("claude-code", "x")}# === END k3-plugin-cc-managed ===\n`;
     expect(parseManagedBlock(legacy, "claude-code").state.kind).toBe("orphan");
     // A foreign BEGIN interleaved inside this host's markers orphans this host's markers too.
     const interleaved =
-      "# === BEGIN kimi-plugin-cc-managed:claude-code (v2.5.4) ===\n# === BEGIN kimi-plugin-cc-managed:codex (v2.5.4) ===\n[[hooks]]\nevent = \"PreToolUse\"\ncommand = \"x\"\n# === END kimi-plugin-cc-managed:claude-code ===\n";
+      "# === BEGIN k3-plugin-cc-managed:claude-code (v2.5.4) ===\n# === BEGIN k3-plugin-cc-managed:codex (v2.5.4) ===\n[[hooks]]\nevent = \"PreToolUse\"\ncommand = \"x\"\n# === END k3-plugin-cc-managed:claude-code ===\n";
     expect(parseManagedBlock(interleaved, "claude-code").state.kind).toBe("orphan");
   });
 
@@ -1514,8 +1514,8 @@ describe("host-scoped orphan markers", () => {
     const { evaluateInstalled } = await import("../../runtime/hooks/managed-block.js");
     // `matcher` precedes codex's [[hooks]] header, so TOML binds it to the bare
     // table above; deleting block lines before parsing used to hide it.
-    const base = `[[hooks]]\nevent = "PreToolUse"\ncommand = "expected"\n# === BEGIN kimi-plugin-cc-managed:codex (v2.5.4) ===\nmatcher = "*"\n[[hooks]]\nevent = "PreToolUse"\ncommand = "other"\n# === END kimi-plugin-cc-managed:codex ===\n`;
-    for (const text of [base, `${base}# === END kimi-plugin-cc-managed:dsh ===\n`]) {
+    const base = `[[hooks]]\nevent = "PreToolUse"\ncommand = "expected"\n# === BEGIN k3-plugin-cc-managed:codex (v2.5.4) ===\nmatcher = "*"\n[[hooks]]\nevent = "PreToolUse"\ncommand = "other"\n# === END k3-plugin-cc-managed:codex ===\n`;
+    for (const text of [base, `${base}# === END k3-plugin-cc-managed:dsh ===\n`]) {
       const verdict = evaluateInstalled(text, "expected", { hostId: "claude-code" });
       expect(verdict.installed).toBe(false);
     }
@@ -1523,18 +1523,18 @@ describe("host-scoped orphan markers", () => {
     const clean = base.replace('matcher = "*"\n', "");
     expect(evaluateInstalled(clean, "expected", { hostId: "claude-code" }).installed).toBe(true);
     // Another host's marked block carrying this exact command never counts for this host.
-    const foreignOnly = `# === BEGIN kimi-plugin-cc-managed:codex (v2.5.4) ===\n[[hooks]]\nevent = "PreToolUse"\ncommand = "expected"\n# === END kimi-plugin-cc-managed:codex ===\n`;
+    const foreignOnly = `# === BEGIN k3-plugin-cc-managed:codex (v2.5.4) ===\n[[hooks]]\nevent = "PreToolUse"\ncommand = "expected"\n# === END k3-plugin-cc-managed:codex ===\n`;
     expect(evaluateInstalled(foreignOnly, "expected", { hostId: "claude-code" }).installed).toBe(false);
   });
 
   test("insertion never lands inside a multiline value; setup falls back to append", async () => {
     const { env, configPath } = await makeCase("placement-inside-array");
-    const codexEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "codex" };
-    const claudeEnv = { ...env, KIMI_PLUGIN_CC_HOST_ID: "claude-code" };
+    const codexEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "codex" };
+    const claudeEnv = { ...env, K3_PLUGIN_CC_HOST_ID: "claude-code" };
     await runSetup([], makeContext(claudeEnv));
     const seeded = (await readFile(configPath, "utf8")).replace(
-      "# === END kimi-plugin-cc-managed:claude-code ===\n",
-      "# === END kimi-plugin-cc-managed:claude-code ===\n\n[user]\noptions = [\n# === BEGIN kimi-plugin-cc-managed:dsh (v2.5.4) ===\n# === END kimi-plugin-cc-managed:dsh ===\n[1, 2],\n]\n",
+      "# === END k3-plugin-cc-managed:claude-code ===\n",
+      "# === END k3-plugin-cc-managed:claude-code ===\n\n[user]\noptions = [\n# === BEGIN k3-plugin-cc-managed:dsh (v2.5.4) ===\n# === END k3-plugin-cc-managed:dsh ===\n[1, 2],\n]\n",
     );
     await writeFile(configPath, seeded, "utf8");
     const result = await runSetup([], makeContext(codexEnv));
@@ -1547,7 +1547,7 @@ describe("host-scoped orphan markers", () => {
 
   test("a foreign orphan leaves this host's well-formed block found and reports it", async () => {
     const { parseManagedBlock } = await import("../../runtime/hooks/managed-block.js");
-    const text = `${blockFor("claude-code", "x")}\n[[hooks]]\nevent = "PreToolUse"\ncommand = "y"\n# === END kimi-plugin-cc-managed:codex ===\n`;
+    const text = `${blockFor("claude-code", "x")}\n[[hooks]]\nevent = "PreToolUse"\ncommand = "y"\n# === END k3-plugin-cc-managed:codex ===\n`;
     const parsed = parseManagedBlock(text, "claude-code");
     expect(parsed.state.kind).toBe("found");
     expect(parsed.foreignOrphans).toEqual([{ line: 10, detail: "END-without-BEGIN", hostId: "codex" }]);

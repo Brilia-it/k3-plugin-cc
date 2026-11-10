@@ -16,38 +16,38 @@ import { cleanupTestPath, createTestPluginDataRoot } from "../helpers/test-env.j
 describe("buildKimiSessionTitle", () => {
   test("prefixes titles by user-facing command", () => {
     expect(buildKimiSessionTitle("ask", "explain the session storage flow")).toBe(
-      "Kimi Ask: explain the session storage flow",
+      "K3 Ask: explain the session storage flow",
     );
-    expect(buildKimiSessionTitle("review", "pending changes")).toBe("Kimi Review: pending changes");
+    expect(buildKimiSessionTitle("review", "pending changes")).toBe("K3 Review: pending changes");
     expect(buildKimiSessionTitle("challenge", "rescue allowlist")).toBe(
-      "Kimi Challenge: rescue allowlist",
+      "K3 Challenge: rescue allowlist",
     );
-    expect(buildKimiSessionTitle("rescue", "fix flaky test")).toBe("Kimi Rescue: fix flaky test");
-    expect(buildKimiSessionTitle("pursue", "finish the report")).toBe("Kimi Pursue: finish the report");
+    expect(buildKimiSessionTitle("rescue", "fix flaky test")).toBe("K3 Rescue: fix flaky test");
+    expect(buildKimiSessionTitle("pursue", "finish the report")).toBe("K3 Pursue: finish the report");
     expect(buildKimiSessionTitle("swarm", "audit generated surfaces")).toBe(
-      "Kimi Swarm: audit generated surfaces",
+      "K3 Swarm: audit generated surfaces",
     );
     expect(buildKimiSessionTitle("swarm-write", "split parser cleanup")).toBe(
-      "Kimi Swarm Write: split parser cleanup",
+      "K3 Swarm Write: split parser cleanup",
     );
   });
 
   test("normalizes control characters and whitespace", () => {
     expect(buildKimiSessionTitle("ask", "  line one\nline two\t\u0000line three  ")).toBe(
-      "Kimi Ask: line one line two line three",
+      "K3 Ask: line one line two line three",
     );
     expect(normalizeTitleFragment("a\n\nb\tc")).toBe("a b c");
   });
 
   test("falls back to the command prefix for empty summaries", () => {
-    expect(buildKimiSessionTitle("ask", "")).toBe("Kimi Ask");
-    expect(buildKimiSessionTitle("rescue", "   \n")).toBe("Kimi Rescue");
-    expect(buildKimiSessionTitle("swarm-write", undefined)).toBe("Kimi Swarm Write");
+    expect(buildKimiSessionTitle("ask", "")).toBe("K3 Ask");
+    expect(buildKimiSessionTitle("rescue", "   \n")).toBe("K3 Rescue");
+    expect(buildKimiSessionTitle("swarm-write", undefined)).toBe("K3 Swarm Write");
   });
 
   test("falls back defensively for invalid runtime command keys", () => {
     expect(buildKimiSessionTitle("bogus" as unknown as "ask", "unexpected")).toBe(
-      "Kimi Session: unexpected",
+      "K3 Session: unexpected",
     );
   });
 
@@ -80,12 +80,12 @@ describe("syncKimiSessionTitle", () => {
       const result = await syncKimiSessionTitle({
         env: { ...process.env, KIMI_CODE_HOME: kimiHome },
         sessionId,
-        title: "Kimi Ask: explain storage",
+        title: "K3 Ask: explain storage",
       });
       const state = JSON.parse(await readFile(statePath, "utf8")) as Record<string, unknown>;
 
       expect(result).toBe("updated");
-      expect(state.title).toBe("Kimi Ask: explain storage");
+      expect(state.title).toBe("K3 Ask: explain storage");
       expect(state.isCustomTitle).toBe(true);
       expect(state.updatedAt).toBe("2026-07-01T00:00:00.000Z");
     } finally {
@@ -108,7 +108,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: preserve mode",
+          title: "K3 Ask: preserve mode",
         }),
       ).toBe("updated");
 
@@ -131,7 +131,7 @@ describe("syncKimiSessionTitle", () => {
       const result = await syncKimiSessionTitle({
         env: { ...process.env, KIMI_CODE_HOME: kimiHome },
         sessionId,
-        title: "Kimi Ask: should not overwrite",
+        title: "K3 Ask: should not overwrite",
       });
       const state = JSON.parse(await readFile(statePath, "utf8")) as Record<string, unknown>;
 
@@ -153,7 +153,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: missingHome },
           sessionId: missingId,
-          title: "Kimi Ask: missing",
+          title: "K3 Ask: missing",
         }),
       ).toBe("missing-index");
 
@@ -166,7 +166,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: malformedHome },
           sessionId: malformedId,
-          title: "Kimi Ask: malformed",
+          title: "K3 Ask: malformed",
         }),
       ).toBe("missing-state");
     } finally {
@@ -194,7 +194,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: oversized index line",
+          title: "K3 Ask: oversized index line",
         }),
       ).toBe("missing-entry");
     } finally {
@@ -223,7 +223,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: unsafe",
+          title: "K3 Ask: unsafe",
         }),
       ).toBe("unsafe-entry");
     } finally {
@@ -263,7 +263,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: symlink",
+          title: "K3 Ask: symlink",
         }),
       ).toBe("unsafe-entry");
     } finally {
@@ -301,7 +301,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: sessions root symlink",
+          title: "K3 Ask: sessions root symlink",
         }),
       ).toBe("unsafe-entry");
     } finally {
@@ -333,7 +333,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: state symlink",
+          title: "K3 Ask: state symlink",
         }),
       ).toBe("unsafe-entry");
 
@@ -360,7 +360,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: missing state",
+          title: "K3 Ask: missing state",
         }),
       ).toBe("missing-state");
     } finally {
@@ -383,7 +383,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: oversized state",
+          title: "K3 Ask: oversized state",
         }),
       ).toBe("missing-state");
     } finally {
@@ -413,7 +413,7 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: warning",
+          title: "K3 Ask: warning",
           stderr: {
             write(chunk: string | Uint8Array): boolean {
               stderr += String(chunk);
@@ -453,12 +453,12 @@ describe("syncKimiSessionTitle", () => {
         await syncKimiSessionTitle({
           env: { ...process.env, KIMI_CODE_HOME: kimiHome },
           sessionId,
-          title: "Kimi Ask: no work dir",
+          title: "K3 Ask: no work dir",
         }),
       ).toBe("updated");
 
       const state = JSON.parse(await readFile(statePath, "utf8")) as Record<string, unknown>;
-      expect(state.title).toBe("Kimi Ask: no work dir");
+      expect(state.title).toBe("K3 Ask: no work dir");
     } finally {
       await cleanupTestPath(kimiHome);
     }
@@ -493,7 +493,7 @@ describe("native-v2 session discovery", () => {
       expect(visible(JSON.parse(await readFile(statePath, "utf8")))).toBe(false);
       expect(await syncKimiSessionTitle({
         env: { KIMI_CODE_HOME: home }, sessionId: id,
-        title: "Kimi Ask: explain storage", promptText: "Explain storage. token=private-value",
+        title: "K3 Ask: explain storage", promptText: "Explain storage. token=private-value",
       })).toBe("updated");
       const state = JSON.parse(await readFile(statePath, "utf8"));
       expect(visible(state)).toBe(true);
@@ -581,7 +581,7 @@ describe("native-v2 session discovery", () => {
 describe("prompt metadata redaction", () => {
   test("fallback titles redact long quoted credentials before shortening loses their closing quote", () => {
     const title = buildKimiSessionTitle("ask", 'Fix login password="' + "privateword ".repeat(100) + '" and check it');
-    expect(title).toBe("Kimi Ask: Fix login password=[redacted] and check it");
+    expect(title).toBe("K3 Ask: Fix login password=[redacted] and check it");
     expect(title).not.toContain("privateword");
   });
   test("redacts credential forms and private keys before whitespace normalization and truncation", () => {

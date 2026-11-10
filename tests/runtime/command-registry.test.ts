@@ -140,7 +140,7 @@ describe("COMMAND_REGISTRY", () => {
     // here. The defensive guard converts the otherwise-unclassified
     // `TypeError: Cannot destructure property 'outputMode' of undefined`
     // into a classified RuntimeError that the command-layer error path
-    // can render through /kimi:status and /kimi:result.
+    // can render through /k3:status and /k3:result.
     const bogus = "phantom_command" as unknown as ManagedCommandType;
     expect(() => getManagedCommandConfig(bogus)).toThrow(RuntimeError);
     try {

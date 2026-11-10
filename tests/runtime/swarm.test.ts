@@ -44,12 +44,12 @@ function makeMockEnv(
     ...process.env,
     CLAUDE_PLUGIN_DATA: pluginDataRoot,
     KIMI_CODE_HOME: kimiHome,
-    KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-    KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
-    KIMI_PLUGIN_CC_MOCK_SCENARIO: options?.scenario ?? "rescue-success",
-    KIMI_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
-    KIMI_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
-    KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+    K3_PLUGIN_CC_KIMI_BIN: "bun",
+    K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCliPath]),
+    K3_PLUGIN_CC_MOCK_SCENARIO: options?.scenario ?? "rescue-success",
+    K3_PLUGIN_CC_MOCK_INVOCATION_PATH: invocationPath,
+    K3_PLUGIN_CC_MOCK_DELAY_MS: String(options?.delayMs ?? 0),
+    K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
   };
 }
 
@@ -163,7 +163,7 @@ describe("parseSwarmArgs", () => {
 
 describe("resolveSwarmMaxConcurrency", () => {
   test("applies the hard concurrency default when --max-concurrency is unset", () => {
-    // v1.3: swarm is model-invocable via the kimi-swarm agent, so an
+    // v1.3: swarm is model-invocable via the k3-swarm agent, so an
     // auto-dispatched fan-out must never run with an unbounded peak. The runtime
     // enforces a finite ceiling by construction rather than trusting agent prose.
     expect(resolveSwarmMaxConcurrency(undefined)).toBe(SWARM_DEFAULT_MAX_CONCURRENCY);
@@ -207,15 +207,15 @@ describe("runSwarm hook gate", () => {
           ...process.env,
           CLAUDE_PLUGIN_DATA: pluginDataRoot,
           KIMI_CODE_HOME: kimiHome,
-          KIMI_PLUGIN_CC_KIMI_BIN: kimiBin,
-          KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+          K3_PLUGIN_CC_KIMI_BIN: kimiBin,
+          K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
         }),
       );
 
       expect(output).toContain("SWARM_HOOK_NOT_INSTALLED");
-      expect(output).toContain("Claude Code /kimi:setup");
-      expect(output).toContain("Codex $kimi-setup");
-      expect(output).not.toContain("KIMI_PLUGIN_CC_SKIP_HOOK_CHECK");
+      expect(output).toContain("Claude Code /k3:setup");
+      expect(output).toContain("Codex $k3-setup");
+      expect(output).not.toContain("K3_PLUGIN_CC_SKIP_HOOK_CHECK");
     } finally {
       await cleanupTestPath(pluginDataRoot);
       await cleanupTestPath(workspace);
@@ -227,7 +227,7 @@ describe("runSwarm hook gate", () => {
 describe("runSwarm certified execution-plan gate", () => {
   // A nonexistent absolute path cannot become an exact command/version plan.
   // Both read and write modes now fail closed at the common provenance gate;
-  // KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is neutralized so the gate genuinely runs.
+  // K3_PLUGIN_CC_SKIP_VERSION_PROBE is neutralized so the gate genuinely runs.
   const BROKEN_KIMI = "/definitely/does/not/exist/kimi-binary-xyz";
 
   test("--write refuses when the exact binary cannot be resolved", async () => {
@@ -243,8 +243,8 @@ describe("runSwarm certified execution-plan gate", () => {
             ...process.env,
             CLAUDE_PLUGIN_DATA: pluginDataRoot,
             KIMI_CODE_HOME: kimiHome,
-            KIMI_PLUGIN_CC_KIMI_BIN: BROKEN_KIMI,
-            KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "",
+            K3_PLUGIN_CC_KIMI_BIN: BROKEN_KIMI,
+            K3_PLUGIN_CC_SKIP_VERSION_PROBE: "",
           }),
         );
       } catch (error) {
@@ -274,8 +274,8 @@ describe("runSwarm certified execution-plan gate", () => {
             ...process.env,
             CLAUDE_PLUGIN_DATA: pluginDataRoot,
             KIMI_CODE_HOME: kimiHome,
-            KIMI_PLUGIN_CC_KIMI_BIN: BROKEN_KIMI,
-            KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "",
+            K3_PLUGIN_CC_KIMI_BIN: BROKEN_KIMI,
+            K3_PLUGIN_CC_SKIP_VERSION_PROBE: "",
           }),
         ),
       ).rejects.toMatchObject({ code: "KIMI_EXECUTION_PLAN_UNRESOLVED" });
@@ -467,7 +467,7 @@ describe("write-swarm lifecycle", () => {
       "objective",
       10,
       1,
-      { env: { KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1" }, stderr: { write() {} } },
+      { env: { K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1" }, stderr: { write() {} } },
       {
         workspaceRoot: "/retained-worktree",
         spawnCwd: "/retained-worktree",

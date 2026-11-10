@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Entry script for the kimi-code PreToolUse hook.
 //
-// Installed by /kimi:setup as a managed block in ~/.kimi-code/config.toml:
+// Installed by /k3:setup as a managed block in ~/.kimi-code/config.toml:
 //
 //   [[hooks]]
 //   event = "PreToolUse"
@@ -47,12 +47,12 @@ async function main(): Promise<void> {
   }
 
   const decision = await decideHookOutcome(input, {
-    commandLabel: process.env.KIMI_PLUGIN_CC_CMD,
-    operationKind: process.env.KIMI_PLUGIN_CC_OPERATION,
+    commandLabel: process.env.K3_PLUGIN_CC_CMD,
+    operationKind: process.env.K3_PLUGIN_CC_OPERATION,
     rescueEvaluator: evaluateRescueHookRequest,
     // Trusted root for rescue/pursue/swarm-write. Set by the plugin spawn; the
     // model inside kimi cannot forge it and hook payload cwd is not trusted.
-    trustedWorkspaceRoot: process.env.KIMI_PLUGIN_CC_WORKSPACE_ROOT,
+    trustedWorkspaceRoot: process.env.K3_PLUGIN_CC_WORKSPACE_ROOT,
   });
 
   if (decision.decision === "deny") {
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
 }
 
 function failClosed(reason: string): void {
-  process.stderr.write(`kimi-plugin-cc safety hook misconfigured: ${reason}\n`);
+  process.stderr.write(`k3-plugin-cc safety hook misconfigured: ${reason}\n`);
   process.exit(2);
 }
 

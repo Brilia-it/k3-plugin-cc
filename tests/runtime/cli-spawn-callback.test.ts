@@ -14,10 +14,10 @@ describe("spawn-time PID callback", () => {
     try {
       const env: NodeJS.ProcessEnv = {
         ...process.env,
-        KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
-        KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-        KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCli]),
-        KIMI_PLUGIN_CC_MOCK_SCENARIO: "ask-success",
+        K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        K3_PLUGIN_CC_KIMI_BIN: "bun",
+        K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCli]),
+        K3_PLUGIN_CC_MOCK_SCENARIO: "ask-success",
       };
       const executionPlan = await prepareKimiExecutionPlan({ operationKind: "ask", cwd: repo, env });
       let pidAtResult: number | undefined;
@@ -45,10 +45,10 @@ describe("spawn-time PID callback", () => {
     try {
       const env: NodeJS.ProcessEnv = {
         ...process.env,
-        KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
-        KIMI_PLUGIN_CC_KIMI_BIN: "bun",
-        KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCli]),
-        KIMI_PLUGIN_CC_MOCK_DELAY_MS: "30000",
+        K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+        K3_PLUGIN_CC_KIMI_BIN: "bun",
+        K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify(["run", mockCli]),
+        K3_PLUGIN_CC_MOCK_DELAY_MS: "30000",
       };
       const executionPlan = await prepareKimiExecutionPlan({ operationKind: "ask", cwd: repo, env });
       await expect(runCliPrompt({

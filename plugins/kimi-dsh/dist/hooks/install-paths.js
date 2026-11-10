@@ -1,4 +1,4 @@
-// Shared canonical-path helpers for the kimi-plugin-cc PreToolUse hook.
+// Shared canonical-path helpers for the k3-plugin-cc PreToolUse hook.
 //
 // Setup, the shell probe, and the per-call verifier all build the command here.
 // The verifier reconstructs the expected command from the resolved Node binary
@@ -40,17 +40,17 @@ export function preferStableNodePath(execPath, argv0 = process.argv0, realpath =
  * bare `node` would rely on the shell's PATH at execution time, which
  * fails under GUI/LaunchAgent launches with sanitized PATH. Require an
  * absolute path — either a stable alias of the in-process interpreter
- * (see `preferStableNodePath`) or an explicit `KIMI_PLUGIN_CC_NODE_BIN`
+ * (see `preferStableNodePath`) or an explicit `K3_PLUGIN_CC_NODE_BIN`
  * override.
  */
 export function resolveNodeBinary(env) {
-    const override = env.KIMI_PLUGIN_CC_NODE_BIN;
+    const override = env.K3_PLUGIN_CC_NODE_BIN;
     if (override === undefined || override.length === 0) {
         return preferStableNodePath(process.execPath);
     }
     if (!path.isAbsolute(override)) {
         throw new RuntimeError("SETUP_NODE_BIN_NOT_ABSOLUTE", [
-            `KIMI_PLUGIN_CC_NODE_BIN must be an absolute path; got ${JSON.stringify(override)}.`,
+            `K3_PLUGIN_CC_NODE_BIN must be an absolute path; got ${JSON.stringify(override)}.`,
             `kimi-code spawns hooks via /bin/sh -c, where a bare command relies on the shell's PATH at hook execution time.`,
             `Use an absolute path so the hook keeps firing under sanitized-PATH launches.`,
         ].join(" "), "setup.node-bin", { details: { override } });
@@ -61,7 +61,7 @@ export function resolveNodeBinary(env) {
  * Build the exact shell command string that `/bin/sh -c "<command>"`
  * needs to spawn the hook. Single source of truth for:
  *
- *   - what `/kimi:setup` writes into kimi-code's config
+ *   - what `/k3:setup` writes into kimi-code's config
  *     (`command = "..."` inside [[hooks]])
  *   - what the shell probe runs via `spawn("/bin/sh", ["-c", ...])`
  *   - what the verifier (`evaluateInstalled`) equality-checks the
@@ -88,14 +88,14 @@ export function shellSingleQuote(value) {
  *
  * Resolution order:
  *
- *   1. `KIMI_PLUGIN_CC_HOOK_SCRIPT` override — tests / advanced users.
+ *   1. `K3_PLUGIN_CC_HOOK_SCRIPT` override — tests / advanced users.
  *   2. Sibling resolution from this file's URL. This module lives at
  *      `<root>/{runtime,dist}/hooks/install-paths.{ts,js}`. The hook
  *      artifact lives at `<root>/dist/hooks/approval-hook.js`. Walk up
  *      to `<root>` and append the canonical hook artifact path.
  */
 export function resolveHookScriptPath(env) {
-    const override = env.KIMI_PLUGIN_CC_HOOK_SCRIPT;
+    const override = env.K3_PLUGIN_CC_HOOK_SCRIPT;
     if (override !== undefined && override.length > 0) {
         if (!path.isAbsolute(override)) {
             // The hook shell's cwd can differ from the companion's. Require an
@@ -103,7 +103,7 @@ export function resolveHookScriptPath(env) {
             // all refer to the same file rather than blessing a relative path that
             // resolves elsewhere when kimi-code executes it.
             throw new RuntimeError("SETUP_HOOK_SCRIPT_NOT_ABSOLUTE", [
-                `KIMI_PLUGIN_CC_HOOK_SCRIPT must be an absolute path; got ${JSON.stringify(override)}.`,
+                `K3_PLUGIN_CC_HOOK_SCRIPT must be an absolute path; got ${JSON.stringify(override)}.`,
                 `kimi-code spawns hooks via /bin/sh -c with a cwd that may differ from the companion's.`,
                 `Use an absolute path so the verifier and the runtime spawn refer to the same file.`,
             ].join(" "), "setup.hook-script-path", { details: { override } });
@@ -127,7 +127,7 @@ export function resolveHookScriptPath(env) {
     return path.join(pluginRoot, "dist", "hooks", "approval-hook.js");
 }
 function resolveHookFailure(here) {
-    return new RuntimeError("SETUP_RESOLVE_HOOK_FAILED", `Could not infer plugin root from install-paths module path ${here}. Set KIMI_PLUGIN_CC_HOOK_SCRIPT to the absolute path of dist/hooks/approval-hook.js.`, "setup.resolve-hook", { details: { here } });
+    return new RuntimeError("SETUP_RESOLVE_HOOK_FAILED", `Could not infer plugin root from install-paths module path ${here}. Set K3_PLUGIN_CC_HOOK_SCRIPT to the absolute path of dist/hooks/approval-hook.js.`, "setup.resolve-hook", { details: { here } });
 }
 /**
  * Parse a hook shell command of the canonical `'<nodeBin>' '<hookScript>'`
@@ -287,7 +287,7 @@ export function describeHookCommandDrift(installedCommand, expectedCommand, node
         parts.push(`Hook script path drift: the installed hook points at ${installed.hookScript}, but this companion's ` +
             `hook is ${expected.hookScript} (likely a plugin update or move — the install path is version-stamped).`);
     }
-    parts.push("Run /kimi:setup to re-pin the managed block to this companion's current paths.");
+    parts.push("Run /k3:setup to re-pin the managed block to this companion's current paths.");
     return parts.join(" ");
 }
 /**
@@ -342,8 +342,8 @@ export function tryBuildExpectedHookCommand(env) {
 // Claude Code and Codex install this plugin to DIFFERENT, version-stamped,
 // host-specific paths but SHARE one `~/.kimi-code/config.toml`:
 //
-//   Claude: ~/.claude/plugins/cache/kimi-marketplace/kimi/<ver>/dist/hooks/approval-hook.js
-//   Codex:  ~/.codex/plugins/cache/kimi-marketplace/kimi/<ver>/dist/hooks/approval-hook.js
+//   Claude: ~/.claude/plugins/cache/brilia-k3-marketplace/k3/<ver>/dist/hooks/approval-hook.js
+//   Codex:  ~/.codex/plugins/cache/brilia-k3-marketplace/k3/<ver>/dist/hooks/approval-hook.js
 //
 // The managed block is host-scoped (marker suffix `:<host-id>`) so each host
 // owns and verifies its OWN PreToolUse block without clobbering the other's.
@@ -352,13 +352,13 @@ export function tryBuildExpectedHookCommand(env) {
 /**
  * Resolve a stable, version-independent host id for the managed-block marker.
  *
- * Order: an explicit `KIMI_PLUGIN_CC_HOST_ID` override (slugified) wins — used
+ * Order: an explicit `K3_PLUGIN_CC_HOST_ID` override (slugified) wins — used
  * by tests and the live-repair path. Otherwise derive from the resolved hook
  * script path. Pass the already-resolved `hookScriptPath` when you have it
  * (the verifier + setup do) so we don't re-resolve and risk a second throw.
  */
 export function resolveHostId(env, hookScriptPath) {
-    const override = env.KIMI_PLUGIN_CC_HOST_ID;
+    const override = env.K3_PLUGIN_CC_HOST_ID;
     if (override !== undefined && override.trim().length > 0) {
         return slugifyHostId(override);
     }
@@ -410,7 +410,7 @@ export function hostIdFromHookCommand(command) {
 }
 /**
  * True only for a canonical two-single-quoted-token command whose script is
- * `approval-hook.js` under a kimi-plugin-cc/dsh-kimi-plugin-cc/kimi-marketplace install tree.
+ * `approval-hook.js` under a k3-plugin-cc/dsh-kimi-plugin-cc/brilia-k3-marketplace install tree.
  * This strict ownership test protects hand-rolled and non-canonical user hooks
  * from orphan pruning.
  */
@@ -424,5 +424,5 @@ export function isOurApprovalHookCommand(decodedCommand) {
     const normalized = parsed.hookScript.replace(/\\/g, "/");
     // Require a real path segment, not an arbitrary substring, so a user hook in
     // a similarly named wrapper directory is never misclassified and pruned.
-    return normalized.includes("/kimi-plugin-cc/") || normalized.includes("/dsh-kimi-plugin-cc/") || normalized.includes("/kimi-marketplace/");
+    return normalized.includes("/k3-plugin-cc/") || normalized.includes("/dsh-kimi-plugin-cc/") || normalized.includes("/brilia-k3-marketplace/");
 }

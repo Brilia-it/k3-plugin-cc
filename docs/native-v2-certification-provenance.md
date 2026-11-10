@@ -13,7 +13,7 @@ certified. Bounded smoke covers live resume and goal behavior, not exhaustive
 compaction or crashed-turn recovery. Aggregate hook-denial markers across a
 goal run do not establish a separate denial count on every turn.
 
-This contract defines what must be true before kimi-plugin-cc can route any
+This contract defines what must be true before k3-plugin-cc can route any
 production operation to kimi-code's native `agent-core-v2` engine. It also
 defines the provenance that must survive process, background-worker, job-store,
 and session boundaries. The first implementation slice recorded legacy-v1 provenance without enabling v2. The runtime routes only the versions listed in its capability table to native v2 under the no-plan construction below. Installed hosts retain their existing tables until explicitly updated.
@@ -104,7 +104,7 @@ and 2.1.1). The 2.1.0 hardening is reverted in 2.1.1. See the
 
 In-verifier auto-repin, hook skipping, relaxed verification, and silent
 rewriting of operator config remain forbidden migration mechanisms. A refusal
-raised by the preflight is never hook drift and `/kimi:setup` is never its
+raised by the preflight is never hook drift and `/k3:setup` is never its
 remedy.
 
 ## 3. Certification gate for one operation
@@ -132,7 +132,7 @@ safety profile:
    precondition is not evidence. If the ON bypass disappears, re-audit the
    upstream ordering fix instead of silently keeping the old certification basis.
 4. **Operation smoke:** a temp-installed exact binary runs the real operation
-   through `KIMI_PLUGIN_CC_KIMI_BIN` and `bun run smoke:real`. Read-only,
+   through `K3_PLUGIN_CC_KIMI_BIN` and `bun run smoke:real`. Read-only,
    write-confinement, cancellation, budgets, concurrency, session-id capture,
    and output semantics must remain unchanged. Rescue itself must land a
    confined sentinel write and persist `operation_kind: "rescue"`, exact version,
@@ -170,8 +170,8 @@ legacy table and never gains 0.42.
 
 An exact version outside both tables is unavailable to production model jobs,
 even when setup can parse and warn about it. Recovery is a plugin release that
-certifies it, or `KIMI_PLUGIN_CC_KIMI_BIN` pointing at a certified binary.
-`KIMI_PLUGIN_CC_SKIP_VERSION_PROBE` is tests/smoke only.
+certifies it, or `K3_PLUGIN_CC_KIMI_BIN` pointing at a certified binary.
+`K3_PLUGIN_CC_SKIP_VERSION_PROBE` is tests/smoke only.
 
 ## 5. Execution-plan and provenance contract
 
@@ -209,7 +209,7 @@ shutdown has a bounded 15-second allowance; other REST, cancellation, identity
 and kill/quiescence bounds remain enforced. The final no-plan journal and
 local-execution binding scans still apply before the resumed print spawn.
 
-`KIMI_PLUGIN_CC_SKIP_VERSION_PROBE=1` produces a visible `test-bypass` plan with
+`K3_PLUGIN_CC_SKIP_VERSION_PROBE=1` produces a visible `test-bypass` plan with
 `kimi_version=null`; it is a test/smoke seam, not production certification. A
 persisted bypass is accepted at the final spawn boundary only while that same
 explicit environment switch is still present, so a stale or forged job row
@@ -225,7 +225,7 @@ version; a missing, late, or disagreeing marker is the same mismatch and the
 same teardown. No later assistant/tool record is delivered to the caller.
 
 Write-capable launches also export the plugin-owned
-`KIMI_PLUGIN_CC_WORKSPACE_ROOT`: rescue/pursue use the job cwd and swarm-write
+`K3_PLUGIN_CC_WORKSPACE_ROOT`: rescue/pursue use the job cwd and swarm-write
 uses the throwaway worktree. The hook never derives this trust boundary from the
 upstream payload `cwd`; missing root denies writes.
 

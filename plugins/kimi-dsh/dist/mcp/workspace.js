@@ -3,7 +3,7 @@ import path from "node:path";
 import { RuntimeError } from "../errors.js";
 import { resolveRepoIdentity } from "../git.js";
 export async function resolveMcpWorkspace(env, requested) {
-    const defaultCandidate = env.KIMI_PLUGIN_CC_MCP_WORKSPACE;
+    const defaultCandidate = env.K3_PLUGIN_CC_MCP_WORKSPACE;
     const candidate = requested ?? defaultCandidate;
     if (!candidate) {
         throw new RuntimeError("MCP_WORKSPACE_REQUIRED", "This MCP server has no default workspace. Supply the absolute workspace directory explicitly; Codex calls normally require it.", "mcp.workspace");

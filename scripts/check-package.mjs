@@ -35,7 +35,7 @@ try {
   execFileSync('bun', ['pm', 'pack', '--ignore-scripts', '--destination', destination, '--quiet'], { cwd: repo, stdio: 'pipe' });
   const archive = path.join(destination, `${pkg.name}-${pkg.version}.tgz`);
   const files = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n');
-  const allowed = /^(?:package\/(?:package\.json|\.mcp\.json|README\.md|LICENSE|CHANGELOG\.md)|package\/(?:\.claude-plugin|\.agents\/plugins|agents|commands|hooks|dist|plugins\/kimi-codex|plugins\/kimi-dsh|docs)\/|package\/scripts\/(?:companion|review-gate-hook)\.sh$)/;
+  const allowed = /^(?:package\/(?:package\.json|\.mcp\.json|README\.md|LICENSE|CHANGELOG\.md)|package\/(?:\.claude-plugin|\.agents\/plugins|agents|commands|hooks|dist|plugins\/k3-codex|plugins\/kimi-dsh|docs)\/|package\/scripts\/(?:companion|review-gate-hook)\.sh$)/;
   const syncConflictCopy = /(?:^|\/)[^/]* [0-9]+(?:\.[^/]*)?(?:\/|$)/;
   for (const file of files) {
     assert(!file.split('/').includes('..'), file);
@@ -48,8 +48,8 @@ try {
   for (const file of [
     '.mcp.json', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json',
     '.agents/plugins/marketplace.json', 'hooks/hooks.json', 'dist/vendor/smol-toml/LICENSE',
-    'dist/vendor/shell-quote/LICENSE', 'plugins/kimi-codex/.mcp.json',
-    'plugins/kimi-codex/.codex-plugin/plugin.json',
+    'dist/vendor/shell-quote/LICENSE', 'plugins/k3-codex/.mcp.json',
+    'plugins/k3-codex/.codex-plugin/plugin.json',
     'plugins/kimi-dsh/package.json', 'plugins/kimi-dsh/cordis.patch.yml',
     'plugins/kimi-dsh/dist/dsh/index.js', 'plugins/kimi-dsh/LICENSE',
   ]) {
@@ -64,16 +64,16 @@ try {
     }
   }
   verifyTree('dist');
-  verifyTree('plugins/kimi-codex');
+  verifyTree('plugins/k3-codex');
   verifyTree('plugins/kimi-dsh');
-  for (const [host, plugin] of [['claude', root], ['codex', path.join(root, 'plugins/kimi-codex')], ['dsh', path.join(root, 'plugins/kimi-dsh')]]) {
+  for (const [host, plugin] of [['claude', root], ['codex', path.join(root, 'plugins/k3-codex')], ['dsh', path.join(root, 'plugins/kimi-dsh')]]) {
     const home = path.join(scratch, host);
     const kimiHome = path.join(home, 'kimi-home');
     mkdirSync(kimiHome, { recursive: true });
     const env = { PATH: process.env.PATH, HOME: home, KIMI_CODE_HOME: kimiHome,
       CLAUDE_PLUGIN_ROOT: plugin, PLUGIN_ROOT: plugin,
-      KIMI_PLUGIN_CC_DATA: path.join(home, 'data'),
-      KIMI_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: '1' };
+      K3_PLUGIN_CC_DATA: path.join(home, 'data'),
+      K3_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: '1' };
     for (const args of [['setup'], ['setup', '--check']]) {
       const result = spawnSync(path.join(plugin, 'scripts/companion.sh'), args, { cwd: scratch, env, encoding: 'utf8' });
       assert.equal(result.status, 0, `${host}: ${result.stdout}\n${result.stderr}`);
@@ -125,7 +125,7 @@ try {
     const fake = path.join(home, 'fake-kimi');
     writeFileSync(fake, '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "99.0.0"; exit 0; fi\necho UNEXPECTED_MODEL_CALL >&2\nexit 99\n', { mode: 0o755 });
     const result = spawnSync(path.join(plugin, 'scripts/companion.sh'), ['ask', 'packaging probe'], {
-      cwd: scratch, env: { ...env, KIMI_PLUGIN_CC_KIMI_BIN: fake }, encoding: 'utf8', timeout: 15000,
+      cwd: scratch, env: { ...env, K3_PLUGIN_CC_KIMI_BIN: fake }, encoding: 'utf8', timeout: 15000,
     });
     assert.notEqual(result.status, 0, result.stdout);
     assert(!`${result.stdout}${result.stderr}`.includes('UNEXPECTED_MODEL_CALL'));

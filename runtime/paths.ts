@@ -24,7 +24,7 @@ export interface PluginPaths {
 export function resolvePluginPaths(env: NodeJS.ProcessEnv): PluginPaths {
   const claudePluginData = resolvePluginDataRoot(env);
 
-  const pluginRoot = path.join(claudePluginData, "kimi-plugin-cc");
+  const pluginRoot = path.join(claudePluginData, "k3-plugin-cc");
 
   return {
     claudePluginData,

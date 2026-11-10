@@ -112,7 +112,7 @@ export async function sweepStaleJobs(store, paths) {
         // still alive, the companion process is microseconds-to-seconds away
         // from writing its own terminal state. SIGTERMing it here would kill
         // its render path mid-flight (and from a sibling shell's read-only
-        // /kimi:status, no less). Skip — let the companion finish on its own.
+        // /k3:status, no less). Skip — let the companion finish on its own.
         if (!companionMissing && job.pid !== null) {
             continue;
         }
@@ -208,7 +208,7 @@ export async function waitForTerminalJob(storeFactory, jobId, timeoutMs = 60_000
         }
         await sleep(200);
     }
-    throw new RuntimeError("JOB_WAIT_TIMEOUT", `Timed out after ${timeoutMs}ms while waiting for job ${jobId} to finish. The worker may still be running; use /kimi:status ${jobId} to check progress or /kimi:result ${jobId} once it completes.`, "jobs.wait");
+    throw new RuntimeError("JOB_WAIT_TIMEOUT", `Timed out after ${timeoutMs}ms while waiting for job ${jobId} to finish. The worker may still be running; use /k3:status ${jobId} to check progress or /k3:result ${jobId} once it completes.`, "jobs.wait");
 }
 function sleep(ms) {
     return new Promise((resolve) => {

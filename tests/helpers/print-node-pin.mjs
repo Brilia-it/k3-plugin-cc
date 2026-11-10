@@ -22,7 +22,7 @@ process.stdout.write(
     argv0: process.argv0,
     execPath: process.execPath,
     // The canonical command this child would verify against — the exact value
-    // that must agree with what `/kimi:setup` pinned, or every background
+    // that must agree with what `/k3:setup` pinned, or every background
     // rescue/ask refuses forever.
     canonical: buildHookShellCommand(hookScript, {}),
   }),

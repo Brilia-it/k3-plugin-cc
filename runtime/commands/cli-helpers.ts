@@ -208,7 +208,7 @@ export function describeHookEscapes(result: Pick<CliClientResult, "hookEscapes">
   const escapes = result.hookEscapes ?? [];
   if (escapes.length === 0) return undefined;
   const first = escapes[0]!;
-  return `safety hook notice: ${escapes.length} policy-denied tool call(s) did not come back as the managed hook's denial (first: ${first.tool_name} ${first.kind}). Detection evidence only — the call may have been rejected upstream before the hook ran, blocked by another hook, or executed because the hook drifted. Run /kimi:setup --check; details in \`result <jobId> --json\` (hook_escapes).`;
+  return `safety hook notice: ${escapes.length} policy-denied tool call(s) did not come back as the managed hook's denial (first: ${first.tool_name} ${first.kind}). Detection evidence only — the call may have been rejected upstream before the hook ran, blocked by another hook, or executed because the hook drifted. Run /k3:setup --check; details in \`result <jobId> --json\` (hook_escapes).`;
 }
 
 export function warnHookEscapes(result: Pick<CliClientResult, "hookEscapes">, commandType: string, stderr: NodeJS.WriteStream): void {

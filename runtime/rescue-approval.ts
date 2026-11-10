@@ -189,7 +189,7 @@ const RESCUE_READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
 /**
  * Evaluate a PreToolUse hook request under the rescue policy.
  *
- * `workspaceRoot` is the plugin-owned KIMI_PLUGIN_CC_WORKSPACE_ROOT passed by
+ * `workspaceRoot` is the plugin-owned K3_PLUGIN_CC_WORKSPACE_ROOT passed by
  * the hook entry, never the payload cwd; the model cannot forge that per-spawn
  * environment value. `toolName` and `toolInput` are the raw upstream tool call.
  */

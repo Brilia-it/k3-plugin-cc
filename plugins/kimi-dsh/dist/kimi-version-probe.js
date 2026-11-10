@@ -1,5 +1,5 @@
 // Probe the installed kimi-code CLI version and check it against the
-// range kimi-plugin-cc has been tested against.
+// range k3-plugin-cc has been tested against.
 //
 // Setup probes the installed command and warns outside the tested range;
 // model jobs probe the exact command + prefix tuple to build a fail-closed
@@ -223,12 +223,12 @@ export function formatVersionOutOfRangeWarning(probe, pluginVersion, nativeV2Cer
         ? `legacy-v1 ${tested}; native-v2 exact ${nativeV2Certified.join(", ")}`
         : tested;
     const lines = [
-        `WARNING: kimi-code version ${probe.version} is outside the versions kimi-plugin-cc ${pluginVersion} certifies (${certified}).`,
+        `WARNING: kimi-code version ${probe.version} is outside the versions k3-plugin-cc ${pluginVersion} certifies (${certified}).`,
     ];
     if (aboveMax) {
         // Commonly out-of-band auto-upgrade drift past the last certification.
         lines.push(`  This is NEWER than the newest certified version (${newestNative ?? `${max.major}.${max.minor}.x`}) and is not yet certified for model execution.`);
     }
-    lines.push(`  Setup can complete, but model-spawning commands will refuse before Kimi starts rather than run an unreviewed engine/version route.`, `  Update kimi-plugin-cc to a release that certifies this version, or point KIMI_PLUGIN_CC_KIMI_BIN at a certified kimi-code binary and retry setup.`, `  KIMI_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production compatibility override.`);
+    lines.push(`  Setup can complete, but model-spawning commands will refuse before Kimi starts rather than run an unreviewed engine/version route.`, `  Update k3-plugin-cc to a release that certifies this version, or point K3_PLUGIN_CC_KIMI_BIN at a certified kimi-code binary and retry setup.`, `  K3_PLUGIN_CC_SKIP_VERSION_PROBE is a test/smoke seam, not a production compatibility override.`);
     return lines.join("\n");
 }

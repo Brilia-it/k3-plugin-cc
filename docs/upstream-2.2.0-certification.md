@@ -73,7 +73,7 @@ only — `runPreToolUse` reads neither `hookParts` nor `structuredOutput`; 04:
   hook and was denied, target absent; `EnterPlanMode` reached the hook and was
   denied; no plan file. `VERDICT: PASS`.
 - Candidate smoke on the final 2.0.8 tree,
-  `KIMI_PLUGIN_CC_SMOKE_V2_CANDIDATE=2.2.0 KIMI_PLUGIN_CC_KIMI_BIN=<isolated>`:
+  `K3_PLUGIN_CC_SMOKE_V2_CANDIDATE=2.2.0 K3_PLUGIN_CC_KIMI_BIN=<isolated>`:
   **15 pass / 0 fail / 84 assertions in 438.78 s**, no retries, no skips. Goal
   run aborted at the smoke budget as designed (`aborted=true`), `goal.summary`
   `status:"paused"`, `turnsUsed:8`, none of the goal's target files written. Write-swarm:

@@ -4,7 +4,7 @@ Status: **resolved in plugin 2.0.8 (same day)** — see the resolution note at t
 multi-model pre-release audit of `~/Documents/GitHub/research-memex`. The owner asked for
 this note. Nothing here has been changed in the plugin.
 
-Versions: plugin 2.0.6 (cache `~/.claude/plugins/cache/kimi-marketplace/kimi/2.0.6`),
+Versions: plugin 2.0.6 (cache `~/.claude/plugins/cache/brilia-k3-marketplace/k3/2.0.6`),
 kimi-code 2.1.1, engine native-v2.
 
 ## What happened
@@ -19,7 +19,7 @@ after real work, and none returned partial output. Codex jobs of the same scope 
 | `13d14393-22ef-463c-a1f6-3dec02fc571b` | `ask --background --fresh` (branch code review) | 18:55:46 | 19:10:46 | same, also "race detected post-result" |
 | `6275990c-163e-42ca-860e-e5ae8e3b4210` | `task rescue --background --fresh` (design task in a clone: edit, render 61 images, iterate) | 19:04:26 | 19:34:27 | `RESCUE_KIMI_RESPONSE_TIMEOUT` (1,800,000 ms) |
 
-Logs: `~/.claude/plugins/data/kimi-kimi-marketplace/kimi-plugin-cc/logs/{ask,rescue}-<id>.jsonl`
+Logs: `~/.claude/plugins/data/k3-brilia-k3-marketplace/k3-plugin-cc/logs/{ask,rescue}-<id>.jsonl`
 (118, 147 and 107 records). Artifacts: `.../artifacts/ask-<id>.md` (698 bytes, the error only).
 
 Splitting the records audit into two narrower asks worked (both finished inside 15 minutes).

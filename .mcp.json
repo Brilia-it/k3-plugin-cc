@@ -6,7 +6,7 @@
         "mcp"
       ],
       "env": {
-        "KIMI_PLUGIN_CC_MCP_WORKSPACE": "${CLAUDE_PROJECT_DIR}"
+        "K3_PLUGIN_CC_MCP_WORKSPACE": "${CLAUDE_PROJECT_DIR}"
       }
     }
   }

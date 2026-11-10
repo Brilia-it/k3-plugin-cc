@@ -62,7 +62,7 @@ function specWith(handle: SubprocessHandle): DshCompanionSpec & { spawned: Subpr
   const spawned: SubprocessSpawnSpec[] = [];
   return {
     companionPath: "/plugin/dist/companion.js",
-    dataRoot: "/dsh/plugin-data/kimi-plugin-cc",
+    dataRoot: "/dsh/plugin-data/k3-plugin-cc",
     env: { EXPLICIT: "yes" },
     disposeGraceMs: 3000,
     maxOutputBytes: 1024,
@@ -107,7 +107,7 @@ describe("DSH companion argument and environment boundaries", () => {
 
   test("pins the same stable Node path used to spawn the companion", () => {
     const expected = preferStableNodePath(process.execPath);
-    expect(companionEnvironment("/data", "/workspace", {}).KIMI_PLUGIN_CC_NODE_BIN).toBe(expected);
+    expect(companionEnvironment("/data", "/workspace", {}).K3_PLUGIN_CC_NODE_BIN).toBe(expected);
     expect(companionArgv("ask", "question", "/plugin/dist/companion.js")[0]).toBe(expected);
   });
   test("all seven operations map to the exact companion command with a flag terminator", () => {
@@ -141,33 +141,33 @@ describe("DSH companion argument and environment boundaries", () => {
 
   test("provider-owned environment cannot be replaced by explicit child env", () => {
     const env = companionEnvironment("/dsh/data", "/workspace", {
-      KIMI_PLUGIN_CC_DATA: "/elsewhere",
-      KIMI_PLUGIN_CC_HOST_ID: "codex",
-      KIMI_PLUGIN_CC_NODE_BIN: "/other-node",
-      KIMI_PLUGIN_CC_WORKSPACE_CWD: "/other-workspace",
-      KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
-      KIMI_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
+      K3_PLUGIN_CC_DATA: "/elsewhere",
+      K3_PLUGIN_CC_HOST_ID: "codex",
+      K3_PLUGIN_CC_NODE_BIN: "/other-node",
+      K3_PLUGIN_CC_WORKSPACE_CWD: "/other-workspace",
+      K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1",
+      K3_PLUGIN_CC_SKIP_VERSION_PROBE: "1",
       KIMI_CODE_TRUST_WORKSPACE: "1",
       CLAUDE_PLUGIN_DATA: "/claude-data",
       CUSTOM: "preserved",
     }, "/node");
     expect(env).toMatchObject({
       CUSTOM: "preserved",
-      KIMI_PLUGIN_CC_DATA: "/dsh/data",
-      KIMI_PLUGIN_CC_HOST_ID: "dsh",
-      KIMI_PLUGIN_CC_NODE_BIN: "/node",
-      KIMI_PLUGIN_CC_WORKSPACE_CWD: "/workspace",
+      K3_PLUGIN_CC_DATA: "/dsh/data",
+      K3_PLUGIN_CC_HOST_ID: "dsh",
+      K3_PLUGIN_CC_NODE_BIN: "/node",
+      K3_PLUGIN_CC_WORKSPACE_CWD: "/workspace",
     });
     for (const name of [
-      "KIMI_PLUGIN_CC_SKIP_HOOK_CHECK",
-      "KIMI_PLUGIN_CC_SKIP_VERSION_PROBE",
+      "K3_PLUGIN_CC_SKIP_HOOK_CHECK",
+      "K3_PLUGIN_CC_SKIP_VERSION_PROBE",
       "KIMI_CODE_TRUST_WORKSPACE",
       "CLAUDE_PLUGIN_DATA",
       "PLUGIN_DATA",
       "CLAUDE_PLUGIN_ROOT",
       "PLUGIN_ROOT",
-      "KIMI_PLUGIN_CC_HOOK_SCRIPT",
-      "KIMI_PLUGIN_CC_WORKSPACE_ROOT",
+      "K3_PLUGIN_CC_HOOK_SCRIPT",
+      "K3_PLUGIN_CC_WORKSPACE_ROOT",
     ]) {
       expect(env).toHaveProperty(name, undefined);
     }
@@ -175,11 +175,11 @@ describe("DSH companion argument and environment boundaries", () => {
 
   test("data root derives from DSH_HOME and honors only an absolute explicit override", () => {
     expect(defaultDshDataRoot({ DSH_HOME: "/isolated/dsh" })).toBe(
-      path.join("/isolated/dsh", "plugin-data", "kimi-plugin-cc"),
+      path.join("/isolated/dsh", "plugin-data", "k3-plugin-cc"),
     );
-    expect(defaultDshDataRoot({ DSH_HOME: "/isolated/dsh", KIMI_PLUGIN_CC_DATA: "/selected" })).toBe("/selected");
+    expect(defaultDshDataRoot({ DSH_HOME: "/isolated/dsh", K3_PLUGIN_CC_DATA: "/selected" })).toBe("/selected");
     expect(() => defaultDshDataRoot({ DSH_HOME: "relative" })).toThrow("DSH_HOME must be absolute");
-    expect(() => defaultDshDataRoot({ KIMI_PLUGIN_CC_DATA: "relative" })).toThrow("KIMI_PLUGIN_CC_DATA must be absolute");
+    expect(() => defaultDshDataRoot({ K3_PLUGIN_CC_DATA: "relative" })).toThrow("K3_PLUGIN_CC_DATA must be absolute");
   });
 
   test("only non-empty text tasks cross the provider boundary", () => {

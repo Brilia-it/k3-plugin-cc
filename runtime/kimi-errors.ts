@@ -66,7 +66,7 @@ export function classifyManagedCommandFailure(
   // as a JSON line; normalizeJobError persists them in the job row). Without
   // this, a CLI_NONZERO_EXIT whose message embeds kimi's stderr tail (e.g.
   // `auth.login_required` on 2026-08-08) was reduced to the generic
-  // "run /kimi:setup" advice with the real cause reachable only as `cause`,
+  // "run /k3:setup" advice with the real cause reachable only as `cause`,
   // which no output channel serializes — an LLM caller could not diagnose it.
   const details: Record<string, unknown> = { availability: classification.kind };
   if (error instanceof RuntimeError) {
@@ -118,28 +118,28 @@ export function summarizeKimiAvailabilityWarning(
   }
 
   if (classification.kind === "auth_unavailable") {
-    return `Kimi ${formatCommandLabel(commandType).toLowerCase()} is not configured for model access; allowing stop.`;
+    return `K3 ${formatCommandLabel(commandType).toLowerCase()} is not configured for model access; allowing stop.`;
   }
 
   if (classification.kind === "binary_unavailable") {
-    return `Kimi ${formatCommandLabel(commandType).toLowerCase()} could not find the Kimi CLI; allowing stop.`;
+    return `K3 ${formatCommandLabel(commandType).toLowerCase()} could not find the Kimi CLI; allowing stop.`;
   }
 
   if (classification.kind === "startup_failed") {
-    return `Kimi ${formatCommandLabel(commandType).toLowerCase()} could not start a usable Kimi subprocess; allowing stop.`;
+    return `K3 ${formatCommandLabel(commandType).toLowerCase()} could not start a usable Kimi subprocess; allowing stop.`;
   }
 
   switch (classification.kind) {
     case "startup_timeout":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} did not respond during startup; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} did not respond during startup; allowing stop.`;
     case "initialize_timeout":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} did not complete session initialization; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} did not complete session initialization; allowing stop.`;
     case "response_timeout":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} did not return a final response; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} did not return a final response; allowing stop.`;
     case "max_steps_reached":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} exhausted its step budget; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} exhausted its step budget; allowing stop.`;
     case "timeout":
-      return `Kimi ${formatCommandLabel(commandType).toLowerCase()} timed out; allowing stop.`;
+      return `K3 ${formatCommandLabel(commandType).toLowerCase()} timed out; allowing stop.`;
   }
 }
 
@@ -157,12 +157,12 @@ function classifyKimiAvailability(error: unknown): AvailabilityClassification | 
   // CLI_NONZERO_EXIT message because cli-helpers embeds the stderr tail.
   // This MUST precede the code-based CLI_NONZERO_EXIT branch below, which
   // would otherwise misclassify a logged-out CLI as startup_failed and
-  // point the user at /kimi:setup — which cannot fix auth.
+  // point the user at /k3:setup — which cannot fix auth.
   if (message.includes("auth.login_required")) {
     return {
       kind: "auth_unavailable",
       summary: "the local Kimi CLI is logged out (its OAuth login is missing or expired).",
-      nextStep: "Run `kimi login` to re-authenticate, then retry. `/kimi:setup` does not repair auth.",
+      nextStep: "Run `kimi login` to re-authenticate, then retry. `/k3:setup` does not repair auth.",
       runtimeProbe: "ok",
       authProbe: "failed",
     };
@@ -172,7 +172,7 @@ function classifyKimiAvailability(error: unknown): AvailabilityClassification | 
     return {
       kind: "auth_unavailable",
       summary: "local Kimi authentication or model configuration is not usable.",
-      nextStep: "Run `/kimi:setup`, then `kimi login` or fix the local Kimi model configuration and retry.",
+      nextStep: "Run `/k3:setup`, then `kimi login` or fix the local Kimi model configuration and retry.",
       runtimeProbe: "ok",
       authProbe: "failed",
     };
@@ -198,7 +198,7 @@ function classifyKimiAvailability(error: unknown): AvailabilityClassification | 
       return {
         kind: "binary_unavailable",
         summary: "the Kimi CLI is missing from PATH or not executable in this environment.",
-        nextStep: "Run `/kimi:setup` to verify the install, then expose `kimi` on PATH and retry.",
+        nextStep: "Run `/k3:setup` to verify the install, then expose `kimi` on PATH and retry.",
         runtimeProbe: "failed",
         authProbe: "failed",
       };
@@ -208,7 +208,7 @@ function classifyKimiAvailability(error: unknown): AvailabilityClassification | 
   // v1.0 cli-client surfaces non-ENOENT process errors and non-zero
   // exits as CLI_PROCESS_ERROR / CLI_NONZERO_EXIT. Treat both as
   // startup-failed for classifier purposes — the next step is the same
-  // (run /kimi:setup) and the distinction between "kimi crashed during
+  // (run /k3:setup) and the distinction between "kimi crashed during
   // init" vs "kimi exited with status 1" is post-hoc.
   if (
     error instanceof RuntimeError &&
@@ -217,7 +217,7 @@ function classifyKimiAvailability(error: unknown): AvailabilityClassification | 
     return {
       kind: "startup_failed",
       summary: "the Kimi CLI exited before completing the requested operation.",
-      nextStep: "Run `/kimi:setup` to verify local Kimi health, then retry.",
+      nextStep: "Run `/k3:setup` to verify local Kimi health, then retry.",
       runtimeProbe: "failed",
       authProbe: "failed",
     };
@@ -243,7 +243,7 @@ function classifyKimiAvailability(error: unknown): AvailabilityClassification | 
       return {
         kind: "startup_timeout",
         summary: "the Kimi CLI did not respond during startup.",
-        nextStep: "Run `/kimi:setup` to verify local Kimi health, then retry.",
+        nextStep: "Run `/k3:setup` to verify local Kimi health, then retry.",
         runtimeProbe: "failed",
         authProbe: "failed",
       };
@@ -253,7 +253,7 @@ function classifyKimiAvailability(error: unknown): AvailabilityClassification | 
       return {
         kind: "initialize_timeout",
         summary: "the Kimi session started but did not finish initializing in time.",
-        nextStep: "Run `/kimi:setup` to verify local Kimi configuration and retry.",
+        nextStep: "Run `/k3:setup` to verify local Kimi configuration and retry.",
         runtimeProbe: "failed",
         authProbe: "failed",
       };
@@ -274,7 +274,7 @@ function classifyKimiAvailability(error: unknown): AvailabilityClassification | 
     return {
       kind: "timeout",
       summary: "the Kimi runtime did not become ready within the expected time budget.",
-      nextStep: "Run `/kimi:setup` to check local Kimi auth and network health, then retry.",
+      nextStep: "Run `/k3:setup` to check local Kimi auth and network health, then retry.",
       runtimeProbe: "failed",
       authProbe: "failed",
     };

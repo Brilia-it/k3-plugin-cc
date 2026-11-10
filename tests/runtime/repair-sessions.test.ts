@@ -21,7 +21,7 @@ async function fixture() {
   const cwd = path.join(root, "repo");
   const home = path.join(root, "home");
   await mkdir(cwd);
-  const env = { KIMI_PLUGIN_CC_DATA: path.join(root, "plugin"), KIMI_CODE_HOME: home };
+  const env = { K3_PLUGIN_CC_DATA: path.join(root, "plugin"), KIMI_CODE_HOME: home };
   const paths = resolvePluginPaths(env);
   await mkdir(paths.logsDir, { recursive: true });
   const db = new Database(paths.stateDbPath);
@@ -64,7 +64,7 @@ function parse(output: string) {
 }
 
 describe("repair-sessions", () => {
-  for (const host of ["dist", "plugins/kimi-codex/dist"]) {
+  for (const host of ["dist", "plugins/k3-codex/dist"]) {
     for (const engine of ["node", "bun"]) {
       test(`compiled ${host} opens the real SQLite store read-only under ${engine}`, async () => {
         const f = await fixture();
@@ -83,7 +83,7 @@ describe("repair-sessions", () => {
         }).catch(error => { console.error(error); process.exitCode = 1; });`;
         const result = spawnSync(engine === "bun" ? process.execPath : "node", ["--eval", script], {
           cwd: f.cwd,
-          env: { ...process.env, ...f.context.env, KIMI_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: "1" },
+          env: { ...process.env, ...f.context.env, K3_PLUGIN_CC_DISABLE_WEB_ANNOUNCE: "1" },
           encoding: "utf8",
           timeout: 5000,
         });

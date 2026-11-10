@@ -40,9 +40,9 @@ describe("durable swarm recovery", () => {
     const repo = await createGitRepoFixture("swarm-crash-repo");
     const home = path.join(root, "home");
     const log = path.join(root, "web.jsonl");
-    const env = { ...process.env, KIMI_PLUGIN_CC_DATA: root, KIMI_CODE_HOME: home,
-      KIMI_PLUGIN_CC_KIMI_BIN: node, KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mock]),
-      KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1", MOCK_KIMI_WEB_LOG: log,
+    const env = { ...process.env, K3_PLUGIN_CC_DATA: root, KIMI_CODE_HOME: home,
+      K3_PLUGIN_CC_KIMI_BIN: node, K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mock]),
+      K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1", MOCK_KIMI_WEB_LOG: log,
       MOCK_KIMI_WEB_TOKEN: "never-persist-this-token", MOCK_KIMI_WEB_STATUS_DELAY_MS: "10000" };
     await mkdir(home, { recursive: true });
     const paths = resolvePluginPaths(env);
@@ -126,9 +126,9 @@ describe("durable swarm recovery", () => {
     const repo = await createGitRepoFixture("swarm-web-cancel-repo");
     const home = path.join(root, "home");
     const log = path.join(root, "web.jsonl");
-    const env = { ...process.env, KIMI_PLUGIN_CC_DATA: root, KIMI_CODE_HOME: home,
-      KIMI_PLUGIN_CC_KIMI_BIN: node, KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mock]),
-      KIMI_PLUGIN_CC_SKIP_HOOK_CHECK: "1", MOCK_KIMI_WEB_LOG: log, MOCK_KIMI_WEB_DEACTIVATE_STATUS_DELAY_MS: "5000" };
+    const env = { ...process.env, K3_PLUGIN_CC_DATA: root, KIMI_CODE_HOME: home,
+      K3_PLUGIN_CC_KIMI_BIN: node, K3_PLUGIN_CC_KIMI_PREFIX_ARGS: JSON.stringify([mock]),
+      K3_PLUGIN_CC_SKIP_HOOK_CHECK: "1", MOCK_KIMI_WEB_LOG: log, MOCK_KIMI_WEB_DEACTIVATE_STATUS_DELAY_MS: "5000" };
     await mkdir(home, { recursive: true });
     const paths = resolvePluginPaths(env);
     await ensurePluginPaths(paths);
