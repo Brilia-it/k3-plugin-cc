@@ -163,7 +163,8 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/runtime/install-paths.test.ts":
     "upstream's DSH hook path is not ours (no DSH here); upstream's install tree is not ours; tests of the Windows quoting and path normalisation",
   // Behaviour: Windows (T02 row 3).
-  "runtime/commands/setup.ts": "Windows: the shell probe runs through cmd.exe instead of reporting a skipped check as passed; classifyProbeExit names the cause",
+  "runtime/commands/setup.ts":
+    "Windows: the shell probe runs through cmd.exe instead of reporting a skipped check as passed; classifyProbeExit names the cause. Every platform: migration of the pre-0.6 hook blocks, data directory and variable names (T02 rows 8, 9)",
   "tests/runtime/setup-shell-probe.test.ts": "added: tests of classifyProbeExit (NOTICE 3)",
   "tests/manual/enforcement-matrix.mjs": "added: manual Windows enforcement matrix, not run in CI (T02 row 4)",
   "tests/manual/shell-probe-discrimination.mjs": "added: manual check that the Windows shell probe discriminates a quoting fault (T02 row 4)",
@@ -173,6 +174,14 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "tests/helpers/hold-exclusive-lock.ts": "added: test helper, holds an exclusive SQLite lock from another process (NOTICE 3)",
   "tests/helpers/open-job-store-node.mjs": "added: test helper, opens the compiled JobStore under plain Node (NOTICE 3)",
   "runtime/commands/repair-sessions.ts": "busy_timeout on the read-only job database connection (T02 row 23)",
+  // Behaviour: migration from the 0.5.x names, kept by decision of 10/11 (T02 rows 8, 9).
+  // These files spell upstream's names ON PURPOSE (see the top of this file).
+  "runtime/hooks/legacy-brand.ts": "added: removes this fork's pre-0.6 hook blocks under upstream's marker, never upstream's (NOTICE 3)",
+  "runtime/legacy-names.ts": "added: moves the pre-0.6 data directory, reports the KIMI_PLUGIN_CC_* variables (NOTICE 3)",
+  "runtime/paths.ts": "the pre-0.6 data directory kimi-plugin-cc stays in use until setup moves it, and is never recreated",
+  "runtime/job-store.ts": "withWriteLock, countRunningJobs, rewriteStoredPaths, rebaseStoredPaths for the data-directory move",
+  "tests/runtime/legacy-brand.test.ts": "added: tests of the migration from the pre-0.6 names (NOTICE 3)",
+  "tests/helpers/hold-write-lock.ts": "added: test helper, holds the job store's write lock from another process (NOTICE 3)",
   // Behaviour: the plugin recognises its own installation (T02 row 10).
   "runtime/plugin-data.ts": "the installed-package check looks for this fork's plugin directory k3, not upstream's kimi",
   "tests/runtime/plugin-data.test.ts": "fixtures install the plugin under k3, as this fork is installed",

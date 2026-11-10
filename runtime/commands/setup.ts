@@ -2,7 +2,11 @@
 // Changes are made for Windows: a shell probe that really runs through cmd.exe
 // and names the cause of a failed exit, gated behind
 // `process.platform === "win32"` (the hook path it probes is normalised in
-// runtime/hooks/install-paths.ts). See NOTICE and README.md.
+// runtime/hooks/install-paths.ts). On every platform, setup also migrates what
+// a pre-0.6 install left under upstream's names: it removes this fork's own
+// hook blocks marked `kimi-plugin-cc-managed` (never another plugin's), moves
+// the data directory to its new name, and reports KIMI_PLUGIN_CC_* variables it
+// no longer reads. See NOTICE and README.md.
 // Section 4(b) of the License requires this notice.
 
 import { SETUP_SUPPORTED_FLAGS } from "../parsing.js";
@@ -64,6 +68,13 @@ import {
   type ManagedBlockEntry,
   type ManagedBlockState,
 } from "../hooks/managed-block.js";
+import { describeLegacyBrandBlocks, stripLegacyBrandBlocks } from "../hooks/legacy-brand.js";
+import {
+  collectLegacyEnvWarnings,
+  describeDataDirMigration,
+  describeLegacyDataDirInUse,
+  migrateLegacyDataDir,
+} from "../legacy-names.js";
 import {
   formatVersionOutOfRangeWarning,
   probeKimiVersion,
@@ -270,12 +281,33 @@ async function runInstall(
       );
     }
 
+    // BRILIA fork (0.6.0): remove THIS HOST's pre-0.6 blocks, written by this
+    // fork under upstream's marker, BEFORE the orphan prune below. The prune
+    // would otherwise cut their [[hooks]] table (it is ours, and outside any
+    // current-marker block) and leave the old marker lines dangling, where the
+    // upstream plugin would read them as its own orphans. Blocks under the old
+    // marker that are not ours are kept byte for byte.
+    const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
+    const legacyBrand = stripLegacyBrandBlocks(inlineHooks.contents, lineEnding, hostId, expectedCommand);
+    if (legacyBrand.unconfirmed.length > 0) {
+      // The TOML parser does not confirm that removing them changes only
+      // those hooks. Stop before touching the file: the orphan prune below
+      // would otherwise work on text this setup does not understand.
+      throw new RuntimeError(
+        "SETUP_LEGACY_BLOCK_UNCONFIRMED",
+        describeLegacyBrandBlocks([], [], "found", [], legacyBrand.unconfirmed).join(" ") +
+          ` ${configPath} was left unchanged; run /k3:setup again once they are gone.`,
+        "setup.install",
+        { details: { configPath, lines: legacyBrand.unconfirmed.map((b) => b.beginLine + 1) } },
+      );
+    }
+    warnings.push(...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "removed", legacyBrand.strayMarkers));
+
     // Prune only this host's orphaned marker-less entries before computing
     // splice line numbers. Another host's marker-less table may be its live hook
     // after a config rewrite strips comments, so it must remain untouched.
-    const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
     const { pruned, count: prunedCount, commands: prunedCommands } =
-      pruneOrphanApprovalHooks(inlineHooks.contents, hostId, expectedCommand);
+      pruneOrphanApprovalHooks(legacyBrand.stripped, hostId, expectedCommand);
     const existing = pruned;
     if (prunedCount > 0) {
       const readorned = prunedCommands.includes(expectedCommand);
@@ -336,6 +368,12 @@ async function runInstall(
     return { blockWritten, next };
   });
   const { blockWritten, next } = mutation;
+
+  // BRILIA fork (0.6.0): the rest of the pre-0.6 names. Neither step can fail
+  // the install: the data directory in use stays usable whatever happens.
+  const dataDirNote = describeDataDirMigration(await migrateLegacyDataDir(context.env));
+  if (dataDirNote !== null) warnings.push(dataDirNote);
+  collectLegacyEnvWarnings(context.env, warnings);
 
   collectPermissionRuleWarnings(next, warnings);
   await collectKimiVersionWarnings(context.env, warnings);
@@ -416,6 +454,18 @@ async function runCheck(
     nodeExists: (binPath) => existsSync(binPath),
   });
 
+  // BRILIA fork (0.6.0): what a pre-0.6 install left under upstream's names.
+  // Reported, never a failure of the check: those blocks no longer protect K3
+  // sessions, and this host's block (checked above) is the one that does.
+  const checkLineEnding = detectLineEnding(existing);
+  const legacyBrand = stripLegacyBrandBlocks(existing, checkLineEnding, hostId, expectedCommand);
+  warnings.push(
+    ...describeLegacyBrandBlocks(legacyBrand.removed, legacyBrand.kept, "found", legacyBrand.strayMarkers, legacyBrand.unconfirmed),
+  );
+  const legacyDataNote = describeLegacyDataDirInUse(context.env);
+  if (legacyDataNote !== null) warnings.push(legacyDataNote);
+  collectLegacyEnvWarnings(context.env, warnings);
+
   // Non-blocking coexistence + cruft notices.
   const { blocks: allBlocks, foreignOrphans } = parseManagedBlock(existing, hostId);
   for (const orphan of foreignOrphans) {
@@ -434,7 +484,12 @@ async function runCheck(
   // Config rewrites can strip markers while leaving each host's table enforcing.
   // Our exact-command table is live; our stale table is prunable; another host's
   // table is reported but left strictly alone.
-  const bareTables = findUnmanagedApprovalHookBlocks(existing);
+  // BRILIA fork: our pre-0.6 blocks (any host) are reported above; their
+  // [[hooks]] table would otherwise be counted again here as a marker-less
+  // stale table.
+  const bareTables = findUnmanagedApprovalHookBlocks(
+    stripLegacyBrandBlocks(existing, checkLineEnding, undefined, expectedCommand).stripped,
+  );
   const ownStale = bareTables.filter(
     (t) => hostIdFromHookCommand(t.command) === hostId && t.command !== expectedCommand,
   );
@@ -618,7 +673,7 @@ async function runUninstallLocked(
   // Scoped uninstall removes only this host's marked and marker-less blocks;
   // other hosts' blocks and live marker-less tables remain intact. `--all` is
   // the explicit every-host sweep for all of this plugin's hook tables.
-  const { stripped: strippedMarkers, removedBlocks, orphansLeft } = stripManagedBlocks(
+  const { stripped: strippedCurrent, removedBlocks: currentRemoved, orphansLeft } = stripManagedBlocks(
     existing,
     hostId,
     removeAllHosts,
@@ -627,6 +682,38 @@ async function runUninstallLocked(
   // override disagrees with path derivation or a dev path is outside the strict
   // ownership pattern.
   const expectedCommand = buildHookShellCommand(hookScriptPath, context.env);
+  // BRILIA fork (0.6.0): this fork's pre-0.6 blocks under upstream's marker go
+  // too (this host's, or every host's with --all). Another plugin's are kept.
+  // After the current-marker strip, so the orphan line numbers above refer to
+  // the file as the user sees it.
+  const legacyBrand = stripLegacyBrandBlocks(
+    strippedCurrent,
+    detectLineEnding(existing),
+    removeAllHosts ? undefined : hostId,
+    expectedCommand,
+  );
+  if (legacyBrand.unconfirmed.length > 0) {
+    // As on install: stop before the orphan prune below works on text this
+    // setup does not understand.
+    throw new RuntimeError(
+      "SETUP_LEGACY_BLOCK_UNCONFIRMED",
+      describeLegacyBrandBlocks([], [], "found", [], legacyBrand.unconfirmed).join(" ") +
+        ` ${configPath} was left unchanged; run /k3:setup --uninstall again once they are gone.`,
+      "setup.uninstall",
+      { details: { configPath, lines: legacyBrand.unconfirmed.map((b) => b.beginLine + 1) } },
+    );
+  }
+  if (legacyBrand.removed.length > 0) {
+    warnings.push(
+      `Also removed ${legacyBrand.removed.length} block(s) written by k3-plugin-cc before 0.6.0 under the old marker \`kimi-plugin-cc-managed\`.`,
+    );
+  }
+  // Blocks left in place and stray old-marker lines are reported as on install.
+  warnings.push(
+    ...describeLegacyBrandBlocks([], legacyBrand.kept, "removed", legacyBrand.strayMarkers, legacyBrand.unconfirmed),
+  );
+  const strippedMarkers = legacyBrand.stripped;
+  const removedBlocks = currentRemoved + legacyBrand.removed.length;
   const { pruned: stripped, count: prunedCount } = pruneOrphanApprovalHooks(
     strippedMarkers,
     removeAllHosts ? undefined : hostId,

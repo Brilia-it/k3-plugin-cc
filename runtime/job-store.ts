@@ -1,3 +1,8 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change, on every platform: the methods `withWriteLock`,
+// `countRunningJobs`, `rewriteStoredPaths` and `rebaseStoredPaths`, used only
+// by setup when it moves the pre-0.6 data directory to its new name. See
+// NOTICE and README.md. Section 4(b) of the License requires this notice.
 import type { SwarmRecoveryRecord } from "./swarm-recovery.js";
 import { createRequire } from "node:module";
 
@@ -438,6 +443,128 @@ export class JobStore {
     );
 
     return row ? hydrateRow(row) : null;
+  }
+
+  // BRILIA fork (0.6.0, carried onto 2.5.6): what the data-directory rename
+  // needs (runtime/legacy-names.ts). Nothing else calls these.
+
+  // Runs `run` inside one BEGIN IMMEDIATE transaction and commits: until it
+  // returns, no other connection can write, so no job can be created, marked
+  // running or given its paths (an INSERT or UPDATE from another process waits
+  // on this lock up to its busy_timeout). It is the lock setup holds while it
+  // moves the data directory. `run` is synchronous on purpose: the lock must
+  // not stay held across an await. An error from `run` rolls back and reaches
+  // the caller unchanged.
+  withWriteLock<T>(run: () => T): T {
+    try {
+      this.db.exec("BEGIN IMMEDIATE");
+    } catch (error) {
+      throw translateSqliteError(error);
+    }
+    let result: T;
+    try {
+      result = run();
+    } catch (error) {
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        // The original error matters more than a failed rollback.
+      }
+      throw error;
+    }
+    try {
+      this.db.exec("COMMIT");
+    } catch (error) {
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        // As above.
+      }
+      throw translateSqliteError(error);
+    }
+    return result;
+  }
+
+  // Every job still marked running, with or without a process hint: a job not
+  // yet spawned is running too.
+  countRunningJobs(): number {
+    const row = this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM jobs WHERE status = 'running'`);
+    return Number(row?.n ?? 0);
+  }
+
+  // Rewrites the stored absolute paths for which `map` returns a new value;
+  // returns how many rows changed. No transaction of its own: call it inside
+  // withWriteLock (rebaseStoredPaths does). The matching lives in the caller,
+  // in JavaScript, so it can follow the platform's path rules (case and
+  // separators on Windows) instead of comparing strings byte for byte.
+  //
+  // The columns that can hold a path under the data directory, on the 2.5.6
+  // schema: jobs.final_output_path, jobs.stream_log_path and jobs.cwd (a
+  // swarm-write worker runs in a worktree under the data directory; a user's
+  // workspace is never under it, so `map` returns null for it);
+  // mcp_tasks.stdout_path and stderr_path (logs); and the cwd, workspaceRoot
+  // and patchPath fields of a swarm_recovery payload. The other columns added
+  // since 2.0.7 (budget_ms, budget_source, thinking_effort, hook_escapes,
+  // kimi_session_id_source, the provenance columns) hold no path.
+  rewriteStoredPaths(map: (storedPath: string) => string | null): number {
+    let changed = 0;
+    const jobs = this.db.all<{ job_id: string; final_output_path: string | null; stream_log_path: string; cwd: string }>(
+      `SELECT job_id, final_output_path, stream_log_path, cwd FROM jobs`,
+    );
+    for (const row of jobs) {
+      const nextFinal = row.final_output_path === null ? null : map(row.final_output_path);
+      const nextLog = map(row.stream_log_path);
+      const nextCwd = map(row.cwd);
+      if (nextFinal === null && nextLog === null && nextCwd === null) continue;
+      this.db.run(`UPDATE jobs SET final_output_path = ?, stream_log_path = ?, cwd = ? WHERE job_id = ?`, [
+        nextFinal ?? row.final_output_path,
+        nextLog ?? row.stream_log_path,
+        nextCwd ?? row.cwd,
+        row.job_id,
+      ]);
+      changed += 1;
+    }
+    const tasks = this.db.all<{ task_id: string; stdout_path: string; stderr_path: string }>(
+      `SELECT task_id, stdout_path, stderr_path FROM mcp_tasks`,
+    );
+    for (const row of tasks) {
+      const nextOut = map(row.stdout_path);
+      const nextErr = map(row.stderr_path);
+      if (nextOut === null && nextErr === null) continue;
+      this.db.run(`UPDATE mcp_tasks SET stdout_path = ?, stderr_path = ? WHERE task_id = ?`, [
+        nextOut ?? row.stdout_path,
+        nextErr ?? row.stderr_path,
+        row.task_id,
+      ]);
+      changed += 1;
+    }
+    const recoveries = this.db.all<{ job_id: string; payload: string }>(`SELECT job_id, payload FROM swarm_recovery`);
+    for (const row of recoveries) {
+      let record: Record<string, unknown>;
+      try {
+        record = JSON.parse(row.payload) as Record<string, unknown>;
+      } catch {
+        continue; // an unreadable payload is left exactly as it is
+      }
+      if (record === null || typeof record !== "object") continue;
+      let touched = false;
+      for (const field of ["cwd", "workspaceRoot", "patchPath"]) {
+        const value = record[field];
+        if (typeof value !== "string") continue;
+        const next = map(value);
+        if (next === null) continue;
+        record[field] = next;
+        touched = true;
+      }
+      if (!touched) continue;
+      this.db.run(`UPDATE swarm_recovery SET payload = ? WHERE job_id = ?`, [JSON.stringify(record), row.job_id]);
+      changed += 1;
+    }
+    return changed;
+  }
+
+  rebaseStoredPaths(map: (storedPath: string) => string | null): number {
+    return this.withWriteLock(() => this.rewriteStoredPaths(map));
   }
 
   listRunningJobsWithProcessHints(): JobRecord[] {
