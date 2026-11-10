@@ -294,6 +294,19 @@ describe("isOurApprovalHookCommand", () => {
     ).toBe(false);
   });
 
+  // BRILIA fork: upstream's own install tree is upstream's hook, never ours, so
+  // setup never prunes it when both plugins are installed side by side.
+  test("false for upstream's kimi-marketplace and kimi-plugin-cc install trees", () => {
+    expect(
+      isOurApprovalHookCommand(
+        "'/usr/bin/node' '/home/u/.claude/plugins/cache/kimi-marketplace/kimi/2.5.6/dist/hooks/approval-hook.js'",
+      ),
+    ).toBe(false);
+    expect(
+      isOurApprovalHookCommand("'/usr/bin/node' '/home/u/src/kimi-plugin-cc/dist/hooks/approval-hook.js'"),
+    ).toBe(false);
+  });
+
   test("false for a non-canonical (bare node) command — never prunes a hand-rolled hook", () => {
     expect(isOurApprovalHookCommand("node /home/u/dist/hooks/approval-hook.js")).toBe(false);
   });

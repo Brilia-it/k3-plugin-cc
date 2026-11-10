@@ -12,11 +12,11 @@ afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 
 async function install(host: "claude" | "codex", marketplace = "brilia-k3-marketplace", version = "2.0.0") {
   const plugins = path.join(root, host, "plugins");
-  const packageRoot = path.join(plugins, "cache", marketplace, "kimi", version);
+  const packageRoot = path.join(plugins, "cache", marketplace, "k3", version);
   const manifest = path.join(packageRoot, host === "claude" ? ".claude-plugin" : ".codex-plugin");
   await mkdir(manifest, { recursive: true });
-  await writeFile(path.join(manifest, "plugin.json"), '{"name":"kimi"}');
-  return { packageRoot, expected: path.join(plugins, "data", host === "claude" ? `kimi-${marketplace}` : `${marketplace}-kimi`) };
+  await writeFile(path.join(manifest, "plugin.json"), '{"name":"k3"}');
+  return { packageRoot, expected: path.join(plugins, "data", host === "claude" ? `k3-${marketplace}` : `${marketplace}-k3`) };
 }
 
 describe("plugin data ownership", () => {
@@ -58,7 +58,7 @@ describe("plugin data ownership", () => {
     const physical = path.join(root, "claude");
     const alias = path.join(root, "first-run-home-alias");
     await symlink(physical, alias);
-    const aliasedData = path.join(alias, "plugins/data/kimi-first-run-market");
+    const aliasedData = path.join(alias, "plugins/data/k3-first-run-market");
     expect(existsSync(expected)).toBe(false);
     expect(resolvePluginDataRoot({ CLAUDE_PLUGIN_DATA: aliasedData }, packageRoot)).toBe(expected);
     expect(existsSync(expected)).toBe(false);

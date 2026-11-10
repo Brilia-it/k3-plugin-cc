@@ -1,3 +1,10 @@
+// MODIFIED BY BRILIA (unofficial fork of linxule/kimi-plugin-cc, Apache-2.0).
+// One change: the installed-package check recognises THIS fork's layout (plugin
+// directory `k3`, data directory `<marketplace>-k3` or `k3@<marketplace>`), not
+// upstream's `kimi`. Up to 0.5.x it looked for `kimi`, never matched this fork,
+// and fell through to the shared variables without the conflict check; for a
+// Codex shell launch it fell back to upstream's own data directory. See NOTICE.
+// Section 4(b) of the License requires this notice.
 import { existsSync, lstatSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,7 +40,7 @@ export function resolvePluginDataRoot(
     if (shared.some((value) => !path.isAbsolute(value) || !sameDataRoot(value, expected))) {
       throw new RuntimeError(
         "PLUGIN_DATA_CONFLICT",
-        "Shared plugin data variables do not match this installation. Remove the conflicting variables or set K3_PLUGIN_CC_DATA to the intended Kimi data directory. No data was moved.",
+        "Shared plugin data variables do not match this installation. Remove the conflicting variables or set K3_PLUGIN_CC_DATA to the intended K3 data directory. No data was moved.",
         "paths",
         { details: { expected_data_root: expected, override_variable: "K3_PLUGIN_CC_DATA" } },
       );
@@ -47,7 +54,7 @@ export function resolvePluginDataRoot(
   if (shared.length === 2 && !sameDataRoot(shared[0]!, shared[1]!)) {
     throw new RuntimeError(
       "PLUGIN_DATA_CONFLICT",
-      "CLAUDE_PLUGIN_DATA and PLUGIN_DATA disagree. Set K3_PLUGIN_CC_DATA to the intended Kimi data directory before retrying. No data was moved.",
+      "CLAUDE_PLUGIN_DATA and PLUGIN_DATA disagree. Set K3_PLUGIN_CC_DATA to the intended K3 data directory before retrying. No data was moved.",
       "paths",
     );
   }
@@ -71,16 +78,17 @@ function installedDataRoot(packageRoot: string): string | undefined {
   const marketplaceDir = path.dirname(pluginDir);
   const cacheDir = path.dirname(marketplaceDir);
   const pluginsDir = path.dirname(cacheDir);
-  if (path.basename(pluginDir) !== "kimi" || path.basename(cacheDir) !== "cache" || path.basename(pluginsDir) !== "plugins") {
+  // BRILIA fork: this fork's plugin id is `k3` (upstream's is `kimi`).
+  if (path.basename(pluginDir) !== "k3" || path.basename(cacheDir) !== "cache" || path.basename(pluginsDir) !== "plugins") {
     return undefined;
   }
   const marketplace = path.basename(marketplaceDir);
   if (existsSync(path.join(root, ".codex-plugin", "plugin.json"))) {
-    return path.join(pluginsDir, "data", `${marketplace}-kimi`);
+    return path.join(pluginsDir, "data", `${marketplace}-k3`);
   }
   if (existsSync(path.join(root, ".claude-plugin", "plugin.json"))) {
     // Claude documents plugin-id sanitization for persistent data directories.
-    const id = `kimi@${marketplace}`.replace(/[^a-zA-Z0-9_-]/g, "-");
+    const id = `k3@${marketplace}`.replace(/[^a-zA-Z0-9_-]/g, "-");
     return path.join(pluginsDir, "data", id);
   }
   return undefined;

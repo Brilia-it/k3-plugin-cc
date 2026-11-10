@@ -30,7 +30,7 @@ describe("installed data-root isolation", () => {
       }
       const manifest = host === "codex" ? ".codex-plugin" : ".claude-plugin";
       await mkdir(path.join(install, manifest));
-      await writeFile(path.join(install, manifest, "plugin.json"), '{"name":"kimi"}');
+      await writeFile(path.join(install, manifest, "plugin.json"), '{"name":"k3"}');
       await symlink(home, alias);
       const aliasedInstall = path.join(alias, "plugins/cache/brilia-k3-marketplace/k3/2.0.1");
       expect(existsSync(data)).toBe(false);
@@ -59,7 +59,7 @@ describe("installed data-root isolation", () => {
       }
       const manifest = host === "codex" ? ".codex-plugin" : ".claude-plugin";
       await mkdir(path.join(install, manifest));
-      await writeFile(path.join(install, manifest, "plugin.json"), '{"name":"kimi"}');
+      await writeFile(path.join(install, manifest, "plugin.json"), '{"name":"k3"}');
       const paths = resolvePluginPaths({ K3_PLUGIN_CC_DATA: data });
       await ensurePluginPaths(paths);
       const config = '{"reviewGateEnabled":true}\n';
