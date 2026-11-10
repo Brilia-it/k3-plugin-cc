@@ -1,6 +1,476 @@
 # Changelog
 
+> **How this fork is numbered.** `<upstream version>-brilia.<our version>`. The first half names the
+> upstream release this fork is built on, and moves only when we re-align to a newer one. The second
+> half counts our own changes on top. So `1.9.8-brilia.0.2.0` reads: upstream 1.9.8, our second
+> release. Upstream releases are checked weekly; when a newer one lands we evaluate it before moving
+> the first half.
+
 > **Post-1.0 release history (v1.0.1 -> present) lives in [ROADMAP-TO-GA.md § Post-GA audit log](./ROADMAP-TO-GA.md#post-ga-audit-log)** and the "Version" / "Upstream compat" lines of [AGENTS.md](./AGENTS.md). Docs-only kimi-code compat checkups that don't bump the plugin version (e.g. the 0.14.2 / 0.14.3 patches) are recorded there, not here. Notable releases are summarized below; the GA entry and full pre-GA detail follow.
+
+## 2.5.6-brilia.0.1.0 - unreleased (fork)
+
+**Rebuild on upstream v2.5.6, phase 1 of 3.** The fork is rebuilt on upstream 2.5.6 instead of
+merging 2.5.6 into 2.0.7-brilia.0.7.0. This first phase carries:
+
+- the identity map, extended to the MCP server that upstream added in 2.4.0: the server is
+  registered as `k3` and its tools are `k3_ask`, `k3_review`, `k3_challenge`, `k3_rescue`,
+  `k3_pursue`, `k3_swarm`, `k3_swarm_write`, `k3_job_status`, `k3_job_result` and
+  `k3_job_cancel`. Fields that name Moonshot's CLI (`kimi_session_id`, `kimi_pid`, ...) keep
+  their names;
+- **no DeepSeek Harness host**: upstream's DSH bundle (2.5.0, 2.5.1) is not part of the fork;
+- the fork's packaging and CI: private package, CI on `staging/**`, `scripts/promote-to-main.mjs`,
+  no `publish.yml`; the fork's manifests, NOTICE and maintainer notes (`docs/fork-notes.md`).
+
+The behaviour changes of 0.7.0 (Windows fixes, migration from the 0.5.x names, wait and job
+store fixes, quota classification, one model job at a time, model probe) come back in phases 2
+and 3; the public texts are rewritten in T14. Upstream's entries 2.0.8 to 2.5.6 are below, with
+upstream's names.
+
+## 2.0.7-brilia.0.7.0 - 2026-10-15 (fork)
+
+**Quotas, waiting and long jobs. Three read-only analysis jobs, started one after another with
+`--background --wait`, ran in parallel because `--wait` gave up after 60 seconds, then all stopped
+together on Kimi's 5-hour usage limit, which the plugin blamed on a broken setup and which left no
+session to resume. From 0.7.0 `--wait` waits for the job, a usage limit is named as such, only one
+model job runs at a time, a stopped job can be resumed, and a new opt-in probe tests the model
+itself.**
+
+**Upgrading: run `/k3:setup` once after updating.** The hook command that setup pins into
+`~/.kimi-code/config.toml` contains the version-stamped path of the plugin install, and the
+check compares it byte for byte. A normal cache upgrade changes that path, so until `/k3:setup`
+re-pins it every command that starts a model refuses (`<CMD>_HOOK_NOT_INSTALLED`) and the review
+gate skips visibly; `status`, `result`, `replay` and `cancel` keep working.
+
+**Behaviour change:** `ask`/`rescue --background --wait` on a job that ends `failed` or `cancelled`
+still prints the failure artifact on stdout, but the process now exits non-zero (it used to exit 0,
+so a script that keys on the exit code went on to the next job).
+
+- **`--wait` waits for the job.** It was bounded by a fixed 60 seconds
+  (`waitForTerminalJob`'s default) while an `ask` job has a 15-minute budget and a `rescue` job 30
+  minutes. It now waits for the job's own budget plus 60 seconds. If it still stops, the
+  `JOB_WAIT_TIMEOUT` message says the job is STILL RUNNING, that starting another job now would run
+  in parallel, and points to `/k3:status <id>` and `/k3:result <id>`. (`review`, `challenge`,
+  `pursue` and `swarm` are foreground-only and have no `--wait`.)
+- **Provider limits have their own classification.** They fell into the generic "the Kimi CLI
+  exited before completing the requested operation. Run `/k3:setup`" branch, advice that cannot fix
+  a quota. Four kinds are recognised from kimi's stderr, in front of that branch, with the codes
+  `<CMD>_KIMI_QUOTA_EXHAUSTED` (5-hour rolling window, weekly 7-day, billing cycle; says it is call
+  volume and not the context window, that `/k3:setup` does not fix it, that `kimi-code/k3-256k`
+  uses about half the quota of `k3` at 1M for long read-heavy jobs, and to run jobs one at a time),
+  `<CMD>_KIMI_CONCURRENCY_LIMITED` (risk control, not quota), `<CMD>_KIMI_PLAN_UNAVAILABLE`
+  (the plan does not include the model or Kimi Code; `kimi-for-coding` for `k3`) and
+  `<CMD>_KIMI_CONTEXT_EXCEEDED` (narrow the scope; `k3-256k` is fixed at 256K). The limit type is in
+  `details.limit`. The Stop-hook review gate stays fail-open for all four. An unrelated non-zero
+  exit still maps to `STARTUP_FAILED`.
+- **One model job at a time, refused and never queued.** `ask`, `review`, `challenge`, `rescue`,
+  `pursue` and `swarm` check, after the stale-job sweep, whether a job is still running; if so they
+  stop with `<CMD>_JOB_ALREADY_RUNNING`, naming the job, why (the quota is call volume in a rolling
+  window, and Kimi's guidelines describe the subscription as personal interactive use and may limit
+  concurrent access) and how to proceed. `--allow-concurrent` overrides one call. The review gate,
+  `status`, `result`, `replay`, `cancel` and `setup` are not affected, and a swarm's own fan-out is
+  still one job. Resuming a session that is itself running keeps its more specific
+  `ASK_ALREADY_RUNNING` / `RESCUE_ALREADY_RUNNING`.
+- **A job stopped by a limit can be resumed.** The failed jobs had `kimi_session_id: null`: the
+  commands threw on the non-zero exit before saving the session id kimi had announced. They now
+  save it first, and only an id that kimi announced for that run is ever stored.
+  `ask --resume <job-id>` and `rescue --resume <job-id>` accept a failed source job, and the quota
+  message prints the exact command. A session that appears in kimi's `session_index.jsonl` is NOT
+  adopted (an interactive kimi in the same folder, another job or an index rebuild look the same):
+  when exactly one new entry matches the folder and the index was read completely, the message
+  mentions it only as an unverified candidate for a human (`kimi -r <id>`); it is never stored and
+  never used for resume or lineage. Not verified against a real kimi 403: whether kimi announces
+  the session before the first model call is covered by tests with a fake binary only, and a
+  native-v2 resume still requires proven engine provenance of the source job.
+- **Review fixes (Codex review of the first 0.7.0 cut).** Provider limits are classified only from
+  kimi's own provider error line (`provider.<kind>_error: ...`, the last one), so a local error
+  that mentions "does not have access to" or a quota sentence echoed in a log no longer becomes
+  account advice. The official "Your current plan supports only k3 up to 256K context" denial is a
+  `context_exceeded` with `details.reason` `plan-256k`. The one-job guard counts every running row
+  except review-gate rows, with no time-based expiry: a background row now starts owned by its
+  launcher's pid and is handed to the worker by a compare-and-set before the launcher returns, so
+  the existing sweeper (dead owner, failed) and `/k3:cancel` work on a starting row, and a worker
+  whose row was swept or cancelled makes no model call. Its final check runs in the same
+  write-locked transaction as the job insert so two launches cannot both pass. The model probe
+  now forwards cancellation to the kimi child before releasing its row, and its row has its own
+  identity (`model_probe`) so a probe never becomes the latest ask for a bare `--resume`.
+  Opening the job store now fails any `running` non-review-gate row with no pid and no kimi_pid
+  (`JOB_STORE_ORPHANED_ON_UPGRADE`): from 0.7.0 every such row is born with an owner pid, so
+  only a row left by an older plugin version can look like that, and nothing could sweep or cancel
+  it. Provider classification reads only the error's own text and only lines that START with the
+  provider marker, and the review-gate warning comes from the recorded classification. The guard's scope is one job
+  store (one plugin data directory): it does not see Codex, another data directory or a native
+  interactive `kimi`.
+- **`/k3:setup --check --probe-model [-m <model>]`.** The plain `--check` probe exercises the hook
+  and printed `Probe: ok` minutes before the quota refused everything. The new opt-in flag sends one
+  prompt ("Reply with the single word READY.", 120 second budget) through the same
+  read-only path as `ask` and reports `Model probe: ok | failed | skipped`, with the classified
+  error. It does not promise a single provider request: kimi has no documented tool-free
+  single-request mode, so the provider may count more than one. It goes through the same
+  one-job-at-a-time admission (refuses while a job runs, `--allow-concurrent` overrides, holds a
+  running row while it works, releases it on every outcome). Without the flag no model call is
+  made and the output says the probe tests the hook, not model access or quota. A failed or
+  refused model probe exits non-zero.
+- **Dependency audit.** The `smol-toml` development dependency is bumped to 1.9.1 for
+  GHSA-r4xh-jqrq-34v2 (quadratic `parse()`, <= 1.8.0). The vendored parser subset in
+  `runtime/vendor/smol-toml/` (from 1.6.1) is also in the advisory range; the upstream fix is a
+  rewrite of `parseKey` with a new internal interface, so it is not ported. The runtime parses
+  only the user's own `~/.kimi-code/config.toml`; re-vendoring is tracked as a follow-up.
+- **Docs.** README section "Quotas, context and long jobs" with the vendor's own words and the
+  practical rules; command, agent and Codex skill texts mention `--allow-concurrent`.
+
+## 2.0.7-brilia.0.6.0 — 2026-09-29 (fork)
+
+**K3 everywhere. Up to 0.5.x this fork renamed its commands and agents but still used upstream's
+names underneath: the environment variables, the marker of its hook block in
+`~/.kimi-code/config.toml`, its data directory, its messages. From 0.6.0 everything a person or a
+program can see says K3, and the two plugins can be installed side by side.**
+
+**Upgrading: run `/k3:setup` once after updating.** Until then every command that starts a model
+refuses, because the hook installed by 0.5.x reads variables this version no longer sets; `status`,
+`result`, `replay` and `cancel` keep working.
+
+- **Names.** `KIMI_PLUGIN_CC_*` becomes `K3_PLUGIN_CC_*`, the hook block marker
+  `kimi-plugin-cc-managed` becomes `k3-plugin-cc-managed`, the data directory `kimi-plugin-cc/`
+  becomes `k3-plugin-cc/`, and messages, session titles ("K3 Review: ...") and the review gate
+  ("K3 review gate") say K3. The Codex plugin lists BRILIA as author and developer. What keeps its
+  name is Moonshot's: the `kimi` and `kimi-code` CLI, its `KIMI_CODE_*` settings, and "Kimi" where it
+  names the model.
+- **Migration, done by `/k3:setup`.**
+  - *Hook block.* It removes this fork's own blocks under the old marker: the hook must live under
+    this fork's install tree (`/brilia-k3-marketplace/` or `/k3-plugin-cc/`) or run exactly the
+    command this install writes, the BEGIN and END must carry the same host, and the block must hold
+    only the hook table this plugin writes. In TOML the END comment does not close `[[hooks]]`: a key
+    after it still belongs to the table, so such a block is left alone, as is a key before the
+    `[[hooks]]` header (it belongs to the table above). The scan reads lines, so before anything is
+    removed the TOML parser kimi-code uses (smol-toml) must confirm that the config, parsed before
+    and after, differs only by those hook entries; text shaped like a block inside a multi-line
+    string fails that. If it is not confirmed, setup (and `--uninstall`) stops before touching the
+    file and names the lines to remove by hand. Any other block under that marker is kept byte for
+    byte: that is the upstream plugin's. Marker lines that do not pair up are reported by text,
+    never removed.
+  - *Data directory.* Renamed when no job is marked running. Setup holds the job store's write lock,
+    the one every command takes to record a job, while it counts the running jobs and, on macOS and
+    Linux, while it rewrites the stored paths, renames the directory and creates the alias: no job
+    can be created or marked running in between, and a rename that fails rolls the rewrite back.
+    Windows refuses to rename a directory while a file in it is open, the store included, so there
+    the lock is released before the rename, and a command that opened the store meanwhile makes the
+    rename fail: setup says to run it again. The alias under the old name (a junction on Windows, a
+    directory symlink elsewhere) serves a command that had already found the old name; the next
+    setup removes it, under the same lock, once no job is running, and never follows it. What no
+    lock covers: a command that touches the old name in the instant between the rename and the
+    alias, or one still running from before the first setup, with no job recorded, when a later
+    setup removes the alias. Such a command stops with an error and can be run again: the old
+    directory is never recreated (the paths code creates only its subdirectories, one level at a
+    time), so the state is never split. The stored paths are rewritten on every setup
+    (idempotent), matching every spelling a 0.5.x install may have used: the root, its real path,
+    and the `CLAUDE_PLUGIN_DATA`/`PLUGIN_DATA` value, with Windows' rules for case and separators.
+    Until the rename the old directory stays in use; if both exist, nothing is merged and `--check`
+    says so.
+  - *Variables.* It lists any `KIMI_PLUGIN_CC_*` variable still set: those are **not** read, because
+    they are the upstream plugin's names and a value set for it (including the switch that skips the
+    hook check) must not steer this one.
+  - `--check` reports all three; `--uninstall` removes this fork's old blocks too.
+- **The plugin recognises itself.** Its self-recognition still looked for upstream's names, so on
+  this fork's installs it never matched: the data-directory ownership check never ran (it fell back
+  to the shared variables), a Codex shell launch fell back to upstream's own data directory
+  (`kimi-marketplace-kimi`), and its own stale marker-less hook blocks were never cleaned up. It now
+  matches this fork's layout, and no longer upstream's, so setup never prunes the upstream
+  plugin's hook. On Codex, jobs recorded by 0.5.x under `kimi-marketplace-kimi` are not moved (that
+  directory may be the upstream plugin's).
+- **Coexistence.** Up to 0.5.x both plugins wrote the same hook block, so whichever ran setup last
+  disabled the other. Now each writes its own, and each hook governs only its own sessions.
+  `tests/manual/coexistence-smoke.mjs` installs upstream v2.0.7 and this fork side by side in a
+  temporary home under the real layout, runs the setups and uninstalls in turn, and checks both
+  hooks under both labels: 16 checks out of 16 on Windows 11. With this fork's 0.5.1 in place of
+  0.6.0 the same smoke fails 7 checks (the old collision), which is what shows it can fail.
+- **`scripts/identity-map.mjs`, the single definition of the renaming.** `apply` rewrites an upstream
+  checkout into our names before it is merged, so future updates from upstream arrive already
+  renamed. It leaves upstream's `README.md`, `CHANGELOG.md` and `NOTICE` as they are, since they are
+  ours to write and a mechanical rename in prose that names the upstream project would make it say
+  something false: their changes are merged by hand. It treats as text only strict UTF-8 without
+  NUL bytes, refuses before writing anything when a rename would land on an existing path, and has
+  `--dry-run`. `verify <upstream-ref>` checks that every difference from upstream is either the map
+  or a file declared with its reason (zero undeclared differences against v2.0.7); it does not
+  prove the map itself right, nor look inside a declared file. `tests/scripts/brand-residue.test.js`
+  covers upstream's names: each line that keeps one on purpose, documents included, is pinned by
+  its exact text in `tests/scripts/brand-residue.pins.json`, so a new line fails and so does an
+  allowed line swapped for another; it also checks that every variable the hook reads is one the
+  plugin sets.
+- **Tests.** `tests/runtime/legacy-brand.test.ts` covers the migration: whose block is removed and
+  whose is not (other host's END, keys after END, a key before `[[hooks]]`, stray markers, a
+  block-shaped text inside a multi-line string, setup stopping without a write when the parser does
+  not confirm), that an old hook script is never counted as installed, marked or bare, that the new
+  hook ignores the old label variable, and the data directory: rename only with no job running,
+  under the store's write lock (another process holding it, `tests/helpers/hold-write-lock.ts`,
+  stops the move and the removal of the alias), the alias, its removal without touching the data
+  behind it, the rewrite of stored paths under other spellings, never merging, never recreating the
+  old directory, never touching an old name that points elsewhere. Four of its tests run on one
+  platform only (rollback and waiting on macOS and Linux, the open store blocking the rename on
+  Windows). `tests/scripts/identity-map.test.js` tests `verify` on a repository built for the
+  purpose, and `apply` on binaries, collisions, dry runs and the prose it leaves alone. Deliberate
+  defects in the migration and the map, planted one at a time, each made a test fail.
+- **Reviewed adversarially by Codex before release.** The first review blocked the
+  release on the hook-block migration (END of another host, keys after END), the data-directory
+  move (a race with a command starting meanwhile, a path rewrite that could not be retried, strict
+  path matching), the map (upstream's own ids renamed in our prose, the plugin directory in install
+  paths left out, binaries without NUL bytes, collisions) and documentation that promised more than
+  the code. The second found what the first round of fixes left open: text inside a multi-line TOML
+  string taken for a block, no lock between the move and a job starting, a residue check that
+  counted lines per file instead of pinning them, and a map comment that said more than the code
+  did. The entries above describe the result, including what no lock covers.
+- **README.** States the platforms (developed and verified on Windows 11; macOS and Linux supported,
+  Linux covered by CI), the upgrade steps, and coexistence. It no longer says the Windows fixes will
+  be proposed upstream: this fork is maintained independently.
+
+## 2.0.7-brilia.0.5.1 — 2026-09-29 (fork)
+
+**0.5.0 reached `main` on a green CI that came on the third attempt, and `main`'s own run then
+failed. The failures were a real race in the job store, now fixed; and the promotion script no
+longer lets a re-run hide the attempts before it.**
+
+- **Job store: a busy database is waited on, on every platform.** The WAL pragma ran with SQLite's
+  default timeout of zero, so opening the store while another process held the database failed at
+  once with `SQLITE_BUSY`. `--background --wait` opens a fresh store on every poll while the
+  detached worker writes the same file: that is why "a background ask completes" and "a REAL
+  spawned background worker verifies the hook" failed 3 times in 4 CI runs on 0.5.0's commit.
+  `busy_timeout` now comes first (waits up to 5 s); `waitForTerminalJob` keeps polling past a busy
+  store until its own deadline instead of failing the wait; `repair-sessions` sets the same timeout
+  on its read-only connection. `tests/runtime/job-store-busy-open.test.ts` holds an EXCLUSIVE lock
+  from a second process and proves, from both processes' clocks, that the open started while
+  locked and finished only after the release began, under `bun:sqlite` and under Node's
+  `node:sqlite` through the compiled runtime; on the old order both variants fail with
+  `JOB_STORE_BUSY`. Upstream v2.0.7 has the same order.
+- **`scripts/promote-to-main.mjs` hardened** after an adversarial review found that it accepted
+  0.5.0 on attempt 3 of a run whose attempts 1 and 2 had failed, because GitHub reports only the
+  latest attempt and re-runs share one check suite. It now refuses unless EVERY attempt of the
+  qualifying run succeeded (`--accept-failed-attempts=<run id>` to override, for a failure you have
+  understood); it widens the "certifies itself" guard from `.github/` to everything that defines CI
+  (`package.json`, `bun.lock`, `bunfig.toml`, any root `tsconfig*.json`, `scripts/`), with the
+  review flag bound to the exact commit by its full 40-character SHA; it refuses to run unless its
+  content matches the copy on `main` (line endings aside), and refuses if `main` has no copy; it
+  derives the GitHub repository from the git remote; it rejects unknown options, unsupported `=`
+  forms and missing values (a mistyped `--dry-run` used to push for real); it refuses partial API
+  pages; and when `main` is already at the commit it reports whether `main`'s own run is green
+  instead of exiting 0 blind. Its logic is now tested in `tests/scripts/promote-to-main.test.js`,
+  including the guard's pathspecs against a real git repository (a mutation that drops the
+  `tsconfig*.json` glob is caught). What it still cannot do is stop a hand push by someone with
+  write access: said in `AGENTS.md`.
+- **Bootstrap, done in two steps.** A gatekeeper cannot check the promotion that introduces it: the
+  new script refuses to run while `main` holds the old one. So the new script was promoted first,
+  alone, by the old one; everything else in this release was then promoted by the new one.
+- **License notices made true.** The section 4(b) notices at the top of the modified files said
+  "Windows-only"; the own-hook parser and the `/k3:` names apply everywhere. They now say what
+  changed. `NOTICE` gains the job store fix as a fifth kind of change.
+- **README**: the "silently inert" sentence under "What this fork changes" now carries the
+  condition (only once the path was set by hand); "Git Bash as its shell" now says it is for
+  `kimi-code`'s own Bash tool, while hooks go through `cmd.exe`.
+- `AGENTS.md` releasing notes point at the fork's remote and the staging/promote flow.
+
+## 2.0.7-brilia.0.5.0 — 2026-09-28 (fork)
+
+**Re-aligned to upstream v2.0.7, and the fork now says plainly why it exists: Windows.** The weekly
+upstream watch flagged v2.0.6 and v2.0.7 on 2026-09-28 and notified Slack and email.
+
+- **Upstream v2.0.6 and v2.0.7 merged.** v2.0.6 certifies kimi-code **2.1.0 and 2.1.1** for all
+  eight native-v2 operations; 2.1.1 is the recommended CLI. v2.0.7 adds npm distribution.
+- **Not on npm, on purpose.** Upstream's `publish.yml` is removed from this fork. It fires on every
+  published GitHub release; on ours only its build job would have run, because the publish job is
+  gated on a repository variable we do not set, but a workflow built to publish has no place in a
+  fork that does not. If an upstream merge brings it back, delete it again. `package.json` stays
+  `"private": true`, `publishConfig` is gone, and `repository`, `homepage` and `bugs` point here,
+  where the README tells users to report problems. The package check (`check:package`) is kept,
+  with its paths moved to this fork's `plugins/k3-codex`.
+- **Windows is now the headline.** Upstream's README states that Windows is not currently
+  supported; the README, the plugin and marketplace descriptions and the repository description now
+  lead with what this fork does there. The `cmd.exe` exit code is reported as what it is, a
+  measurement that moved (255 when found, 1 in an independent re-test today), not a constant.
+- **Claims corrected after review.** Two of them were stronger than the code. "The write guard is
+  silently off" on upstream is true only once the hook path is set by hand, because without that
+  upstream's setup refuses, which is fail-closed. And "macOS and Linux are upstream byte for byte" was
+  false: the parser that recognises this plugin's own hook command accepts the double-quoted form on
+  every platform. The README and `NOTICE` now say both.
+- **Checked against `kimi-code` 2.1.1's source**, not assumed: its `runHook.ts` spawns hooks with
+  Node's `shell: true`, which is `cmd.exe` on Windows, so the double-quoting and the probe still
+  target the right shell. An end-to-end run through a real 2.1.1 session is still owed: the
+  subscription's weekly quota was exhausted on the day.
+- **`main` is protected.** No force push, no deletion, and a green `check` from GitHub Actions
+  must be on a commit before `main` may point at it. Release tags `v*` cannot be moved or deleted.
+  Both rules were tried against throwaway refs before being applied, and both refused. CI now also
+  runs on `staging/**`, and `scripts/promote-to-main.mjs` is how a change reaches `main`: the rule
+  alone cannot tell a green `check` from this repository's CI from one produced by a workflow that a
+  commit or an external pull request wrote for itself, so the script accepts only a `check` from a
+  push run of `.github/workflows/ci.yml` on that staging branch, fast-forward only, and stops on any
+  change to `.github/` until someone has read it.
+
+
+## 2.0.5-brilia.0.4.0 — 2026-09-23 (fork)
+
+**Re-aligned to upstream v2.0.5, closing a gap of eight releases.** The weekly upstream watch
+flagged it on 2026-09-21 and notified Slack and email; this closes what it found.
+
+- **Upstream v2.0.5 merged**, across a major bump. kimi-code itself went to 2.0, so upstream's
+  plugin followed. Native-v2 certification stays per EXACT kimi-code version and now covers
+  `0.42.0`, `0.43.0`, `0.43.1`, `2.0.0`, `2.0.1` and `2.0.2`; anything outside that list, and
+  outside the legacy 0.1-0.41.x range, refuses rather than guessing.
+- **Security: upstream's v1.10.2 fixes a denial of service in the vendored command parser.** That
+  arrives here with this merge and is on its own a reason to update.
+- **Existing installs keep working.** Verified rather than assumed: the legacy-v1 table still
+  carries minors 0.1 through 0.41.x, 30 included, so a machine on kimi-code 0.30.0 is unaffected
+  by the 2.x move.
+- **The three Windows fixes survived and were re-proven.** Upstream touched
+  `runtime/commands/setup.ts` again in v2.0.0, so a clean merge proved nothing on its own. The
+  enforcement matrix was re-run after merging: nine write vectors denied on `cmd.exe` and on `sh`,
+  positive control allowed, negative control detected, workspace untouched.
+- **Finished a rename this project had already claimed to finish.** The 0.2.1 entry said the five
+  Codex skills `kimi-{setup,status,result,cancel,replay}` had moved to `k3-*`. They had not: the
+  names live in `scripts/surface-registry.ts`, which was never edited, so the shipped skills still
+  carried the upstream name. All twelve Codex skills are now `k3-*`.
+- **Upstream adopted a fix this fork reported.** The hook-gate test that asserted host state
+  instead of behaviour, patched here on 2026-09-10, is fixed upstream too, with a better fixture
+  (a real stub binary rather than pinning `process.execPath`). Their version wins; ours is removed.
+
+**On the rename, and what we did not repeat.** On 2026-09-10 a tree-wide rename of `/kimi:` to
+`/k3:` destroyed 156 historical and comparative references, including the changelog entry that
+described the rename itself. This time the four registers (`CHANGELOG.md`, `ROADMAP-TO-GA.md`,
+`README.md`, `SECURITY.md`) were excluded by name before the merge ran.
+
+Counted before and after, as occurrences of `/kimi:` rather than lines containing it: CHANGELOG 69
+to 72, ROADMAP-TO-GA 40 to 42, README 2 to 2, SECURITY 1 to 1. **None decreased**, which is the
+property that matters. Two grew, because the merge appended upstream release entries that
+legitimately carry those references; nothing of ours was overwritten.
+
+The rename then touched 19 lines in 8 files, all of them live instructions that upstream had
+introduced, telling readers to run commands this plugin does not have.
+
+## 1.10.1-brilia.0.3.0 — 2026-09-10 (fork)
+
+**Re-aligned to upstream v1.10.1, closing a gap of six releases.** The previous entry measured
+that gap weekly and said measuring it was not closing it. This closes it.
+
+- **Upstream v1.10.1 merged.** Their big change is the move to kimi-code's native agent-core-v2,
+  forced by kimi-code 0.42.0 deleting the legacy v1 engine outright. Certification is now per
+  EXACT version rather than per minor, so a kimi-code newer than 0.42.0 refuses every
+  model-spawning command until a release certifies it. Since kimi-code updates itself in the
+  background, that will bite on the next upstream patch. README and
+  [docs/migration.md](./docs/migration.md) now say so before the install instructions.
+- **Your existing kimi-code keeps working.** Legacy v1 stays certified for minors 0.1 through
+  0.41.x, which covers every install we know of. Verified rather than assumed: 30 is in the
+  table.
+- **The three Windows fixes survived the merge, and were re-proven.** Upstream rewrote both
+  `runtime/hooks/install-paths.ts` and `runtime/commands/setup.ts` in v1.10.0, so their surviving
+  a clean merge proves nothing on its own. The enforcement matrix was re-run after merging: nine
+  write vectors denied on `cmd.exe` and on `sh`, positive control allowed, negative control
+  detected, workspace untouched.
+- **Fixed: CI had been red for three days, and the cause was our own tripwire.** The 0.2.x rename
+  changed eleven files that `scripts/surface-registry.ts` pins by sha256, and the pinned hashes
+  were never updated, so `check:surfaces` failed on every push from 2026-09-07. That is the same
+  defect class this fork already hit on 2026-09-05, reopened by the rename. Registry entries
+  brought to parity with upstream (21, same set modulo our rename) and hashes re-pinned to what
+  is actually on disk.
+- **Upstream removed the pursue/swarm version gates** (`assertGoalModeSupported`,
+  `assertSwarmSupported`); their deletion is taken, with no orphaned references left behind.
+
+## 1.9.8-brilia.0.2.1 — (fork)
+
+**The rename in 0.2.0 was cosmetic, and a cross-vendor review said so.** We had renamed seven
+agent files and their frontmatter and called the job done. Everything those agents *say* still
+pointed at the old namespace, and every identifier we actually distribute still carried the
+trademark. Two separate defects wearing one name.
+
+- **Fixed: the agents told you to run commands that do not exist here.** 375 references to
+  `/kimi:*` across agents, commands, runtime error messages, docs and tests are now `/k3:*`,
+  plus 56 `$kimi-*` Codex skill references. This was not a trademark issue, it was a broken
+  instruction: our commands are `/k3:*`, so `run /kimi:setup` pointed at nothing. Worse for
+  anyone who also has the upstream plugin installed, where `/kimi:setup` exists and belongs to
+  the *other* plugin: we were sending people to configure someone else's hook block, which is
+  exactly the collision 0.2.0 documented.
+- **Fixed: the trademark in what we ship.** Package name `kimi-plugin-cc` to `k3-plugin-cc`;
+  the Codex plugin identifier `kimi` to `k3`; its display name `Kimi` to `K3`; the marketplace
+  label `Kimi Marketplace` to `K3 Marketplace (BRILIA)`; the distributed folder
+  `plugins/kimi-codex` to `plugins/k3-codex`; and five Codex skills `kimi-{setup,status,result,cancel,replay}`
+  to `k3-*`. Naming the upstream product truthfully ("it drives the `kimi-code` CLI") stays, and
+  is a different thing: the line is between *naming* and *identifying as*.
+- **Apache-2.0 section 4(b): `runtime/version.ts` now carries its modification notice.** NOTICE
+  said the changed files are marked; that file was not.
+- **What history we did NOT rewrite.** `CHANGELOG.md` and `ROADMAP-TO-GA.md` keep their `/kimi:*`
+  references. They record what upstream shipped on the dates they shipped it, and on those dates
+  the commands really were called that. Two lines in README and SECURITY that describe the
+  original Windows bug now say explicitly that the check was upstream's `/kimi:setup --check` at
+  the time we found it, because the first pass rewrote them into a claim about a command that did
+  not exist yet.
+
+**Still carrying the mark, and still deliberate.** The managed block written into your
+`~/.kimi-code/config.toml` is still keyed `kimi-plugin-cc-managed`, and the environment variables
+are still `KIMI_PLUGIN_CC_*`. Both live on machines other than ours, so renaming them needs a
+migration path rather than a find-and-replace. That is its own release.
+
+**Verified.** typecheck clean, build clean, surface registry regenerated and its gate green. On
+the two test files that exercise real background spawning, this tree scores 7 pass / 4 fail
+against the clean upstream v1.9.8 baseline's 5 pass / 6 fail, same command and same scope; the
+remaining failures are `EPERM` on symlink creation, a Windows privilege limit present on both
+trees.
+
+## 1.9.8-brilia.0.2.0 — (fork)
+
+- **Version numbers now name their upstream base.** The scheme is
+  `<upstream version>-brilia.<our version>`: `1.9.8-brilia.0.2.0` means upstream 1.9.8, our second
+  release. The previous form, `1.9.8-brilia.1`, was ambiguous about whose 1.9.8 it was, and in
+  semver terms it sorted *before* upstream 1.9.8 while actually being 1.9.8 plus our changes.
+  The base half is not decoration: an automated weekly check parses it out of the manifest and
+  compares it against upstream's releases, so a base left stale is caught rather than believed.
+- **Corrected a stale claim in the README.** It stated upstream was at v1.9.13. The first run of
+  that weekly check found v1.9.14, published 2026-09-06, and six releases between it and our base.
+  The README now carries the figure with the date it was true, and points at upstream's release
+  list for what changed. This is the second claim in two releases that was accurate when written
+  and wrong when read, which is the argument for measuring it on a schedule instead of restating it
+  from memory.
+
+**Why this release exists.** A review of the published `1.9.8-brilia.0.1.0` (tagged `1.9.8-brilia.1`) found that we had shipped a
+claim that was not true, and that we had renamed the slash commands to `/k3:*` while leaving the
+trademark in identifiers we distribute.
+
+- **Agents renamed `kimi-*` to `k3-*`** (7 files, and their `name:` frontmatter). Two reasons, and
+  the second is the one that bites. First, "Kimi" is Moonshot's trademark and Apache-2.0 section 6
+  grants no trademark rights — we had already written that in our own `NOTICE` without applying it to
+  the agents. Second, agent names are how the model reaches this plugin, so ours and upstream's
+  registered the *same* names: `kimi-review` from two plugins is a collision, not a coincidence.
+- **Corrected the coexistence claim.** The first release said both plugins "can be installed side by side
+  without colliding". That was false. Commands and agents no longer collide, but the safety hook
+  still does: both write a managed block into the same `~/.kimi-code/config.toml` under a host id
+  that identifies *which editor drives kimi-code*, not *which plugin*. Installed under `~/.claude/`,
+  both resolve to `claude-code` and contend for one block. The README now says so, and says to use
+  one at a time until it is fixed properly.
+- **Corrected the certified kimi-code version.** The platform table said upstream certifies against
+  `0.30.0`; upstream's own `AGENTS.md` records `0.35.0`. We were understating upstream.
+- **Fixed the surface registry**, which still declared `MARKETPLACE_NAME = "kimi-marketplace"` after
+  the marketplace had been renamed, and carried stale hashes for the renamed agents.
+
+**Known and deliberately not fixed here.** The managed-block marker is still `kimi-plugin-cc-managed`
+in all three places it is defined. Renaming it is the real fix for the hook collision, but a block
+written with the old marker becomes invisible to code looking for a new one: it would stay in the
+user's config, keep registering the hook, and stop being removable by `--uninstall`. That needs a
+migration path, so it gets its own release rather than being smuggled into a rename.
+
+## 1.9.8-brilia.0.1.0 — 2026-09-05 (fork, first released as `1.9.8-brilia.1`)
+
+**Unofficial BRILIA fork.** Forked from upstream v1.9.8 (commit `145cf80`). Everything below this
+entry is upstream history by Xule Lin; this entry covers only what the fork adds. Three Windows
+fixes, all gated behind `process.platform === "win32"`, so the POSIX path is byte-for-byte upstream:
+
+- **The hook command is double-quoted** so `cmd.exe` can launch it. It was quoted POSIX-style, so on
+  Windows the hook never started; since any exit code other than 2 means "allow", enforcement was
+  silently inert while `--check` still reported `Probe: ok`.
+- **Hook paths are normalised.** `CLAUDE_PLUGIN_ROOT` yields backslashes on Windows and the TOML
+  safety check rejects them, so setup previously required setting `KIMI_PLUGIN_CC_HOOK_SCRIPT` by hand.
+- **The Windows shell probe runs** instead of returning "skipped (Windows)" as a success.
+
+Also: fork identity in `.claude-plugin/` (plugin `k3`, marketplace `brilia-k3-marketplace`), `NOTICE`
+with upstream attribution, Apache-2.0 section 4(b) modification notices in every changed source file,
+and a rewritten `README.md`/`SECURITY.md`. No behaviour change on macOS or Linux, and no change to any
+hook, permission, concurrency, budget, confinement or allowlist policy.
+
+Not yet proposed upstream. If these land in `linxule/kimi-plugin-cc`, use the upstream plugin.
 
 ## 2.5.6 — 2026-11-07
 
@@ -423,15 +893,15 @@ review_gate, rescue, pursue, swarm, swarm-write) now run on unmodified native v2
 This release changes behaviour that earlier 1.x users may depend on. Strictly by semver it is a major; it ships as 1.10.0 because the plugin is upgraded in place through the marketplace and its 1.x line has always advanced compat by minor releases.
 
 - **Certification is now per EXACT kimi-code version, not per minor.** Native v2 is certified at `0.42.0` only. When kimi-code publishes `0.42.1` (or newer), every model-spawning command refuses with `KIMI_CAPABILITY_NOT_CERTIFIED` until a plugin release certifies it — before 1.10, a patch release inside a tested minor kept working. kimi-code self-upgrades in the background, so expect this on the next upstream patch; pin `KIMI_PLUGIN_CC_KIMI_BIN` to a certified binary if you need continuity, and watch for the next plugin release.
-- **Sessions created before 1.10 cannot be resumed on 0.42.0.** `ask --resume`, `ask -r`, `rescue --resume` and rescue's implicit latest-session reuse refuse (`KIMI_SESSION_LINEAGE_UNKNOWN` / `KIMI_SESSION_ENGINE_MISMATCH`) — the v1 engine no longer exists in the binary, so nothing could replay those sessions. Nothing is deleted; `/kimi:status`, `/kimi:result` and `/kimi:replay` still work on the old jobs. Start fresh sessions.
-- **`default_plan_mode = true` (any spelling) in `~/.kimi-code/config.toml` now blocks every command** (`CLI_V2_PLAN_MODE_CONFIGURED`). On the old forced-v1 path that setting was harmless; on native v2 it would arm the one code path that bypasses the safety hook. Set it to `false` or remove it. `/kimi:setup` cannot fix this one.
+- **Sessions created before 1.10 cannot be resumed on 0.42.0.** `ask --resume`, `ask -r`, `rescue --resume` and rescue's implicit latest-session reuse refuse (`KIMI_SESSION_LINEAGE_UNKNOWN` / `KIMI_SESSION_ENGINE_MISMATCH`) — the v1 engine no longer exists in the binary, so nothing could replay those sessions. Nothing is deleted; `/k3:status`, `/k3:result` and `/k3:replay` still work on the old jobs. Start fresh sessions.
+- **`default_plan_mode = true` (any spelling) in `~/.kimi-code/config.toml` now blocks every command** (`CLI_V2_PLAN_MODE_CONFIGURED`). On the old forced-v1 path that setting was harmless; on native v2 it would arm the one code path that bypasses the safety hook. Set it to `false` or remove it. `/k3:setup` cannot fix this one.
 - **`KIMI_PLUGIN_CC_KIMI_PREFIX_ARGS` may no longer contain kimi flags** (`-r`, `-c`/`-C`, `-S`, `-p`, `-m`, `--plan`, `--yolo`, `--agent`, `--add-dir`, …) — `INVALID_ENV`. The prefix is a launcher shim only (e.g. `["--import","tsx",…]`).
 - **`[experimental] tower` / `subagent_fork` and `KIMI_CODE_EXPERIMENTAL_FLAG` refuse before spawn** (`CLI_V2_EXPERIMENTAL_UNSAFE` / `CLI_V2_HOOK_ORDER_UNSAFE`). Unset them for plugin-managed runs.
 - **Still on kimi-code ≤ 0.41.x?** Nothing changes for you: those versions route to the legacy-v1 engine exactly as before. But the plugin certifies them only for an explicitly pinned binary — kimi-code's auto-update will move you to 0.42.x, at which point the notes above apply.
 
-No action for the job store (one additive nullable column, migrated automatically) or the hook policy (unchanged allowlists). As with every release, run `/kimi:setup` (or `$kimi-setup`) after updating so the hook is re-pinned to the new install path — a `kimi login` also strips the managed-block markers, and setup restores them.
+No action for the job store (one additive nullable column, migrated automatically) or the hook policy (unchanged allowlists). As with every release, run `/k3:setup` (or `$k3-setup`) after updating so the hook is re-pinned to the new install path — a `kimi login` also strips the managed-block markers, and setup restores them.
 
-None of these refusals is repaired by `/kimi:setup` (the native-v2 ones carry `retryable_after_setup: false` explicitly; a few pre-1.10 codes omit the field in 1.10.0 and an absent field must be treated as `false`). They are catalogued with remedies in [docs/safety.md § Refusal codes](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100).
+None of these refusals is repaired by `/k3:setup` (the native-v2 ones carry `retryable_after_setup: false` explicitly; a few pre-1.10 codes omit the field in 1.10.0 and an absent field must be treated as `false`). They are catalogued with remedies in [docs/safety.md § Refusal codes](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100).
 
 - **Certification basis changed (docs/native-v2-certification-provenance.md §2).** Upstream
   still registers the plan feature before external hooks and provides no ordering guarantee
@@ -555,7 +1025,7 @@ pass the tested-minor gate. Native v2 remains disabled for every operation.
 
 - **Scoped source audit preserved the supported contract.** The 0.38.0→0.39.0 diffs were 0 bytes for CLI prompt mode (including the engine selector and all of its call sites), v1 permission policies, v1 hooks, and the wire/session scope; the only non-empty scoped surface (9,060 bytes) is MCP-registry `cwd`/OAuth-verify plumbing that leaves create/resume session bootstrap and the `config/` dir byte-unchanged. The v1 tool-layer files outside the scoped diffs (`path-access.ts`, `bash.ts`) are a win32-only shell-path-bridge refactor, provably identity on POSIX. The audit playbook gains a `06-v1-tools-sdk.diff` scope after the adversarial reviewer showed `packages/node-sdk` (source of `createKimiHarness`) and `packages/kaos` were on the `-p` path but never scoped.
 - **0.39.0's experimental tower mode and subagent fork are v2-only and inert on the pinned path.** Zero v1 flag-registry presence; the v1 `AgentSwarm` schema is `.strict()` so a model-supplied `fork` argument is rejected; both flags are subsumed by the already-refused `KIMI_CODE_EXPERIMENTAL_FLAG`; `[experimental] subagent_fork = true` in the shared config.toml is inert under v1 and does not trip the plugin's hooks-scoped validation. A dedicated v2 veto-ordering re-audit over the release's agent-core-v2 churn (diffstat: 337 changed files under `packages/agent-core-v2/src`, recorded in synthesis report 116) confirmed the plan-file final-allow defect is unchanged — and upstream's own Permission.md documents the bypass as intended with listener ordering an open design question — so both features (and native v2) stay gated on a released ordering contract.
-- **Remote Control (experimental) is contained by existing verification.** A tunneled config patch can remove the managed hook out-of-band; the per-spawn byte-exact `verifyHookInstalled` catches that fail-closed (an altered entry refuses as drift, a removed one as not-installed — same `/kimi:setup` remedy). Operator notes on the relay's refresh-token forwarding and permissive loopback branch are recorded in the Post-GA audit log.
+- **Remote Control (experimental) is contained by existing verification.** A tunneled config patch can remove the managed hook out-of-band; the per-spawn byte-exact `verifyHookInstalled` catches that fail-closed (an altered entry refuses as drift, a removed one as not-installed — same `/k3:setup` remedy). Operator notes on the relay's refresh-token forwarding and permissive loopback branch are recorded in the Post-GA audit log.
 - **Certification evidence is green.** The exact-0.39.0 temporary binary passed `bun run smoke:real` with **12 pass / 0 fail / 55 assertions in 554.49s**, covering forced-write denials, v2 pre-spawn refusal, fresh/resumed default-plan v1 pinning, pursue's every-turn hook gate, read-swarm child denial, write-swarm confinement (`patchBytes=278`, user tree clean, worktree removed), and non-vacuous out-of-root denial. `KIMI_TESTED_MINORS` gains `{0,39}`. Tags: `v1.9.11` and `compat-verified-kimi-code-0.39.0`. Reports 111-116; continuity report `.claude/kimi-code-research/daily-monitor/2026-08-27-upstream-monitor.md`.
 
 ## 1.9.10 — 2026-08-24
@@ -686,7 +1156,7 @@ pass the tested-minor gate. Native v2 remains disabled for every operation.
 - **Experimental v2 refactor preserved the ordinary deny seam, but the original order claim was later corrected.** 0.29.1 replaces ordered pre-execution hook slots with an awaited veto event; ordinary external PreToolUse blocks and the exact smoke below were real. A 2026-07-31 production-registration trace found plan service actually precedes external hooks and can final-allow its exact plan-file write first. v1.9.4 therefore disables experimental-v2 across the tested range; see its entry for the inherited gap and mitigation.
 - **Exact-binary smoke GREEN on latest.** The temp-installed exact-0.29.1 `bun run smoke:real` passed **10 / 0 / 43 in 339.80s**: all read-only forced writes denied, asserted-v2 denial passed through the new veto path, pursue reached its finite budget with zero writes, read swarm denied a subagent write, write swarm stayed confined (`patchBytes=306`, `userTreeClean=true`, `worktreeCleaned=true`), and the non-vacuous out-of-root absolute write was denied. Exact 0.29.0 had already passed the same 10/0/43 matrix.
 - **Headless pursue resume remains upstream-blocked.** Both print drivers still use create-only goal parsing; `resumeGoal()` remains TUI/RPC-only.
-- Edits: `runtime/kimi-version-probe.ts` (`{0,29}` + audit proof), `runtime/stream-json.ts` (verified-through range), version/docs/tests, re-pinned Claude hashes, and regenerated `dist/` + `plugins/kimi-codex/`. Tags: `v1.8.8` and `compat-verified-kimi-code-0.29.1`. Evidence: daily-monitor reports 2026-07-23 and 2026-07-24.
+- Edits: `runtime/kimi-version-probe.ts` (`{0,29}` + audit proof), `runtime/stream-json.ts` (verified-through range), version/docs/tests, re-pinned Claude hashes, and regenerated `dist/` + `plugins/k3-codex/`. Tags: `v1.8.8` and `compat-verified-kimi-code-0.29.1`. Evidence: daily-monitor reports 2026-07-23 and 2026-07-24.
 
 ## 1.8.7 — 2026-07-21
 
@@ -699,7 +1169,7 @@ pass the tested-minor gate. Native v2 remains disabled for every operation.
 - **The 0.28.1 v2 change** (broadcasting session-level permission-mode switches to already-running subagents) is a propagation fix, not a hook bypass — the v2 external-hook runner is byte-identical across the delta.
 - **Exact-binary smokes GREEN on both releases** (temp-installed exact binaries via `KIMI_PLUGIN_CC_KIMI_BIN`; `bun run smoke:real`): 0.27.0 — 10 pass / 0 fail / 43 assertions; 0.28.1 — 10 / 0 / 43. Full matrix on each: read-only forced-write denials, the `KIMI_CODE_EXPERIMENTAL_FLAG=1` v2 denial lane, pursue budget-abort with zero writes, read-swarm subagent denial, write-swarm confinement (`patchBytes=278`, `userTreeClean=true`, `worktreeCleaned=true`), and the out-of-root absolute-write denial.
 - **Test-only fix:** a Node ≥25 environment failure — the tsx loader's DEP0205 `module.register()` deprecation warning leaked into a spawned companion's stderr assertion in `tests/runtime/setup-command.test.ts`; the assertion now strips Node deprecation warnings before comparing.
-- Edits: `runtime/kimi-version-probe.ts` (`{0,27}`/`{0,28}` + chained audit comments), `runtime/stream-json.ts` (verified-through range), AGENTS.md, CHANGELOG.md, ROADMAP audit log, `tests/runtime/{kimi-version-probe,marker-strip,setup-command}.test.ts`, 4-file version bump 1.8.6 → 1.8.7 + re-pinned surface hashes, regenerated `dist/` + `plugins/kimi-codex/`. Tags: `v1.8.7`, `compat-verified-kimi-code-0.27.0`, `compat-verified-kimi-code-0.28.1`. Evidence: daily-monitor reports 2026-07-18 (0.27.0) and 2026-07-21 (0.28.1).
+- Edits: `runtime/kimi-version-probe.ts` (`{0,27}`/`{0,28}` + chained audit comments), `runtime/stream-json.ts` (verified-through range), AGENTS.md, CHANGELOG.md, ROADMAP audit log, `tests/runtime/{kimi-version-probe,marker-strip,setup-command}.test.ts`, 4-file version bump 1.8.6 → 1.8.7 + re-pinned surface hashes, regenerated `dist/` + `plugins/k3-codex/`. Tags: `v1.8.7`, `compat-verified-kimi-code-0.27.0`, `compat-verified-kimi-code-0.28.1`. Evidence: daily-monitor reports 2026-07-18 (0.27.0) and 2026-07-21 (0.28.1).
 
 ## 1.8.6 — 2026-07-17
 
@@ -719,7 +1189,7 @@ pass the tested-minor gate. Native v2 remains disabled for every operation.
 - **Two write-swarm MEDIUMs (memo-continuity gap-check).** A follow-up review of the transcript surfaced two `swarm.ts` findings the main remediation hadn't folded in: **(MED, fail-open version gate)** `assertSwarmSupported` returned without blocking whenever the `kimi --version` probe failed — fine for READ mode (a too-old binary is only degraded, the read-only hook still holds), but UNSAFE for `--write`, whose safe concurrency depends on the hard `KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY` cap that only exists on kimi-code ≥0.18.0. On a flaky probe against a 0.12–0.17 binary the env var is ignored, the default `--max-concurrency 1` serialization is enforced nowhere, and racing `coder` subagents corrupt the shared-worktree patch. The gate now **fails CLOSED for write mode** (`throw SWARM_UNSUPPORTED` with the probe reason) while read mode keeps failing open. **(MED, orphan-sweep reaps a live worktree)** `WORKTREE_ORPHAN_TTL_MS` was a flat 6h while `--budget` accepts up to `MAX_DURATION_MS` (24h); the sweep's only liveness signal is the worktree dir's mtime, which is frozen at `git worktree add` time when a run edits only existing files. A long write run (`--budget 12h`) could thus be seen as "idle >6h" and `git worktree remove --force`d by a concurrent run's startup sweep → ENOENT writes, lost patch. The TTL is now derived as `MAX_DURATION_MS + 2h`, so it always exceeds the longest a run can live; orphans (hard-kill leftovers) are still reaped, just after a provably-safe delay. Both are covered by new `swarm.test.ts` regressions (write refuses on a broken probe; read still reaches the hook check; TTL > max budget).
 - **Read-only swarm prompt slimmed (k3 anti-hang).** The kimi-code 0.26.0 coordinator hung when over-prescribed (it emitted a non-sole-tool-call response and never launched, timing out to budget with 0 records) and stalled on a denied preliminary `Bash` size-check. `buildSwarmPrompt` now states the read-only goal + report shape, names the tool constraint (Read/Grep/Glob only, Bash denied), and steers the fan-out to be the first action — without prescribing the `AgentSwarm`/`subagent_type`/`prompt_template` mechanics. Safety is unchanged: the PreToolUse hook (swarm label, policy index 0) denies every write/edit/shell for the coordinator and every subagent regardless of prose.
 - **Process.** The findings came from a kimi k3 `/kimi:swarm` self-audit; every CRITICAL/HIGH was re-verified against the source (the `$IFS`-glue RCE and the parser divergences were reproduced directly against the vendored parser). A follow-up Fable adversarial review of the *fixes* found the `$IFS`-glue hole in the first-cut regex gate and drove the quote-aware rebuild; an Opus correctness pass checked for false positives. (The k3 swarm coordinator itself repeatedly hung — a known upstream k3 limitation — so the reliable internal reviews carried the gap-check.)
-- Edits: `runtime/rescue-approval.ts`, `runtime/hooks/managed-block.ts`, `runtime/hooks/install.ts`, `runtime/cli-client.ts`, `runtime/commands/setup.ts`, `runtime/commands/swarm.ts`; regression tests in `tests/runtime/{rescue-approval,marker-strip,hook-install,cli-client,setup,swarm}.test.ts`; 4-file version bump 1.8.5 → 1.8.6 + re-pinned surface hashes; regenerated `dist/` + `plugins/kimi-codex/`.
+- Edits: `runtime/rescue-approval.ts`, `runtime/hooks/managed-block.ts`, `runtime/hooks/install.ts`, `runtime/cli-client.ts`, `runtime/commands/setup.ts`, `runtime/commands/swarm.ts`; regression tests in `tests/runtime/{rescue-approval,marker-strip,hook-install,cli-client,setup,swarm}.test.ts`; 4-file version bump 1.8.5 → 1.8.6 + re-pinned surface hashes; regenerated `dist/` + `plugins/k3-codex/`.
 
 ## 1.8.5 — 2026-07-16
 
@@ -793,8 +1263,8 @@ pass the tested-minor gate. Native v2 remains disabled for every operation.
 
 **Silence the `MODULE_TYPELESS_PACKAGE_JSON` warning in the Codex bundle.** Cosmetic packaging fix; no runtime behavior change.
 
-- The root `package.json` declares `"type": "module"`, which covers root `dist/` on the Claude side (Claude Code copies the repo root, package.json included, into its cache). But the self-contained Codex bundle `plugins/kimi-codex/` carried no `package.json`, so when Codex ran the bundled `dist/companion.js` from its cache Node walked up to `~/package.json` (no `type`), emitted `MODULE_TYPELESS_PACKAGE_JSON`, and reparsed as ESM (perf overhead; the warning also leaked into the setup probe's captured deny-reason preview).
-- Fix: `bun run build` now emits `dist/package.json` (`{"type":"module"}`), which the existing runtime mirror copies into `plugins/kimi-codex/dist/`, so the bundled companion resolves its module type locally. Verified in an isolated `$HOME` location: **1 → 0** warnings. `bun run check` green.
+- The root `package.json` declares `"type": "module"`, which covers root `dist/` on the Claude side (Claude Code copies the repo root, package.json included, into its cache). But the self-contained Codex bundle `plugins/k3-codex/` carried no `package.json`, so when Codex ran the bundled `dist/companion.js` from its cache Node walked up to `~/package.json` (no `type`), emitted `MODULE_TYPELESS_PACKAGE_JSON`, and reparsed as ESM (perf overhead; the warning also leaked into the setup probe's captured deny-reason preview).
+- Fix: `bun run build` now emits `dist/package.json` (`{"type":"module"}`), which the existing runtime mirror copies into `plugins/k3-codex/dist/`, so the bundled companion resolves its module type locally. Verified in an isolated `$HOME` location: **1 → 0** warnings. `bun run check` green.
 
 ## 1.7.1 — 2026-07-08
 
@@ -880,15 +1350,15 @@ pass the tested-minor gate. Native v2 remains disabled for every operation.
 
 ## 1.6.0 — 2026-06-23
 
-**Repackage the Codex plugin as a self-contained `plugins/kimi-codex/` subfolder to end Claude Code/Codex surface crossover.** The Codex sidecars added under v1.5.x placed `skills/` at the repo root — which is also the Claude Code plugin root — and Claude Code auto-discovers a top-level `skills/` directory by convention. So the 12 Codex skills were also loading as Claude Code skills, producing a triple commands+agents+skills surface and a safety asymmetry. This release isolates the Codex package without breaking the Claude Code surface or duplicating maintenance.
+**Repackage the Codex plugin as a self-contained `plugins/k3-codex/` subfolder to end Claude Code/Codex surface crossover.** The Codex sidecars added under v1.5.x placed `skills/` at the repo root — which is also the Claude Code plugin root — and Claude Code auto-discovers a top-level `skills/` directory by convention. So the 12 Codex skills were also loading as Claude Code skills, producing a triple commands+agents+skills surface and a safety asymmetry. This release isolates the Codex package without breaking the Claude Code surface or duplicating maintenance.
 
-- **New self-contained Codex plugin root: `plugins/kimi-codex/`** — contains `.codex-plugin/plugin.json` (`skills: "./skills/"`), the 12 `skills/`, and a **byte-mirror of the runtime** (`scripts/companion.sh`, `scripts/review-gate-hook.sh`, `dist/**`). Codex copies a plugin root to `~/.codex/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION/` on install and forbids `../` escapes, so the package must bundle everything it needs. The repo root no longer has `skills/` or `.codex-plugin/`, so Claude Code is back to its intended **commands + agents** surface. `.agents/plugins/marketplace.json` stays at the repo root with `source.path → "./plugins/kimi-codex"`.
+- **New self-contained Codex plugin root: `plugins/k3-codex/`** — contains `.codex-plugin/plugin.json` (`skills: "./skills/"`), the 12 `skills/`, and a **byte-mirror of the runtime** (`scripts/companion.sh`, `scripts/review-gate-hook.sh`, `dist/**`). Codex copies a plugin root to `~/.codex/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION/` on install and forbids `../` escapes, so the package must bundle everything it needs. The repo root no longer has `skills/` or `.codex-plugin/`, so Claude Code is back to its intended **commands + agents** surface. `.agents/plugins/marketplace.json` stays at the repo root with `source.path → "./plugins/k3-codex"`.
 - **Closes a safety asymmetry.** The write-capable Codex skills (`kimi-rescue`, `kimi-pursue`, `kimi-swarm-write`, `kimi-setup`, `kimi-cancel`) declare `allow_implicit_invocation: false` only in `agents/openai.yaml`, which Claude Code ignores — so while they leaked into Claude Code they were model-invocable there, whereas the equivalent slash commands are deliberately human-only. Moving the skills out of the Claude Code scan root removes that exposure entirely.
 - **Single-sourced version.** `scripts/surface-registry.ts` `PLUGIN_VERSION` now imports `KIMI_PLUGIN_CC_VERSION` from `runtime/version.ts` (it was a 7th hard-coded version source). A new test asserts `PLUGIN_VERSION === KIMI_PLUGIN_CC_VERSION === package.json` version.
-- **Generator + gate hardening** (`scripts/generate-surfaces.ts`): write mode now mirrors the runtime payload into the subfolder (0755 on shell scripts) and prunes stale skill dirs + stale mirrored files; `--check` byte-compares the mirror against the freshly built root and detects orphaned generated files. `bun run check` now builds **before** the surface check, and the drift gate covers `dist` **and** `plugins/kimi-codex`.
+- **Generator + gate hardening** (`scripts/generate-surfaces.ts`): write mode now mirrors the runtime payload into the subfolder (0755 on shell scripts) and prunes stale skill dirs + stale mirrored files; `--check` byte-compares the mirror against the freshly built root and detects orphaned generated files. `bun run check` now builds **before** the surface check, and the drift gate covers `dist` **and** `plugins/k3-codex`.
 - **New tests**: repo-root `skills/` absence (Claude Code skill-leakage guard) + subfolder presence; bundled `companion.sh` is a byte copy of root; `resolvePluginPaths` precedence (`CLAUDE_PLUGIN_DATA` wins over `PLUGIN_DATA` when both set).
 - **Claude Code regression audit: none.** The v1.5.x shared-file edits (shell env-var alias dance in `companion.sh`/`review-gate-hook.sh`, the `paths.ts` `?? PLUGIN_DATA` fallback, the `review-gate.ts` inline-payload preference with transcript fallback) all short-circuit to the original behavior whenever the Claude environment variables are set, and the load-bearing PreToolUse approval hook + its strict-exact verifier are untouched.
-- **Verified out-of-band by Codex** (not by `bun run check`): a live Codex install loading skills from `plugins/kimi-codex/skills/` and the manifest passing Codex's real schema — reinstall the marketplace + run the `$kimi-ask` product smoke. `bun run check` green locally.
+- **Verified out-of-band by Codex** (not by `bun run check`): a live Codex install loading skills from `plugins/k3-codex/skills/` and the manifest passing Codex's real schema — reinstall the marketplace + run the `$kimi-ask` product smoke. `bun run check` green locally.
 
 ## 1.5.1 — 2026-06-23
 

@@ -1,922 +1,446 @@
-# Kimi for Claude Code, Codex, and DeepSeek Harness
+# K3 plugin for Claude Code, built on Windows 11
 
-[![Latest release](https://img.shields.io/github/v/release/linxule/kimi-plugin-cc)](https://github.com/linxule/kimi-plugin-cc/releases/latest) [![CI](https://github.com/linxule/kimi-plugin-cc/actions/workflows/ci.yml/badge.svg)](https://github.com/linxule/kimi-plugin-cc/actions/workflows/ci.yml) [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+> **This branch is being rebuilt on upstream v2.5.6** (`2.5.6-brilia.0.1.0`, unreleased). Until
+> the rebuild is complete, the sections below still describe `2.0.7-brilia.0.7.0`: some changes
+> they list are not in this tree yet. See [docs/fork-notes.md](./docs/fork-notes.md).
 
-Use Kimi to explain code, review changes, challenge a design, or work toward a goal — an independent second opinion from a different model family, inside the Claude Code, Codex, or DeepSeek Harness session you're already in.
+Use Kimi K3 from inside Claude Code for code reviews or to delegate tasks to K3.
 
-[![Kimi Ambassador — academia](./assets/kimi-ambassador-academia.webp)](https://www.kimi.ai/lp/kimi-ambassador)
+**Developed and verified on Windows 11. Runs on macOS and Linux as well.** What was verified on each
+platform, and how, is under [Platform support](#platform-support).
 
-I'm a [Kimi Ambassador](https://www.kimi.ai/lp/kimi-ambassador) (academia). Kimi (Moonshot AI) supports this project through that role.
+This plugin is for Claude Code users who already pay for a Kimi Code subscription and want to reach
+it from the workflow they already have.
 
-[Latest release](https://github.com/linxule/kimi-plugin-cc/releases/latest) · [npm package](https://www.npmjs.com/package/kimi-plugin-cc) · [Roadmap](./ROADMAP-TO-GA.md) · [Report an issue](https://github.com/linxule/kimi-plugin-cc/issues) · [Apache-2.0 license](./LICENSE)
+## Why this fork exists: Windows
 
-![Claude Code running /kimi:review on this repository, with Kimi's findings verified claim by claim in the same session](./assets/claude-code-kimi-review.jpg)
+The plugin we fork, [linxule/kimi-plugin-cc](https://github.com/linxule/kimi-plugin-cc), states
+that **Windows is not currently supported**. This fork is the version that works on Windows, and
+the difference is not cosmetic:
 
-*Claude Code runs `/kimi:review` on this repository — Kimi reviews the diff, and the host verifies each claim against the tree.*
+- **Setup works.** The hook is what stops a read-only review from writing to your files. On Windows,
+  upstream derives the hook path with backslashes, which its own safety check rejects, so setup
+  refuses and every command stays blocked until you set `KIMI_PLUGIN_CC_HOOK_SCRIPT` by hand. Here
+  the path is normalised and setup works with no override.
+- **Once installed, the safety hook actually runs.** If you do set the path by hand on upstream,
+  the next problem appears: upstream writes the hook command with POSIX single quotes, and
+  `kimi-code` launches hooks through `cmd.exe` on Windows (Node's `shell: true`, in `kimi-code`
+  2.1.1 as in 0.30.0), which cannot run that form. The hook never starts, any exit code other than
+  2 means "allow", so the write guard is silently off. Here the command is double-quoted and the
+  guard denies.
+- **The setup probe tells the truth.** Upstream's probe reports "skipped (Windows)" as a success,
+  which is why the case above still shows `Probe: ok`. Here the probe launches the hook the way
+  `kimi-code` does on Windows and reports what actually happened.
 
-![Codex running $kimi-ask to explain this project's entry point](./assets/codex-kimi-ask.jpg)
+What we verified, and when, is under [Which versions this is](#which-versions-this-is). The fixes
+change how the hook command is written and launched on Windows only; on macOS and Linux it is
+written and launched exactly as upstream does. What the fixes do **not** change: if the hook process
+crashes or times out, the call still goes through. That limit belongs to the hook contract and is
+described under [Known limits](#known-limits-stated-plainly).
 
-*Codex runs `$kimi-ask` — a read-only explanation of this project's entry point, from the entry shell script to the command modules.*
+> ### This is an unofficial fork
+>
+> **Not affiliated with, endorsed by, or supported by Moonshot AI**, the makers of Kimi and the
+> `kimi-code` CLI. Official product: **[kimi.com/code](https://www.kimi.com/code/)**.
+>
+> **Not the original project either.** This is a fork of
+> **[linxule/kimi-plugin-cc](https://github.com/linxule/kimi-plugin-cc)** (Apache-2.0) by Xule Lin,
+> who wrote everything that makes this work. Our changes are three Windows fixes, one reliability
+> fix, and our own names throughout, so the two plugins never step on each other: listed below.
+>
+> Maintained by [BRILIA](https://brilia.it) on a best-effort basis. If something breaks, open an
+> issue **here**, not with Moonshot AI and not with the upstream author.
 
-Choose a language below. Each guide opens on this page.
+## What You Get
 
-选择语言，展开阅读 · Choisissez votre langue · 言語を選んで開いてください
+- `/k3:review` for a normal read-only K3 review
+- `/k3:challenge` for a steerable adversarial review
+- `/k3:ask` for a free-form question about the repository
+- `/k3:rescue`, `/k3:status`, `/k3:result` and `/k3:cancel` to delegate work and manage background jobs
 
-<details open>
-<summary>English — Get started</summary>
+## Requirements
 
-## Use Kimi in your coding tasks
+- **A Kimi Code subscription.** [Get one at kimi.com/code](https://www.kimi.com/code/).
+  - **Yours, not somebody else's.** The plugin never carries a credential: it drives the
+    `kimi-code` CLI that is already logged in on your machine. Each person installs and
+    authenticates their own.
+  - Usage contributes to your own Kimi Code limits.
+- **The `kimi-code` CLI, installed and authenticated.** Run `kimi login` once, then check with
+  `kimi --version`. Use a version this release certifies; **2.1.1** is the recommended one (see
+  [Which versions this is](#which-versions-this-is)). On Windows, `kimi-code` itself needs
+  [Git for Windows](https://gitforwindows.org/), whose Git Bash it uses for its own Bash tool.
+  Hooks are a different path: `kimi-code` launches them through `cmd.exe`, which is what the
+  Windows fixes below are about.
+- **Node.js 22.5 or later** (the runtime uses the built-in `node:sqlite`).
 
-Ask Kimi to explain code, review changes, challenge a design, or make a focused fix. You can use this plugin in Claude Code, Codex, or DeepSeek Harness (DSH).
+### Before you install: the terms, and an open question
 
-The plugin runs the Kimi Code CLI on your computer. It uses your Kimi subscription or a provider you configure in Kimi. Calls count against that subscription or API account. Your host application's login stays unchanged. The selected provider receives the prompts and code needed for your task.
+This plugin drives the CLI in print mode (`kimi -p`), which is non-interactive. Moonshot's
+[Kimi Code Community Guidelines](https://www.kimi.com/code/docs/en/kimi-code/community-guidelines.html)
+say:
 
-Start with a question or a review. Their tool rules allow reading files and deny file writes and shell commands. Other modes can change files. DSH provides the same seven operations with the same write boundaries. Read the [safety limits](./docs/safety.md) before asking Kimi to make changes.
+> Kimi Code subscriptions are for personal interactive use only. Using it for non-interactive
+> purposes — such as scripted batch execution or data annotation pipelines — goes beyond normal use.
 
-## Before you install
+The stated consequence for going beyond normal use is that Moonshot will "review the situation first
+and take appropriate action — such as limiting concurrent access", which surfaces as a
+`You've reached your concurrent request limit` error. The guidelines also describe account
+suspension, but that clause is about buying through unauthorised channels and does not apply here.
 
-You need:
+**We cannot tell you whether your use of this plugin counts as interactive.** Moonshot's own CLI
+reference documents `-p` for running "a single prompt in a script or CI environment", and says that
+mode defaults to the `auto` permission policy. So one page documents the flag and another calls
+non-interactive use abnormal. The technical mode is not in doubt: `-p` is non-interactive. What is unclear is how a
+human-initiated plugin invocation is classified under a subscription, and only Moonshot can settle that, and we are not going to settle it for them by reading it in our favour.
 
-- macOS or Linux
-- Claude Code, Codex, or DSH with plugin support
-- Node.js 22.5 or newer (24.9 or newer for DSH)
-- Kimi Code CLI 2.4.1 (certified; 2.4.0, 2.3.3, 2.3.2, 2.3.1 and 2.3.0 are also certified)
+What we can tell you plainly:
 
-Windows is not currently supported. Contributors can help with the [no-model Windows diagnostics checks](./docs/windows-validation.md). Check your versions in a terminal:
+- Every command that talks to the model goes through `kimi -p`. There is no interactive mode that
+  avoids it. (`status`, `result`, `cancel` and `replay` never invoke `kimi -p` and never reach the
+  model. `setup` does not either, with one opt-in exception: `setup --check --probe-model` sends one
+  prompt to the model.)
+- Some commands go considerably further from interactive use than a single review does. `/k3:pursue`
+  runs an autonomous multi-turn goal loop, and `/k3:swarm` fans out to parallel subagents. If the
+  distinction between interactive and automated matters to you, those are the ones to weigh.
+- If the answer matters for your account, ask Moonshot support before installing, or use an API plan
+  whose terms cover programmatic use.
 
-```sh
-node --version
-kimi --version
+Checked against the live page on 2026-09-28. Terms change; check them yourself. Since 0.7.0 the
+plugin also refuses to start a second model job while one is running, for exactly this reason; see
+"Quotas, context and long jobs" below.
+
+## Install
+
+Add the marketplace in Claude Code:
+
+```bash
+/plugin marketplace add Brilia-it/k3-plugin-cc
 ```
 
-Use the [Kimi Code installation guide](https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started) if you need the CLI. You do not need Bun or a build step to use this plugin.
+Install the plugin:
 
-We test compatibility with exact CLI versions. A newer CLI may need a newer plugin. See [supported versions and upgrades](./docs/migration.md).
-
-Run `kimi` in your terminal. Use `/login` for a Kimi subscription, or `/provider` to set up an API provider. Enter credentials in Kimi, never in the assistant conversation. Exit Kimi when you finish setup. If you set `KIMI_CODE_HOME`, use the same location for Kimi and the plugin.
-
-## Install in Claude Code
-
-Open Claude Code in your project. Enter these commands in Claude Code:
-
-```text
-/plugin marketplace add linxule/kimi-plugin-cc
-/plugin install kimi@kimi-marketplace
-/kimi:setup
-/kimi:setup --check
+```bash
+/plugin install k3@brilia-k3-marketplace
 ```
 
-Setup installs a hook that checks Kimi's tool calls against the plugin's rules. The `Probe:` line should show `ok`. If it fails, follow the setup guidance below.
+Restart Claude Code, then bootstrap the safety hook once:
 
-Try a question that does not change files:
-
-```text
-/kimi:ask Explain how this project's main entry point works.
+```bash
+/k3:setup
 ```
 
-## Install in Codex
+Verify it is actually enforcing, not just installed:
 
-Run these commands in your terminal:
-
-```sh
-codex plugin marketplace add linxule/kimi-plugin-cc
-codex plugin add kimi@kimi-marketplace
+```bash
+/k3:setup --check
 ```
 
-Open a new Codex task in your project. Ask it to set up the plugin:
+**This fork is not on npm.** Upstream also ships as the `kimi-plugin-cc` package on npm; that
+package is upstream's code, without the Windows fixes. Install this fork from the marketplace above.
 
-```text
-Use $kimi-setup to install the safety hook, then check readiness.
+### Upgrading from 0.5.x
+
+Since 0.6.0 this plugin uses its own names everywhere a person or a program can see them. After
+updating, run `/k3:setup` once: until you do, every command that starts a model (review, challenge,
+ask, rescue, pursue, swarm, the review gate) refuses, because the hook installed by the old version
+no longer protects K3 sessions; `status`, `result`, `replay` and `cancel` keep working. Setup then
+does the rest, and says what it did:
+
+| What | Up to 0.5.x | From 0.6.0 | What setup does |
+|---|---|---|---|
+| Marker of the hook block in `~/.kimi-code/config.toml` | `kimi-plugin-cc-managed` | `k3-plugin-cc-managed` | Removes the old block **only if its hook is this fork's and the block holds nothing else** (a key after the END comment still belongs to that TOML table, so such a block is left alone), and only if the TOML parser confirms that removing it changes nothing but that hook; otherwise setup stops, changes nothing, and names the lines to remove by hand. Then it writes the new one. A block written by the upstream plugin is left byte for byte. Marker lines that do not pair up are reported, never removed. |
+| Data directory (jobs, logs, results, settings) | `kimi-plugin-cc/` | `k3-plugin-cc/` | Renames it when no job is marked running, holding the job store's write lock (the one every command takes to record a job) while it counts and, on macOS and Linux, while it renames: no job can start in between. On Windows a command that has the store open makes the rename fail, and setup says to run it again. It leaves an alias under the old name for a command that had already found it; the next `/k3:setup` removes the alias once no job is running. A command that touches the old name in the instant between the rename and the alias stops with an error and can be run again: the old directory is never recreated, so nothing is split or lost. The paths stored for past jobs are rewritten on every setup, following Windows' rules for case and separators. Until the rename the old directory stays in use; if both exist, nothing is merged and `--check` says so. |
+| Environment variables | `KIMI_PLUGIN_CC_*` | `K3_PLUGIN_CC_*` | Lists any old ones still set. They are **not** read: rename yours (for example `KIMI_PLUGIN_CC_KIMI_BIN` becomes `K3_PLUGIN_CC_KIMI_BIN`). |
+
+The old variables are not honoured on purpose: they are the names the upstream plugin reads, and a
+value set for it, including the switch that skips the hook check, must not steer this one.
+
+### Coexistence with the upstream plugin
+
+**Since 0.6.0 the two plugins can be installed side by side.** They share nothing a user or a program
+can see: commands (`/k3:*` and `/kimi:*`), agents, the marker of the hook block each writes into
+`~/.kimi-code/config.toml`, the environment variables, the data directory.
+
+Both hooks run on every tool call, and each governs only its own sessions: a K3 session is labelled
+through `K3_PLUGIN_CC_CMD`, which only this plugin's hook reads, and the upstream hook allows what it
+does not recognise as its own; the reverse holds for upstream's sessions. Setup never removes the
+other plugin's block, marked or not. Up to 0.5.x both plugins wrote the same block, so whichever ran
+setup last disabled the other until its own setup ran again.
+
+**Verified on 2026-09-29, Windows 11**, by `tests/manual/coexistence-smoke.mjs`: upstream v2.0.7 and
+this fork installed in a temporary home under the real install layout (both on the `claude-code`
+host, the case that used to collide), setups run in turn, each uninstalled in turn. Each setup left
+the other plugin's block byte for byte, and each hook denied a write only under its own label: 16
+checks out of 16. The same smoke run with this fork's 0.5.1 in place of 0.6.0 fails 7 checks,
+starting with "our setup leaves upstream's block byte for byte", which is the old collision. It
+drives no model; a real session with both plugins has not been run.
+
+One thing to know: each plugin serialises its own writes to `config.toml` with its own lock, so do
+not run both setups in the same instant. If one write were lost, that plugin's commands would refuse
+until its setup ran again.
+
+## Platform support
+
+| Platform | Status |
+|---|---|
+| Windows 11 | **Developed and verified here, and the reason this fork exists.** Upstream does not support Windows. See [Which versions this is](#which-versions-this-is) for what was verified and how |
+| macOS | **Supported, not tested by us yet.** How the hook command is written, quoted and launched is gated behind `process.platform === "win32"`, so on POSIX it is upstream v2.0.7's, which upstream certifies against `kimi-code` 0.42.0/0.43.x/2.0.x/2.1.0/2.1.1 (native v2) and 0.1-0.41.x (legacy). Not byte-for-byte, though: see [What this fork changes](#what-this-fork-changes) |
+| Linux | **Supported. The full test suite runs on Linux in CI**, and must pass on every attempt before `main` moves. Not yet run by us against a real `kimi-code` session on Linux |
+
+If you are the first to run this on macOS or Linux, we would like to hear about it either way.
+
+## Known limits, stated plainly
+
+**The hook fails open.** Enforcement is an external hook process, and the contract treats any exit
+code other than 2 as "allow". If that process crashes or times out, the operation goes through.
+This is upstream debt (`H1`) and it is not fixed here. The root cause is outside both projects:
+`kimi -p` hard-codes `permission: auto` and exposes no sandbox flag, so an external hook is the only
+lever available. For contrast, the official Codex plugin passes `sandbox: "read-only"` as a protocol
+parameter, so a failed call yields no review rather than an unguarded one.
+
+**Read-only means "does not write", not "reads only what you handed it".** The hook blocks writes.
+It does not confine what the model may read, and whatever is read is sent to the vendor. This is
+equally true of every plugin of this kind, including the official Codex one.
+
+**So: point it at a working directory, not at a tree that holds secrets or client data.**
+
+See [SECURITY.md](./SECURITY.md) for the details and for what we did verify.
+
+## Quotas, context and long jobs
+
+Added in 0.7.0 after an incident on 2026-10-15. Three read-only `ask` jobs, each reading a 55,000
+character document plus 200,000 to 450,000 characters of code, were launched one after another with
+`ask --background --wait`. Three things went wrong at once, and the plugin made each of them worse:
+
+1. `--wait` gave up after a fixed 60 seconds while the job had a 15-minute budget. The caller took
+   the timeout for the end of the job and started the next one, so the three ran **in parallel**
+   instead of in sequence.
+2. After 6 to 9 minutes all three failed together with Kimi's
+   `403 You've reached your 5-hour usage limit`. The plugin reported it as "the Kimi CLI exited
+   before completing the requested operation. Run `/k3:setup`", which is wrong: setup cannot fix a
+   quota, and a person reading it suspected the context window.
+3. The failed jobs kept no Kimi session id, although Kimi had created the sessions on disk, so once
+   the window rolled over the work could not be resumed and a retry started from zero.
+
+What Moonshot documents (checked on 2026-10-15; limits change, check them yourself):
+
+- Error reference, <https://www.kimi.com/code/docs/en/kimi-code/error-reference.html>. HTTP 403:
+  "You've reached your 5-hour usage limit", caused by "The call volume within the current 5-hour
+  rolling window has reached its limit."; "You've reached your weekly (7-day) usage limit" (legacy
+  plans only); "You've reached your monthly usage limit for this billing cycle"; and "You've reached
+  your concurrent request limit", which is risk control and unrelated to the remaining quota.
+  HTTP 400, context: "total message size N exceeds limit 2097152" and "Your request exceeded model
+  token limit: 262144 (requested: N)". HTTP 401: "Your current subscription does not have access to
+  k3" (upgrade, or use `kimi-for-coding`). We have also seen "403 Your current subscription does
+  not have access to Kimi Code right now"; it is not in that table, and the plugin treats it as a
+  plan error.
+- Models, <https://www.kimi.com/code/docs/en/kimi-code/models.html>. `k3` has a 1M context on Pro /
+  Allegretto and above (256K on Plus / Moderato); `k3-256k` has a fixed 256K. "`k3` (1M) consumes
+  about twice as much quota as `k3-256k`", and "switching models invalidates the context cache
+  you've built up."
+- Community guidelines, <https://www.kimi.com/code/docs/en/kimi-code/community-guidelines.html>.
+  "Kimi Code subscriptions are for personal interactive use only." Non-interactive use "such as
+  scripted batch execution or data annotation pipelines" "goes beyond normal use", and enforcement
+  may include "limiting concurrent access". This is why the plugin below refuses to run model jobs
+  in parallel; it is the same terms question as in "Before you install".
+
+Practical rules:
+
+- **A usage limit is call volume, not the context window.** A long read-heavy job spends quota
+  quickly. For those, `-m kimi-code/k3-256k` uses about half the quota of `k3` at 1M, at the price
+  of a 256K context. If a request really exceeds the context, narrow the scope or split the work.
+- **One model job at a time.** Before `ask`, `review`, `challenge`, `rescue`, `pursue` or `swarm`
+  starts a new job, the plugin checks for a job that is still running. If there is one it refuses
+  with `<COMMAND>_JOB_ALREADY_RUNNING`, names the running job and tells you how to follow it
+  (`/k3:status <id>`, `/k3:result <id>`). It never queues or schedules anything: refusing is the whole
+  behaviour. `--allow-concurrent` overrides the refusal for that one call, and you take the quota
+  and terms consequences. A swarm's own internal fan-out counts as one job, and the Stop-hook review
+  gate is not affected. The check and the job insert happen in one database transaction, so two
+  launches cannot both slip through. There is no time-based expiry: every running row has an owner
+  process (a background row starts owned by the launcher and is handed to the worker by a
+  compare-and-set), so a dead owner is swept before the check, `/k3:cancel` works on a starting
+  job, and a worker whose row was swept or cancelled makes no model call. **Scope:** the
+  guard sees one job store, that is one plugin data directory. It does not see Codex or Claude Code
+  running against another data directory, nor a native interactive `kimi`.
+- **`--wait` now really waits.** It waits for the job's own budget (ask 15 minutes, rescue 30
+  minutes) plus 60 seconds. If it still stops waiting, the message says in capitals that the job is
+  STILL RUNNING and that starting another now would run in parallel. `review`, `challenge`, `pursue`
+  and `swarm` run in the foreground and do not take `--wait`.
+- **Resume after a limit.** A failed `ask` or `rescue` job now keeps the Kimi session id **only
+  when Kimi announced it for that run**. When the window has reset, `/k3:ask --resume <job-id>` or
+  `/k3:rescue --resume <job-id>` continues that session instead of starting over, and the quota
+  error prints the exact command. A session that merely shows up in Kimi's own
+  `session_index.jsonl` is never adopted (it could be an interactive Kimi in the same folder or
+  another job): at most the message mentions it as an unverified candidate you can open yourself
+  with `kimi -r <id>`. Otherwise a retry starts from zero. **Not yet verified against a real Kimi
+  403:** whether Kimi announces the session before the first model call is covered by tests with a
+  fake binary only.
+- **Test the model before a long run.** `/k3:setup --check` prints `Probe: ok` but tests the hook,
+  not model access, your plan, or your quota. `/k3:setup --check --probe-model [-m <model>]` sends
+  one prompt with a 120 second budget and reports `Model probe: ok | failed | skipped` with the
+  classified error. The provider may count more than one request for it (Kimi offers no documented
+  tool-free single-request mode), so it uses a small, not a guaranteed minimal, amount of quota and
+  is opt-in. It goes through the same one-job-at-a-time admission as every model job.
+- **Extra usage is Moonshot's paid option.** If you need more calls than the plan gives, buy extra
+  usage from Moonshot; this plugin has no way around a limit and does not try to find one.
+
+## What to expect in practice
+
+Notes from running this daily since 2026-08-14, on **Windows 11, `kimi-code` 0.30.0, Node 22.20**.
+Each item says how well we know it. Behaviour may differ on later versions.
+
+| What happens | How we know |
+|---|---|
+| **Our subscription hit its cycle quota.** `403 You've reached your usage limit for this billing cycle`, and it stayed until the cycle rolled over. When it happens it is not the hook, not your `PATH`, and not a truncated reply: it is billing. | happened to us |
+| **On Windows, `review` can fail on a large enough diff**, with `CLI_SPAWN_FAILED` / `spawn ENAMETOOLONG`. The companion puts the diff into the spawn arguments and Windows caps command-line length, so it is the size of the diff that breaks it, not the mere presence of uncommitted work. A small dirty tree is fine. Remedy: stash what is unrelated, or point `ask` at the specific files. | reproduced |
+| **A run can stop early and still look finished.** Two ways: the host that spawned it hits its own timeout, or `API Error: Connection closed mid-response`. Either way the partial output is well-formed and reads like an answer. **As a completeness check, confirm it reaches the last section you asked for.** Ask for seven numbered points and count them. Reaching the end does not make an answer right, but stopping short makes it certainly partial. | reproduced, both ways |
+| **`-p` and `--auto` refuse to combine**: `Cannot combine --prompt with --auto`. Matches the vendor's CLI reference. | reproduced |
+| **`KIMI_BINARY_UNAVAILABLE` is a classification, not a diagnosis.** The wrapper maps certain spawn failures to it, normally meaning the CLI could not be found or executed; other things can fail a spawn too, `ENAMETOOLONG` above among them. We hit it once with `kimi` demonstrably on `PATH`, and `/k3:setup` cleared it. Cause never established, so: try `/k3:setup` before you go hunting your `PATH`. | one occurrence, cause unknown |
+| **Long prompts have produced the answer twice** in one stdout. Where we saw it, the second pass was the fuller one. We have not counted often enough to call that a rule. | observed a few times, cause unknown |
+| **stderr carries the reasoning trace** (tens of KB), **stdout carries the answer.** Read the wrong stream and it looks like it said nothing. | reproduced |
+| **Sessions can be resumed.** Our runs ended with a `To resume this session: kimi -r session_...` line. | seen on every run we kept |
+
+### What it is actually good for
+
+Adversarial review. On one product review it found a real arithmetic error and two hidden
+assumptions that neither Claude nor three subagents had caught. **In that same review, 2 of its 6
+claims did not survive checking.**
+
+That is one case and not an error rate, so do not read a percentage into it. Both halves are the
+point: it is a second pair of eyes, not an oracle. Check what it tells you. Used that way it earns
+its keep; used as an authority it will cost you.
+
+### Which versions this is
+
+This fork is built on upstream **v2.5.6**, and its version number says so: the half before
+`-brilia.` is the upstream release we are built on, the half after counts our own changes. We
+re-aligned on **2026-11-10**; before that we sat on v2.0.7, v2.0.5, v1.10.1 and v1.9.8.
+
+**Which engine you get depends on your `kimi-code` version, exactly.** Upstream moved to
+kimi-code's native agent-core-v2 when kimi-code 0.42.0 deleted the legacy v1 engine, and
+kimi-code has since gone to 2.x. Certification for native v2 is per **exact** version, not per
+minor:
+
+| Your `kimi-code` | What happens |
+|---|---|
+| **0.1 through 0.41.x** | Legacy v1 engine, as before. Certified per minor. |
+| **0.42.0, 0.43.0, 0.43.1, 2.0.0, 2.0.1, 2.0.2, 2.1.0, 2.1.1, 2.2.0, 2.3.0, 2.3.1, 2.3.2, 2.3.3, 2.4.0, 2.4.1, 2.5.0, 2.5.1, 2.5.2** | Native v2, certified for all eight operations (upstream v2.5.6's list). |
+| **anything else** | **Every model-spawning command refuses** (`KIMI_CAPABILITY_NOT_CERTIFIED`) until a release certifies that exact version. |
+
+That last row is the one to know about, because **kimi-code can update itself**. On the next
+kimi-code release after 2.5.2, the plugin will refuse until upstream certifies it. Pin
+`K3_PLUGIN_CC_KIMI_BIN` to a known binary if you need continuity.
+
+The opposite can happen too. On our machine kimi-code sat on 0.30.0 for four days after 2.1.1 was
+out: its updater logged the new version as eligible on every run and never installed it, and we
+only drive it through this plugin. We have not established why. So check `kimi --version` against
+the table rather than assuming you are current. To install an exact version on Windows, the
+official installer takes one: `$env:KIMI_VERSION = '2.1.1'; irm https://code.kimi.com/kimi-code/install.ps1 | iex`.
+
+Two behaviours worth knowing before you update: **sessions created before 1.10 cannot be resumed on
+native v2** (nothing is deleted, but start fresh ones), and **`default_plan_mode = true` in
+`~/.kimi-code/config.toml` blocks every command** — that setting would arm the one code path that
+bypasses the safety hook, and `/k3:setup` cannot repair it. Full list in
+[docs/migration.md](./docs/migration.md).
+
+This release also carries upstream's **v1.10.2 security fix**: a denial of service in the vendored
+command parser. If you are on an older build of this fork, that is the reason to update even if you
+do not care about the rest.
+
+**What we verified on Windows for this release, and what we did not** (2026-09-28, Windows 11,
+after the merge with upstream v2.0.7):
+
+- **The hook, driven the way `kimi-code` drives it.** `tests/manual/enforcement-matrix.mjs` launches
+  the built hook through a shell with Node's `shell: true`, which is how `kimi-code` launches hooks:
+  nine write vectors denied on `cmd.exe` and on `sh`, a read allowed, and the negative control (a
+  hook that does not exist) correctly failing open. It does not go through `kimi-code` itself.
+- **That `kimi-code` 2.1.1 still launches hooks that way.** Read in its source, not measured:
+  `runHook.ts` spawns the hook command with `shell: true`, which on Windows means `cmd.exe`.
+- **Not yet: an end-to-end run through a real `kimi-code` 2.1.1 session.** The last one went
+  through `kimi-code` **0.30.0** on 2026-09-23. The 2.1.1 run waits on our subscription's weekly
+  quota, and this line will say so until it is done.
+- **The unit tests run on Linux, in CI**, which must be green before `main` moves. Run locally on
+  Windows, the suite includes POSIX-only tests (`/usr/bin/false`, symlinks) that fail there for
+  reasons unrelated to this fork. The background-job tests that failed intermittently in CI on
+  2026-09-28 were a real race, not noise: see change 4 below.
+
+## What this fork changes
+
+Three Windows fixes, one reliability fix, and our own names. How the hook command is written,
+quoted and launched changes on Windows only. Four things differ on every platform, so this is not
+upstream byte-for-byte on macOS or Linux either: the parser that recognises this plugin's own hook
+command also accepts the double-quoted form there, so a hand-written double-quoted hook under this
+fork's install path would be treated as ours; the names (change 5); the migration from 0.5.x; and
+the job store fix below.
+
+1. **The hook command is double-quoted.** It was quoted POSIX-style with single quotes, which
+   `cmd.exe` does not recognise, so once the hook path was set by hand (see 2) the hook never
+   launched. Since any exit code other than 2 means "allow", enforcement was silently inert while
+   the setup check (upstream's `/kimi:setup --check` at the time we found it) still reported
+   `Probe: ok`.
+   Measured with the same command string: `/bin/sh` exits 2, `cmd.exe` exited 255 when we found it
+   (2026-08-12) and 1 in an independent re-test on 2026-09-28. The number moves; what matters is
+   that it is not 2, so the call is allowed. Upstream v2.0.7 still writes the single-quoted form.
+2. **Hook paths are normalised.** The path derived from `CLAUDE_PLUGIN_ROOT` contains backslashes on
+   Windows, and the TOML safety check rejects backslashes, so every Windows user had to set
+   `KIMI_PLUGIN_CC_HOOK_SCRIPT` by hand. Setup now works with no override, unless the path itself
+   contains `%`, `!` or `"`: those cannot be quoted safely for `cmd.exe`, and setup refuses rather
+   than guess, with or without the override.
+3. **The Windows shell probe runs.** It used to return "skipped (Windows)" as a *success*. We
+   measured how `kimi-code` 0.30.0 actually spawns the hook on Windows (`node.exe <- cmd.exe <- kimi.exe`,
+   via `ComSpec`) and the probe now reproduces that path. For 2.1.1 its source says the same.
+4. **A busy job database is waited on, not failed on, on every platform.** The store set
+   `journal_mode = WAL` before `busy_timeout`, so that first setting ran with SQLite's default
+   timeout of zero and failed at once with `SQLITE_BUSY` whenever another process held the
+   database. `--background --wait` opens a fresh store on every poll while the worker writes the
+   same file, so a background job could fail with `JOB_STORE_BUSY` and print nothing. Now the store
+   waits up to SQLite's 5-second busy timeout, `--wait` keeps polling past a busy store until its
+   own deadline, and the read-only connection of `repair-sessions` sets the same timeout.
+   `tests/runtime/job-store-busy-open.test.ts` holds an EXCLUSIVE lock from a second process and
+   proves the open started while locked and finished only after the release, under both
+   `bun:sqlite` and the compiled runtime on Node's `node:sqlite`; on the old order both fail with
+   `JOB_STORE_BUSY`. Upstream v2.0.7 has the same order.
+5. **Our own names, everywhere a person or a program can see them** (0.6.0): commands `/k3:*`,
+   agents and Codex skills `k3-*`, plugin `k3@brilia-k3-marketplace`, variables `K3_PLUGIN_CC_*`,
+   the hook block marker `k3-plugin-cc-managed`, the data directory `k3-plugin-cc/`, the messages.
+   Beyond branding this has two effects. The plugin now recognises its own install tree: up to
+   0.5.x its self-recognition still looked for upstream's names, so it never matched this fork's
+   install and quietly fell back to less strict paths (no data-directory ownership check; old hook
+   blocks of its own never cleaned up). And the two plugins stop sharing a hook block (see
+   [Coexistence](#coexistence-with-the-upstream-plugin)). What keeps its name is Moonshot's: the
+   `kimi` and `kimi-code` CLI and its `KIMI_CODE_*` settings.
+
+   The renaming is mechanical and has a single definition, `scripts/identity-map.mjs`. Every update
+   from upstream goes through it: the map is applied to upstream's code **before** it is merged, so
+   upstream arrives already speaking our names. This README, the changelog and NOTICE are the
+   exception: the map leaves upstream's version of them alone, and their changes are merged by hand,
+   because a mechanical rename in prose that names the upstream project would make it say something
+   false. Two checks keep it honest. `node scripts/identity-map.mjs verify v2.5.6` proves that every
+   difference from upstream is either the map or a file declared with its reason; it does not prove
+   the map itself right, nor look inside a declared file. `tests/scripts/brand-residue.test.js`
+   fails in CI when one of upstream's names appears in a line that is not pinned: each line that
+   keeps one on purpose (in the migration code, this README, the changelog, NOTICE) is pinned by its
+   exact text, so a new line fails, and so does an allowed line swapped for another.
+
+This fork is maintained independently: these changes are not proposed upstream, so the upstream
+project is not aware of them and is not responsible for them.
+
+## Uninstall
+
+```bash
+/k3:setup --uninstall
+/plugin uninstall k3@brilia-k3-marketplace
 ```
 
-The hook checks Kimi's tool calls against the plugin's rules. The `Probe:` line should show `ok`. If it fails, follow the setup guidance below. Then try:
-
-```text
-Use $kimi-ask to explain how this project's main entry point works.
-```
-
-If you use multiple hosts, run setup in each. Each app has its own hook in the shared Kimi configuration.
-
-## Install in DeepSeek Harness
-
-DSH requires patched host and profile dependencies (`zod >=4.6.6`, `undici >=8.12.2`). Follow the [host installation and audit instructions](./docs/registry-releases.md#patched-dsh-host-and-profiles) before installing this plugin.
-
-The DSH bundle provides the same seven operations as the other hosts: `kimi_ask`, `kimi_review`, `kimi_challenge`, `kimi_rescue`, `kimi_pursue`, `kimi_swarm`, and `kimi_swarm_write`. They use the same companion runtime, safety hooks, jobs, budgets, and artifacts. Rescue and pursue edit the selected workspace; swarm-write returns a patch without applying or committing it.
-
-From this repository checkout, run:
-
-```sh
-dsh plugin --profile web add ./plugins/kimi-dsh
-```
-
-For the published npm bundle, run `dsh plugin --profile web add kimi-plugin-cc` instead.
-
-For DSH Discover, enable **Custom plugin indexes** and add `https://raw.githubusercontent.com/linxule/kimi-plugin-cc/main/dsh/index.json` as an index source.
-
-Restart DSH when requested, then run `/kimi-setup` and `/kimi-setup --check`. Ask DSH to use one of the seven tools with a self-contained task. Job controls are `/kimi-status`, `/kimi-result`, and `/kimi-cancel`. `/kimi-setup --models` lists configured models, and `/kimi-setup --uninstall` removes only the DSH hook.
-
-DSH requires Node.js 24.9 or newer and DSH `>=0.2.1-rc.5 <0.3.0`. See the [DSH bundle guide](./plugins/kimi-dsh/README.md) for profile-level model, thinking, budget, review-base, and other configuration.
-
-## npm distribution (optional)
-
-The existing marketplace commands above remain the default for Claude Code and
-Codex. Published releases are also available as
-[`kimi-plugin-cc` on npm](https://www.npmjs.com/package/kimi-plugin-cc), including
-all three compiled plugin distributions. No Bun, TypeScript, or install scripts are
-needed to use the package. Kimi Code CLI and Node are still prerequisites.
-
-For an explicitly versioned local Claude Code plugin, this example pins the 2.5.1 package:
-
-```sh
-npm install --prefix ~/.local/share/kimi-plugin-cc kimi-plugin-cc@2.5.1
-claude --plugin-dir ~/.local/share/kimi-plugin-cc/node_modules/kimi-plugin-cc
-```
-
-Run `/kimi:setup`, then `/kimi:setup --check` in that Claude Code session. Use
-one installation of the plugin per host; do not load the local copy alongside
-an enabled marketplace copy. The package is a plugin, not a replacement for the
-upstream `kimi` executable, and does not expose an `npx kimi-plugin-cc` command.
-
-To update this local copy, install the desired npm version into the same prefix,
-restart the session, and run setup/check again. Codex users should continue to
-use the GitHub marketplace instructions above. Maintainers: see
-[registry releases](./docs/registry-releases.md).
-
-## Choose a task
-
-| Task | Claude Code command | Codex skill | File access |
-| --- | --- | --- | --- |
-| Explain code | `/kimi:ask` | `$kimi-ask` | Read-only |
-| Review code changes | `/kimi:review` | `$kimi-review` | Read-only |
-| Challenge a design or approach | `/kimi:challenge` | `$kimi-challenge` | Read-only |
-| Make a focused fix | `/kimi:rescue` | `$kimi-rescue` | Can edit your project |
-| Review several areas at once | `/kimi:swarm` | `$kimi-swarm` | Read-only |
-| Prepare edits in parallel | `/kimi:swarm --write` | `$kimi-swarm-write` | Only in a temporary Git worktree; returns a patch for you to apply |
-| Work toward a goal over several turns | `/kimi:pursue` | `$kimi-pursue` | Can edit your project; experimental |
+`--uninstall` removes the managed hook block from `~/.kimi-code/config.toml`. Your Kimi Code login
+is untouched.
 
 Review and challenge inspect your Git diff. Use ask for general questions about your repository.
 
-Pursue and swarm have time limits. Swarm runs tasks in parallel, so it can use more tokens than a single task.
+All the engineering here is [Xule Lin](https://github.com/linxule)'s. The job store, the cancellation
+handling, the approval policy, the stream parser and the safety architecture are his work. We made
+it work on Windows, keep checking that it still does, and wrote this README.
 
 Claude Code also has an optional [review gate](./commands/setup.md). It checks work when Claude finishes a turn and is off by default.
 
-## View sessions in Kimi
-
-Plugin sessions use the shared Kimi Code Desktop and `kimi web` history. New native-v2 sessions receive a readable fallback title that Kimi can replace with a generated title. Manual renames are preserved. For missing older sessions and the native **Gen Title** action, see [session visibility and titles](./docs/session-visibility.md).
-
-## Choose a model
-
-New Kimi sessions use your configured default model. You only need to choose a model if you want a different one.
-
-In Claude Code, run `/kimi:setup --models`. In Codex, ask `$kimi-setup` to list configured models. This reads your local model list. It does not contact providers or test credentials. A listed model can still fail because of authentication, access, or tool support.
-
-Copy a model alias from the list. Replace `provider/model` with that alias:
-
-```text
-/kimi:review -m 'provider/model' Check error handling in this diff.
-```
-
-In Codex, ask “Use $kimi-review with my configured model named …”. Both apps support model requests in plain language. If several models match, the assistant asks you to choose. It does not guess model IDs or switch models silently after an error.
-
-To test a listed model, run a small task with its alias. This makes a provider call under your account.
-
-A choice for one task does not change your saved default. To change that default, run `kimi` and use `/model`.
-
-Resumed sessions keep their previous model unless you pass `-m` with a different alias. For swarm, `-m` selects the coordinator's model. Workers may use different models from Kimi's secondary-model settings. See [model selection and provider setup](./docs/models.md).
-
-## Check or cancel a task
-
-Use these commands to follow a task:
-
-| Action | Claude Code command | Codex skill |
-| --- | --- | --- |
-| Check progress | `/kimi:status` | `$kimi-status` |
-| Read the result | `/kimi:result` | `$kimi-result` |
-| Cancel work | `/kimi:cancel` | `$kimi-cancel` |
-
-Without a job ID, cancel stops the latest running task for this repository. If several tasks are running, check which one you want to stop first. Use cancel rather than interrupting the app so write-swarm can save its patch. For interrupted runs created by the unreleased recovery implementation, see [preview-first swarm recovery](./docs/swarm-recovery.md); it never applies a patch or deletes abandoned work.
-
-Canceling a task does not undo changes it has already made.
-
-Ask and rescue support resuming a session. For example, `/kimi:ask -r Explain the next step.` continues your latest ask session. In Codex, ask `$kimi-ask` to resume it. See the [ask options](./commands/ask.md) and [rescue options](./commands/rescue.md).
-
-### Use the MCP server
-
-The plugin also bundles one MCP stdio server for Claude Code and Codex, alongside the existing slash commands and skills. Those interfaces remain available, and the existing safety-hook setup is still mandatory.
-
-The seven model tools are `kimi_ask`, `kimi_review`, `kimi_challenge`, `kimi_rescue`, `kimi_pursue`, `kimi_swarm`, and `kimi_swarm_write`. Job control uses `kimi_job_status`, `kimi_job_result`, and `kimi_job_cancel`.
-
-- **Claude Code:** task-capable calls return durable MCP tasks. Poll them with `tasks/get` and cancel them with `tasks/cancel`.
-- **Codex:** calls currently use ordinary MCP results, not native MCP tasks. After attachment, a running job returns a launch handle; an already settled job returns its terminal result. Use the three job-control tools to check, read, or cancel it.
-
-Claude supplies the project directory as the default workspace. When the host has no default, as is normal for Codex, the initial operation requires an absolute `workspace` path. Later job-control calls can rely on the job's persisted workspace binding. An MCP server disconnect does not cancel jobs. The jobs table owns status and outcomes; the terminal artifact is the result authority. Failed jobs return `isError: true` with their artifacts.
-
-For example: “Use `kimi_review` to check this diff. In Claude Code, poll the returned task with `tasks/get`; in Codex, use the returned handle with `kimi_job_status` and then `kimi_job_result`.”
-
-## Update or remove the plugin
-
-### Update in Claude Code
-
-Open `/plugin`, refresh `kimi-marketplace`, and update `kimi`. Run `/kimi:setup` again to update the hook's installation path.
-
-### Update in Codex
-
-Run these commands in your terminal:
-
-```sh
-codex plugin marketplace upgrade kimi-marketplace
-codex plugin add kimi@kimi-marketplace
-```
-
-Open a new task and run `$kimi-setup` again.
-
-### Remove the plugin
-
-Remove the app's hook before removing its plugin. In Claude Code, run `/kimi:setup --uninstall`. In Codex, ask `$kimi-setup` to uninstall the hook. This leaves the other app's hook in place.
-
-## Fix setup problems
-
-If a hook check fails, follow its diagnosis. Run setup for the affected app when instructed. Do not bypass the check.
-
-If you see `KIMI_CAPABILITY_NOT_CERTIFIED`, update the plugin or use a certified CLI version. Running setup again does not certify a new CLI.
-
-If you see `CLI_V2_PLAN_MODE_CONFIGURED`, set `default_plan_mode` to `false` or remove it from your Kimi `config.toml` file. Sessions run by this plugin cannot use plan mode.
-
-All refusal codes and their remedies are listed in the [refusal-code catalog](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100).
-
-## Understand the safety limits
-
-The tool rules for ask, review, challenge, and read-only swarm deny file writes and shell commands. Rescue and pursue can write files in your workspace. Swarm with `--write` works in a temporary Git worktree. It starts from your latest commit, so it does not include uncommitted changes. It returns a patch without applying it to your project.
-
-For swarm on CLI 2.3.2, 2.3.3, 2.4.0 and 2.4.1, the plugin briefly starts an authenticated loopback `kimi web` process to activate a session and another to deactivate swarm mode afterward; one ordinary `kimi -p -r` process still performs the task. Activation counts against the time limit, the access token stays in memory and out of logs, and cleanup failure prevents success. Older certified versions use `kimi -p` directly.
-
-The plugin does not commit changes. Review changes before you keep or apply them.
-
-Only use tasks that can write files in repositories you trust. Rescue, pursue, and swarm with `--write` can run tests and similar commands. These commands execute code from your repository. The hook restricts tool use; it is not an operating-system sandbox.
-
-See [safety and limitations](./docs/safety.md), [release history](./CHANGELOG.md), and [planned work](./ROADMAP-TO-GA.md).
-
-## Contribute
-
-Start with the [contribution guide](./CONTRIBUTING.md). The [runtime overview](./runtime/README.md) and [project contracts](./AGENTS.md) explain the implementation.
-
-Every release is cross-reviewed by the agents this plugin orchestrates — Kimi, Claude, and Codex review each other's work on this repository, a practice documented across the [changelog](./CHANGELOG.md).
-
-Contributors need Bun to run `bun run check`. The detailed engineering documents are in English.
-
-</details>
-
-<details>
-<summary>简体中文 — 开始使用</summary>
-
-## 用 Kimi 辅助编程
-
-你可以让 Kimi 解释代码、审查修改、指出设计中的问题，或完成一项范围明确的修复。本插件支持 Claude Code、Codex 和 DeepSeek Harness（DSH）。
-
-插件在你的电脑上调用 Kimi Code CLI，使用你的 Kimi 订阅或在 Kimi 中配置的服务商。调用会消耗相应的订阅额度或产生 API 费用。宿主应用的登录状态不变。任务所需的提示词和代码会发送给所选服务商。
-
-建议先尝试提问或代码审查。这两类任务允许读取文件，禁止写入文件和执行 shell 命令。其他模式可以修改文件；DSH 同样提供七类操作，并遵循相同的写入边界。让 Kimi 动手修改前，请先了解[安全限制](./docs/safety.md)。DSH 的安装方法见[英文说明](#install-in-deepseek-harness)。
-
-## 安装前准备
-
-你需要：
-
-- macOS 或 Linux
-- 支持插件的 Claude Code、Codex 或 DSH
-- Node.js 22.5 或更高版本（DSH 需要 24.9 或更高版本）
-- Kimi Code CLI 2.4.1（已认证；2.4.0、2.3.3、2.3.2、2.3.1 和 2.3.0 也已认证）
-
-目前不支持 Windows。在终端检查版本：
-
-```sh
-node --version
-kimi --version
-```
-
-如果尚未安装 CLI，请参照 [Kimi Code 安装指南](https://www.kimi.com/code/docs/zh/kimi-code-cli/getting-started)。使用本插件不需要 Bun，也不需要编译。
-
-我们按具体 CLI 版本验证兼容性。升级 CLI 后，可能也需要更新插件。参见[支持的版本与升级说明](./docs/migration.md)。
-
-在终端运行 `kimi`。Kimi 订阅用户通过 `/login` 登录；使用 API 的用户通过 `/provider` 配置服务商。请在 Kimi 中输入凭据，不要发到助手对话中。配置完成后退出 Kimi。如果设置了 `KIMI_CODE_HOME`，请确保 Kimi 和插件使用同一路径。
-
-## 在 Claude Code 中安装
-
-在项目目录中启动 Claude Code，然后在 Claude Code 中输入：
-
-```text
-/plugin marketplace add linxule/kimi-plugin-cc
-/plugin install kimi@kimi-marketplace
-/kimi:setup
-/kimi:setup --check
-```
-
-Setup 会安装一个钩子，按插件规则检查 Kimi 的工具调用。检查结果中，`Probe:` 一行应显示 `ok`。如果失败，请参照下方的安装问题处理说明。
-
-试着问一个不需要修改文件的问题：
-
-```text
-/kimi:ask 解释这个项目的主入口如何工作。
-```
-
-## 在 Codex 中安装
-
-在终端运行：
-
-```sh
-codex plugin marketplace add linxule/kimi-plugin-cc
-codex plugin add kimi@kimi-marketplace
-```
-
-在项目中打开一个新的 Codex 任务，请它完成配置：
-
-```text
-使用 $kimi-setup 安装安全钩子，然后检查配置是否可用。
-```
-
-钩子会按插件规则检查 Kimi 的工具调用。检查结果中，`Probe:` 一行应显示 `ok`。如果失败，请参照下方的安装问题处理说明。然后试着输入：
-
-```text
-使用 $kimi-ask 解释这个项目的主入口如何工作。
-```
-
-如果同时使用 Claude Code 和 Codex，请分别运行 setup。两个应用各有自己的钩子，共用一份 Kimi 配置。
-
-## 在 DeepSeek Harness（DSH）中安装
-
-DSH 宿主及各配置所用的依赖需要修补（`zod >=4.6.6`、`undici >=8.12.2`）。安装插件前，请按[宿主安装与审计说明](./docs/registry-releases.md#patched-dsh-host-and-profiles)操作。
-
-DSH 与其他宿主一样提供七类操作：`kimi_ask`、`kimi_review`、`kimi_challenge`、`kimi_rescue`、`kimi_pursue`、`kimi_swarm` 和 `kimi_swarm_write`。它们使用同一套 companion 运行时、安全钩子、任务记录、预算和产物。Rescue 和 pursue 会修改所选工作区；swarm-write 只返回补丁，不会应用或提交它。
-
-从此仓库检出安装：
-
-```sh
-dsh plugin --profile web add ./plugins/kimi-dsh
-```
-
-从已发布的根包安装时，改为运行 `dsh plugin --profile web add kimi-plugin-cc`。
-
-按提示重启 DSH，然后运行 `/kimi-setup` 和 `/kimi-setup --check`。让 DSH 使用上述任一工具，并提供独立完整的任务。任务控制命令为 `/kimi-status`、`/kimi-result` 和 `/kimi-cancel`。`/kimi-setup --models` 列出已配置模型，`/kimi-setup --uninstall` 只移除 DSH 自己的钩子。
-
-DSH 需要 Node.js 24.9 或更高版本，以及 DSH `>=0.2.1-rc.5 <0.3.0`。配置模型、思考强度、预算、review base 等选项，请参阅 [DSH 指南](./plugins/kimi-dsh/README.md)。
-
-## npm 分发（可选）
-
-完整插件也已发布到 [npm，包名为 `kimi-plugin-cc`](https://www.npmjs.com/package/kimi-plugin-cc)，包含 Claude Code、Codex 和 DSH 的预编译运行时，无需 Bun 或构建步骤。默认仍推荐上方的插件市场安装方式。需要通过 npm 安装本地 Claude Code 插件时，请参照 [npm 安装步骤](#npm-distribution-optional)。每个应用只加载一份插件；npm 不提供 `npx kimi-plugin-cc` 命令。Codex 用户继续使用上方的 GitHub 插件市场命令。
-
-## 选择任务
-
-| 任务 | Claude Code 命令 | Codex 技能 | 文件操作范围 |
-| --- | --- | --- | --- |
-| 解释代码 | `/kimi:ask` | `$kimi-ask` | 只读 |
-| 审查代码修改 | `/kimi:review` | `$kimi-review` | 只读 |
-| 检查设计或方案中的问题 | `/kimi:challenge` | `$kimi-challenge` | 只读 |
-| 完成一项范围明确的修复 | `/kimi:rescue` | `$kimi-rescue` | 可以修改项目文件 |
-| 同时审查多个部分 | `/kimi:swarm` | `$kimi-swarm` | 只读 |
-| 并行准备修改 | `/kimi:swarm --write` | `$kimi-swarm-write` | 只在临时 Git 工作树中修改，返回补丁，由你决定是否应用 |
-| 通过多轮任务推进目标 | `/kimi:pursue` | `$kimi-pursue` | 可以修改项目文件，属于实验性功能 |
-
-Review 和 challenge 检查 Git 差异。关于仓库的一般问题，使用 ask。
-
-Pursue 和 swarm 都有运行时限。Swarm 并行执行多个任务，可能比单个任务消耗更多 token。
-
-Claude Code 还提供可选的[自动审查功能](./commands/setup.md)，在 Claude 完成一轮回复时检查工作，默认关闭。
-
-## 选择模型
-
-新的 Kimi 会话使用已配置的默认模型。只有想换用其他模型时，才需要指定模型。
-
-在 Claude Code 中运行 `/kimi:setup --models`。在 Codex 中，请 `$kimi-setup` 列出已配置的模型。这只会读取本地列表，不会连接服务商或验证凭据。列表中的模型仍可能因认证、访问权限或工具支持问题而无法使用。
-
-从列表中复制模型别名，替换下方的 `provider/model`：
-
-```text
-/kimi:review -m 'provider/model' 检查这次修改中的错误处理。
-```
-
-在 Codex 中，可以说“使用 $kimi-review，选择我已配置的名为……的模型”。两个应用都支持用自然语言指定模型。如果有多个匹配项，助手会请你选择。它不会猜测模型 ID，也不会在出错后悄悄换用其他模型。
-
-要测试某个模型，请用它的别名运行一个小任务。这会通过你的账户调用服务商。
-
-为单次任务选择模型不会更改已保存的默认设置。要更改默认模型，请运行 `kimi`，使用 `/model`。
-
-恢复会话时会沿用之前的模型，除非通过 `-m` 指定另一个别名。对于 swarm，`-m` 选择负责协调的智能体所用的模型。执行子任务的智能体可能使用 Kimi 的辅助模型（secondary model）设置中的其他模型。参见[模型选择与服务商配置](./docs/models.md)。
-
-## 查看或取消任务
-
-你可以用以下命令跟进任务：
-
-| 操作 | Claude Code 命令 | Codex 技能 |
-| --- | --- | --- |
-| 查看进度 | `/kimi:status` | `$kimi-status` |
-| 查看结果 | `/kimi:result` | `$kimi-result` |
-| 取消任务 | `/kimi:cancel` | `$kimi-cancel` |
-
-不提供任务 ID 时，cancel 会停止当前仓库中最近启动且仍在运行的任务。如果有多个任务在运行，请先确认要停止哪一个。请使用 cancel，不要直接中断应用，以便 write-swarm 保存补丁。
-
-取消任务不会撤销已经完成的修改。
-
-Ask 和 rescue 支持恢复会话。例如，`/kimi:ask -r 解释下一步。` 会继续最近一次 ask 会话。在 Codex 中，请 `$kimi-ask` 恢复该会话。参见 [ask 参数](./commands/ask.md)和 [rescue 参数](./commands/rescue.md)。
-
-### 使用 MCP 服务器
-
-插件现在还内置了一个同时供 Claude Code 和 Codex 使用的 MCP stdio 服务器，与现有斜杠命令和技能并存。这些界面仍然可用，现有的安全钩子配置也仍是必需步骤。
-
-七个模型工具是 `kimi_ask`、`kimi_review`、`kimi_challenge`、`kimi_rescue`、`kimi_pursue`、`kimi_swarm` 和 `kimi_swarm_write`。任务控制使用 `kimi_job_status`、`kimi_job_result` 和 `kimi_job_cancel`。
-
-- **Claude Code：** 支持任务式调用的工具会返回持久 MCP 任务，通过 `tasks/get` 轮询，通过 `tasks/cancel` 取消。
-- **Codex：** 目前使用普通 MCP 结果，而不是原生 MCP 任务。附加完成后，仍在运行的任务返回启动句柄；已结束的任务直接返回最终结果。使用上述三个任务控制工具查看进度、读取结果或取消任务。
-
-Claude 默认提供项目目录作为工作区。如果宿主没有默认工作区（Codex 通常如此），首次操作必须提供绝对的 `workspace` 路径。之后的任务控制调用可以使用为该任务保存的工作区绑定关系。MCP 服务器断开连接不会取消任务。`jobs` 表是任务状态与结局的依据，最终产物（artifact）是结果内容的依据。任务失败时会返回 `isError: true` 以及相应产物。
-
-例如：“使用 `kimi_review` 检查这次差异。在 Claude Code 中，用 `tasks/get` 轮询返回的任务；在 Codex 中，用返回的句柄调用 `kimi_job_status`，然后调用 `kimi_job_result`。”
-
-## 更新或移除插件
-
-### 在 Claude Code 中更新
-
-打开 `/plugin`，刷新 `kimi-marketplace`，然后更新 `kimi`。再次运行 `/kimi:setup`，更新钩子的安装路径。
-
-### 在 Codex 中更新
-
-在终端运行：
-
-```sh
-codex plugin marketplace upgrade kimi-marketplace
-codex plugin add kimi@kimi-marketplace
-```
-
-打开一个新任务，再次运行 `$kimi-setup`。
-
-### 移除插件
-
-先移除该应用的钩子，再移除插件。在 Claude Code 中运行 `/kimi:setup --uninstall`。在 Codex 中，请 `$kimi-setup` 卸载钩子。这不会移除另一个应用的钩子。
-
-## 处理安装问题
-
-如果钩子检查失败，请按诊断信息处理。提示需要重新配置时，在对应应用中运行 setup。不要绕过检查。
-
-如果出现 `KIMI_CAPABILITY_NOT_CERTIFIED`，请更新插件，或改用已验证兼容的 CLI 版本。再次运行 setup 不能让新的 CLI 版本自动通过兼容性验证。
-
-如果出现 `CLI_V2_PLAN_MODE_CONFIGURED`，请将 Kimi 的 `config.toml` 文件中的 `default_plan_mode` 设为 `false`，或删除该项。本插件运行的会话不能使用计划模式。
-
-所有拒绝码及其处理方法见[拒绝码目录](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100)。
-
-## 了解安全限制
-
-Ask、review、challenge 和只读 swarm 的工具规则禁止写入文件和执行 shell 命令。Rescue 和 pursue 可以修改工作区内的文件。带 `--write` 的 swarm 在临时 Git 工作树中操作。它从最新提交开始，不包含尚未提交的修改。任务结束后返回补丁，不会自动应用到项目。
-
-在 CLI 2.3.2、2.3.3、2.4.0 和 2.4.1 上运行 swarm 时，插件会短暂启动需要认证的本地回环 `kimi web` 进程来激活会话，并在结束后再次启动以停用 swarm 模式；任务本身仍由一个普通的 `kimi -p -r` 进程执行。激活计入任务时限，访问令牌只保存在内存且不会写入日志；无法确认清理完成时，任务不会报告成功。较早的已认证版本仍直接通过 `kimi -p` 运行。
-
-插件不会提交修改。保留或应用修改前，请先审查。
-
-只在你信任的仓库中运行能修改文件的任务。Rescue、pursue 和带 `--write` 的 swarm 可以运行测试等命令。这些命令会执行仓库中的代码。钩子限制的是工具调用，它不是操作系统沙箱。
-
-参见[安全与限制](./docs/safety.md)、[版本记录](./CHANGELOG.md)和[后续计划](./ROADMAP-TO-GA.md)。
-
-## 参与开发
-
-请先阅读[贡献指南](./CONTRIBUTING.md)。[运行时说明](./runtime/README.md)和[项目约定](./AGENTS.md)介绍了实现方式。
-
-每个版本都经过本插件所编排智能体的交叉审查——Kimi、Claude 与 Codex 互相审查彼此在本仓库中的工作，这一实践贯穿整个[版本记录](./CHANGELOG.md)。
-
-开发者需要使用 Bun 运行 `bun run check`。详细技术文档目前使用英文。
-
-</details>
-
-<details>
-<summary>Français — Bien démarrer</summary>
-
-## Utiliser Kimi pour vos tâches de développement
-
-Demandez à Kimi d'expliquer du code, de faire une revue de code, de remettre en question une approche ou de corriger un problème précis. Ce plugin fonctionne dans Claude Code, Codex et DeepSeek Harness (DSH).
-
-Le plugin exécute Kimi Code CLI sur votre ordinateur. Il utilise votre abonnement Kimi ou un fournisseur configuré dans Kimi. Les appels consomment votre quota d'abonnement ou sont facturés sur votre compte API. La connexion à l'application hôte ne change pas. Le fournisseur choisi reçoit les prompts et le code nécessaires à la tâche.
-
-Commencez par une question ou une revue de code. Ces modes autorisent la lecture des fichiers, mais interdisent leur modification et l'exécution de commandes shell. D'autres modes peuvent modifier des fichiers ; DSH nécessite des dépendances corrigées dans son installation et ses profils (`zod >=4.6.6`, `undici >=8.12.2`). Suivez les [instructions d’installation et d’audit](./docs/registry-releases.md#patched-dsh-host-and-profiles) avant d’installer ce plugin.
-
-DSH propose les sept mêmes opérations avec les mêmes limites d'écriture. Consultez les [limites de sécurité](./docs/safety.md) avant de demander des modifications à Kimi. Voir le [guide DSH en anglais](#install-in-deepseek-harness) pour l'installation.
-
-## Préparer l'installation
-
-Il vous faut :
-
-- macOS ou Linux
-- une version de Claude Code, Codex ou DSH prenant en charge les plugins
-- Node.js 22.5 ou une version ultérieure (24.9 ou ultérieure pour DSH)
-- Kimi Code CLI 2.4.1 (certifiée ; les versions 2.4.0, 2.3.3, 2.3.2, 2.3.1 et 2.3.0 sont également certifiées)
-
-Windows n'est pas pris en charge actuellement. Vérifiez les versions dans un terminal :
-
-```sh
-node --version
-kimi --version
-```
-
-Si le CLI n'est pas installé, suivez le [guide d'installation de Kimi Code](https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started) (en anglais). Vous n'avez pas besoin de Bun ni d'étape de compilation pour utiliser ce plugin.
-
-Nous vérifions la compatibilité pour chaque version précise du CLI. Une nouvelle version du CLI peut nécessiter une mise à jour du plugin. Consultez les [versions prises en charge et les consignes de mise à jour](./docs/migration.md).
-
-Lancez `kimi` dans un terminal. Utilisez `/login` pour un abonnement Kimi ou `/provider` pour configurer un fournisseur d'API. Saisissez vos identifiants dans Kimi, jamais dans la conversation avec l'assistant. Quittez Kimi une fois la configuration terminée. Si vous définissez `KIMI_CODE_HOME`, utilisez le même emplacement pour Kimi et le plugin.
-
-## Installer dans Claude Code
-
-Ouvrez Claude Code dans votre projet. Saisissez ces commandes dans Claude Code :
-
-```text
-/plugin marketplace add linxule/kimi-plugin-cc
-/plugin install kimi@kimi-marketplace
-/kimi:setup
-/kimi:setup --check
-```
-
-Setup installe un hook qui vérifie les appels d'outils de Kimi selon les règles du plugin. La ligne `Probe:` doit afficher `ok`. En cas d'échec, consultez les consignes de dépannage ci-dessous.
-
-Essayez une question qui ne modifie aucun fichier :
-
-```text
-/kimi:ask Explique le fonctionnement du point d'entrée principal de ce projet.
-```
-
-## Installer dans Codex
-
-Exécutez ces commandes dans un terminal :
-
-```sh
-codex plugin marketplace add linxule/kimi-plugin-cc
-codex plugin add kimi@kimi-marketplace
-```
-
-Ouvrez une nouvelle tâche Codex dans votre projet. Demandez-lui de configurer le plugin :
-
-```text
-Utilise $kimi-setup pour installer le hook de sécurité, puis vérifie que tout est prêt.
-```
-
-Le hook vérifie les appels d'outils de Kimi selon les règles du plugin. La ligne `Probe:` doit afficher `ok`. En cas d'échec, consultez les consignes de dépannage ci-dessous. Essayez ensuite :
-
-```text
-Utilise $kimi-ask pour expliquer le fonctionnement du point d'entrée principal de ce projet.
-```
-
-Si vous utilisez Claude Code et Codex, lancez setup dans chaque application. Chacune possède son propre hook dans la configuration Kimi commune.
-
-## Installer dans DeepSeek Harness (DSH)
-
-DSH propose les sept mêmes opérations que les autres hôtes : `kimi_ask`, `kimi_review`, `kimi_challenge`, `kimi_rescue`, `kimi_pursue`, `kimi_swarm` et `kimi_swarm_write`. Elles utilisent le même runtime companion, les mêmes hooks de sécurité, jobs, budgets et artefacts. Rescue et pursue modifient l'espace de travail sélectionné ; swarm-write renvoie un patch sans l'appliquer ni le committer.
-
-Depuis une copie de ce dépôt, exécutez :
-
-```sh
-dsh plugin --profile web add ./plugins/kimi-dsh
-```
-
-Pour installer le paquet racine publié, exécutez plutôt `dsh plugin --profile web add kimi-plugin-cc`.
-
-Redémarrez DSH si demandé, puis lancez `/kimi-setup` et `/kimi-setup --check`. Demandez à DSH d'utiliser l'un des sept outils avec une tâche autonome. Les contrôles sont `/kimi-status`, `/kimi-result` et `/kimi-cancel`. `/kimi-setup --models` liste les modèles configurés, et `/kimi-setup --uninstall` supprime uniquement le hook DSH.
-
-DSH requiert Node.js 24.9 ou supérieur et DSH `>=0.2.1-rc.5 <0.3.0`. Consultez le [guide DSH](./plugins/kimi-dsh/README.md) pour configurer le modèle, l'effort de réflexion, le budget, la base de revue et les autres options.
-
-## Distribution npm (facultative)
-
-Le plugin complet est aussi disponible sur [npm sous le nom `kimi-plugin-cc`](https://www.npmjs.com/package/kimi-plugin-cc), avec les runtimes précompilés pour Claude Code, Codex et DSH, sans Bun ni compilation. Les marketplaces ci-dessus restent le mode d'installation par défaut. Pour installer une copie locale dans Claude Code via npm, suivez les [étapes npm](#npm-distribution-optional) (en anglais). Ne chargez qu'une copie du plugin par application ; le paquet ne fournit pas de commande `npx kimi-plugin-cc`. Pour Codex, continuez à utiliser la marketplace GitHub ci-dessus.
-
-## Choisir une tâche
-
-| Tâche | Commande Claude Code | Skill Codex | Accès aux fichiers |
-| --- | --- | --- | --- |
-| Expliquer du code | `/kimi:ask` | `$kimi-ask` | Lecture seule |
-| Faire une revue des modifications | `/kimi:review` | `$kimi-review` | Lecture seule |
-| Remettre en question une conception ou une approche | `/kimi:challenge` | `$kimi-challenge` | Lecture seule |
-| Corriger un problème précis | `/kimi:rescue` | `$kimi-rescue` | Peut modifier votre projet |
-| Examiner plusieurs parties à la fois | `/kimi:swarm` | `$kimi-swarm` | Lecture seule |
-| Préparer des modifications en parallèle | `/kimi:swarm --write` | `$kimi-swarm-write` | Uniquement dans un worktree Git temporaire ; renvoie un patch que vous pouvez appliquer |
-| Poursuivre un objectif sur plusieurs tours | `/kimi:pursue` | `$kimi-pursue` | Peut modifier votre projet ; fonction expérimentale |
-
-Review et challenge examinent votre diff Git. Utilisez ask pour les questions générales sur votre dépôt.
-
-Pursue et swarm ont une durée limitée. Swarm exécute des tâches en parallèle et peut donc consommer plus de tokens qu'une tâche seule.
-
-Claude Code propose aussi une [revue automatique facultative](./commands/setup.md). Elle vérifie le travail lorsque Claude termine un tour et reste désactivée par défaut.
-
-## Choisir un modèle
-
-Les nouvelles sessions Kimi utilisent le modèle configuré par défaut. Précisez un modèle uniquement si vous souhaitez en utiliser un autre que celui par défaut.
-
-Dans Claude Code, lancez `/kimi:setup --models`. Dans Codex, demandez à `$kimi-setup` de lister les modèles configurés. Cette opération lit la liste locale sans contacter les fournisseurs ni vérifier les identifiants. Un modèle de la liste peut échouer faute d'authentification, d'accès ou de prise en charge des outils.
-
-Copiez un alias de modèle depuis la liste. Remplacez `provider/model` par cet alias :
-
-```text
-/kimi:review -m 'provider/model' Vérifie la gestion des erreurs dans ces modifications.
-```
-
-Dans Codex, demandez : « Utilise $kimi-review avec mon modèle configuré nommé… ». Les deux applications acceptent les demandes de modèle en langage naturel. Si plusieurs modèles correspondent, l'assistant vous demande de choisir. Il ne devine pas les identifiants de modèle et ne change pas de modèle sans vous le dire après une erreur.
-
-Pour tester un modèle de la liste, lancez une petite tâche avec son alias. Cela effectue un appel au fournisseur avec votre compte.
-
-Le choix d'un modèle pour une tâche ne change pas votre modèle par défaut. Pour modifier ce dernier, lancez `kimi` et utilisez `/model`.
-
-Une session reprise conserve son modèle, sauf si vous passez un autre alias avec `-m`. Pour swarm, `-m` choisit le modèle du coordinateur. Les agents chargés des sous-tâches peuvent utiliser d'autres modèles définis dans les paramètres de modèles secondaires de Kimi. Consultez le [choix des modèles et la configuration des fournisseurs](./docs/models.md).
-
-## Suivre ou annuler une tâche
-
-Utilisez ces commandes pour suivre une tâche :
-
-| Action | Commande Claude Code | Skill Codex |
-| --- | --- | --- |
-| Voir la progression | `/kimi:status` | `$kimi-status` |
-| Afficher le résultat | `/kimi:result` | `$kimi-result` |
-| Annuler la tâche | `/kimi:cancel` | `$kimi-cancel` |
-
-Sans identifiant de tâche, cancel arrête la dernière tâche lancée qui est encore active dans ce dépôt. Si plusieurs tâches sont en cours, vérifiez d'abord celle que vous souhaitez arrêter. Utilisez cancel au lieu d'interrompre l'application pour laisser write-swarm enregistrer son patch.
-
-Annuler une tâche n'annule pas les modifications déjà effectuées.
-
-Ask et rescue permettent de reprendre une session. Par exemple, `/kimi:ask -r Explique l'étape suivante.` reprend votre dernière session ask. Dans Codex, demandez à `$kimi-ask` de la reprendre. Consultez les [options d'ask](./commands/ask.md) et les [options de rescue](./commands/rescue.md).
-
-### Utiliser le serveur MCP
-
-Le plugin intègre aussi un serveur MCP stdio unique pour Claude Code et Codex, en plus des commandes slash et skills existants. Ces interfaces restent disponibles et la configuration du hook de sécurité reste obligatoire.
-
-Les sept outils de modèle sont `kimi_ask`, `kimi_review`, `kimi_challenge`, `kimi_rescue`, `kimi_pursue`, `kimi_swarm` et `kimi_swarm_write`. Le contrôle des tâches utilise `kimi_job_status`, `kimi_job_result` et `kimi_job_cancel`.
-
-- **Claude Code :** les appels compatibles avec les tâches renvoient des tâches MCP durables. Interrogez-les avec `tasks/get` et annulez-les avec `tasks/cancel`.
-- **Codex :** les appels utilisent actuellement des résultats MCP ordinaires, et non des tâches MCP natives. Après l'attachement, un job encore actif renvoie un handle de lancement ; un job déjà terminé renvoie directement son résultat final. Utilisez les trois outils de contrôle pour suivre, lire ou annuler le job.
-
-Claude fournit le répertoire du projet comme espace de travail par défaut. Sans espace de travail par défaut côté hôte, ce qui est normal pour Codex, l'opération initiale exige un chemin `workspace` absolu. Les contrôles ultérieurs peuvent utiliser l'association enregistrée entre la tâche et l'espace de travail. Une déconnexion du serveur MCP n'annule pas les tâches. La table jobs fait autorité pour l'état et l'issue des jobs ; l'artefact final fait autorité pour le contenu du résultat. Une tâche en échec renvoie `isError: true` avec ses artefacts.
-
-Par exemple : « Utilise `kimi_review` pour vérifier ce diff. Dans Claude Code, interroge la tâche renvoyée avec `tasks/get` ; dans Codex, utilise le handle renvoyé avec `kimi_job_status`, puis `kimi_job_result`. »
-
-## Mettre à jour ou supprimer le plugin
-
-### Mettre à jour dans Claude Code
-
-Ouvrez `/plugin`, actualisez `kimi-marketplace` et mettez `kimi` à jour. Relancez `/kimi:setup` pour mettre à jour le chemin d'installation du hook.
-
-### Mettre à jour dans Codex
-
-Exécutez ces commandes dans un terminal :
-
-```sh
-codex plugin marketplace upgrade kimi-marketplace
-codex plugin add kimi@kimi-marketplace
-```
-
-Ouvrez une nouvelle tâche et relancez `$kimi-setup`.
-
-### Supprimer le plugin
-
-Supprimez le hook de l'application avant d'en retirer le plugin. Dans Claude Code, lancez `/kimi:setup --uninstall`. Dans Codex, demandez à `$kimi-setup` de désinstaller le hook. Celui de l'autre application reste en place.
-
-## Résoudre les problèmes d'installation
-
-Si la vérification du hook échoue, suivez le diagnostic. Relancez setup dans l'application concernée lorsque les instructions le demandent. Ne contournez pas la vérification.
-
-Si vous voyez `KIMI_CAPABILITY_NOT_CERTIFIED`, mettez à jour le plugin ou utilisez une version du CLI dont la compatibilité a été vérifiée. Relancer setup ne valide pas la compatibilité d'une nouvelle version du CLI.
-
-Si vous voyez `CLI_V2_PLAN_MODE_CONFIGURED`, réglez `default_plan_mode` sur `false` ou supprimez cette option du fichier `config.toml` de Kimi. Les sessions lancées par ce plugin ne peuvent pas utiliser le mode plan.
-
-Tous les codes de refus et leurs remèdes sont répertoriés dans le [catalogue des codes de refus](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100).
-
-## Comprendre les limites de sécurité
-
-Les règles des modes ask, review, challenge et swarm en lecture seule interdisent les écritures et les commandes shell. Rescue et pursue peuvent modifier les fichiers de votre espace de travail. Swarm avec `--write` travaille dans un worktree Git temporaire. Il part du dernier commit et n'inclut donc pas les modifications non commitées. Il renvoie un patch sans l'appliquer à votre projet.
-
-Avec le CLI 2.3.2, 2.3.3, 2.4.0 et 2.4.1, les tâches swarm lancent brièvement un processus `kimi web` authentifié sur l'interface de boucle locale pour activer la session, puis un second pour désactiver le mode swarm ; un seul processus `kimi -p -r` ordinaire exécute toujours la tâche. L'activation est comptée dans la limite de temps, le jeton reste en mémoire et hors des journaux, et l'échec du nettoyage empêche de déclarer la réussite. Les versions certifiées antérieures utilisent directement `kimi -p`.
-
-Le plugin ne crée aucun commit. Examinez les modifications avant de les conserver ou de les appliquer.
-
-N'utilisez les tâches pouvant écrire des fichiers que dans des dépôts auxquels vous faites confiance. Rescue, pursue et swarm avec `--write` peuvent lancer des tests et des commandes similaires. Ces commandes exécutent du code du dépôt. Le hook limite l'utilisation des outils ; ce n'est pas un bac à sable du système d'exploitation.
-
-Consultez les [limites de sécurité](./docs/safety.md), l'[historique des versions](./CHANGELOG.md) et les [travaux prévus](./ROADMAP-TO-GA.md).
-
-## Contribuer
-
-Commencez par le [guide de contribution](./CONTRIBUTING.md). La [présentation du runtime](./runtime/README.md) et les [règles du projet](./AGENTS.md) expliquent l'implémentation.
-
-Chaque version fait l'objet d'une relecture croisée par les agents que ce plugin orchestre — Kimi, Claude et Codex révisent mutuellement leur travail sur ce dépôt, une pratique documentée dans l'ensemble du [journal des versions](./CHANGELOG.md).
-
-Les contributeurs ont besoin de Bun pour exécuter `bun run check`. La documentation technique détaillée est en anglais.
-
-</details>
-
-<details>
-<summary>日本語 — はじめに</summary>
-
-## Kimi を開発に使う
-
-コードの説明、変更のレビュー、設計の問題点の指摘、範囲を絞った修正を Kimi に依頼できます。このプラグインは Claude Code、Codex、DeepSeek Harness（DSH）で使えます。
-
-プラグインは、お使いのコンピューターで Kimi Code CLI を実行します。Kimi のサブスクリプション、または Kimi に設定したプロバイダーを利用します。呼び出しは、そのサブスクリプションの利用枠を消費するか、API アカウントに課金されます。ホストアプリのログイン状態は変わりません。タスクに必要なプロンプトとコードは、選択したプロバイダーに送信されます。
-
-まずは質問かコードレビューを試してください。これらのモードではファイルの読み取りを許可し、書き込みとシェルコマンドの実行を禁止しています。ほかのモードではファイルを変更できます。DSH でも同じ 7 種類の操作を同じ書き込み範囲で提供します。変更を依頼する前に、[安全上の制限](./docs/safety.md)を確認してください。DSH のインストール方法は[英語の案内](#install-in-deepseek-harness)を参照してください。
-
-## インストール前の準備
-
-次の環境が必要です。
-
-- macOS または Linux
-- プラグインに対応した Claude Code、Codex、または DSH
-- Node.js 22.5 以降（DSH では 24.9 以降）
-- Kimi Code CLI 2.4.1（認証済み。2.4.0、2.3.3、2.3.2、2.3.1 と 2.3.0 も認証済み）
-
-現在、Windows には対応していません。ターミナルでバージョンを確認します。
-
-```sh
-node --version
-kimi --version
-```
-
-CLI が未インストールの場合は、[Kimi Code のインストールガイド（英語）](https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started)を参照してください。プラグインを使うために Bun やビルド作業は必要ありません。
-
-互換性は CLI のバージョンごとに検証しています。CLI を更新すると、プラグインの更新も必要になる場合があります。[対応バージョンと更新手順](./docs/migration.md)を参照してください。
-
-ターミナルで `kimi` を実行します。Kimi のサブスクリプションを使う場合は `/login`、API プロバイダーを設定する場合は `/provider` を使います。認証情報は Kimi に入力し、アシスタントとの会話には送らないでください。設定が終わったら Kimi を終了します。`KIMI_CODE_HOME` を設定している場合は、Kimi とプラグインで同じ場所を使ってください。
-
-## Claude Code にインストールする
-
-プロジェクトで Claude Code を開き、Claude Code 内で次のコマンドを入力します。
-
-```text
-/plugin marketplace add linxule/kimi-plugin-cc
-/plugin install kimi@kimi-marketplace
-/kimi:setup
-/kimi:setup --check
-```
-
-Setup は、Kimi のツール呼び出しをプラグインのルールに照らして確認するフックをインストールします。正常であれば `Probe:` 行に `ok` と表示されます。失敗した場合は、後述の「設定の問題を解決する」を参照してください。
-
-ファイルを変更しない質問を試します。
-
-```text
-/kimi:ask このプロジェクトのメインのエントリーポイントがどう動くか説明してください。
-```
-
-## Codex にインストールする
-
-ターミナルで次のコマンドを実行します。
-
-```sh
-codex plugin marketplace add linxule/kimi-plugin-cc
-codex plugin add kimi@kimi-marketplace
-```
-
-プロジェクトで Codex の新しいタスクを開き、設定を依頼します。
-
-```text
-$kimi-setup を使って安全フックをインストールし、設定を確認してください。
-```
-
-フックは Kimi のツール呼び出しをプラグインのルールに照らして確認します。正常であれば `Probe:` 行に `ok` と表示されます。失敗した場合は、後述の「設定の問題を解決する」を参照してください。続いて、次の依頼を試します。
-
-```text
-$kimi-ask を使って、このプロジェクトのメインのエントリーポイントがどう動くか説明してください。
-```
-
-Claude Code と Codex の両方を使う場合は、それぞれで setup を実行します。共通の Kimi 設定内に、各アプリ専用のフックが作られます。
-
-## DeepSeek Harness（DSH）にインストールする
-
-DSH 本体とプロファイルの依存パッケージには修正版（`zod >=4.6.6`、`undici >=8.12.2`）が必要です。プラグインのインストール前に[本体のインストールと監査の手順](./docs/registry-releases.md#patched-dsh-host-and-profiles)を確認してください。
-
-DSH でも、ほかのホストと同じ 7 種類の操作を提供します：`kimi_ask`、`kimi_review`、`kimi_challenge`、`kimi_rescue`、`kimi_pursue`、`kimi_swarm`、`kimi_swarm_write`。同じ companion ランタイム、安全フック、ジョブ、予算、成果物を使用します。Rescue と pursue は選択したワークスペースを変更し、swarm-write はパッチを返すだけで、適用やコミットは行いません。
-
-このリポジトリのチェックアウトからインストールする場合：
-
-```sh
-dsh plugin --profile web add ./plugins/kimi-dsh
-```
-
-公開されているルートパッケージからインストールする場合は、代わりに `dsh plugin --profile web add kimi-plugin-cc` を実行します。
-
-案内に従って DSH を再起動したら、`/kimi-setup` と `/kimi-setup --check` を実行します。独立した内容のタスクを指定して、上記のいずれかのツールを使ってください。ジョブ制御は `/kimi-status`、`/kimi-result`、`/kimi-cancel` です。`/kimi-setup --models` で設定済みモデルを一覧でき、`/kimi-setup --uninstall` は DSH のフックだけを削除します。
-
-DSH には Node.js 24.9 以降と、DSH `>=0.2.1-rc.5 <0.3.0` が必要です。モデル、思考強度、予算、review base などの設定は [DSH ガイド](./plugins/kimi-dsh/README.md)を参照してください。
-
-## npm 配布（任意）
-
-完全なプラグインは [npm の `kimi-plugin-cc`](https://www.npmjs.com/package/kimi-plugin-cc) としても公開されています。Claude Code、Codex、DSH 向けのコンパイル済みランタイムを含み、Bun やビルド作業は不要です。通常は上記のマーケットプレイス経由でインストールしてください。npm から Claude Code 用のローカルコピーを入れる場合は、[npm のインストール手順](#npm-distribution-optional)（英語）を参照してください。各アプリで読み込むプラグインは一つにし、重複させないでください。`npx kimi-plugin-cc` コマンドはありません。Codex では引き続き上記の GitHub マーケットプレイスを使います。
-
-## タスクを選ぶ
-
-| タスク | Claude Code コマンド | Codex スキル | ファイル操作の範囲 |
-| --- | --- | --- | --- |
-| コードを説明する | `/kimi:ask` | `$kimi-ask` | 読み取り専用 |
-| コードの変更をレビューする | `/kimi:review` | `$kimi-review` | 読み取り専用 |
-| 設計や方針の問題点を検討する | `/kimi:challenge` | `$kimi-challenge` | 読み取り専用 |
-| 範囲を絞って修正する | `/kimi:rescue` | `$kimi-rescue` | プロジェクトのファイルを変更可能 |
-| 複数の箇所を同時にレビューする | `/kimi:swarm` | `$kimi-swarm` | 読み取り専用 |
-| 複数の変更を並行して準備する | `/kimi:swarm --write` | `$kimi-swarm-write` | 一時的な Git ワークツリー内のみ変更し、適用用のパッチを返す |
-| 複数ターンにわたって目標に取り組む | `/kimi:pursue` | `$kimi-pursue` | プロジェクトのファイルを変更可能（実験的機能） |
-
-Review と challenge は Git の差分を確認します。リポジトリ全般に関する質問には ask を使ってください。
-
-Pursue と swarm には実行時間の上限があります。Swarm はタスクを並行して実行するため、単一のタスクよりトークンを多く消費する場合があります。
-
-Claude Code には、任意で有効にできる[自動レビュー機能](./commands/setup.md)もあります。Claude が応答を終えると作業内容を確認します。初期状態では無効です。
-
-## モデルを選ぶ
-
-新しい Kimi セッションでは、設定済みのデフォルトモデルを使います。別のモデルを使いたい場合だけ指定してください。
-
-Claude Code では `/kimi:setup --models` を実行します。Codex では `$kimi-setup` に設定済みモデルの一覧表示を依頼します。この操作はローカルの一覧を読み取るだけで、プロバイダーへの接続や認証情報の検証は行いません。一覧にあるモデルでも、認証、アクセス権、ツール対応の問題で使えない場合があります。
-
-一覧からモデルのエイリアスをコピーし、次の `provider/model` と置き換えます。
-
-```text
-/kimi:review -m 'provider/model' この差分のエラー処理を確認してください。
-```
-
-Codex では「$kimi-review を使い、設定済みの『……』というモデルでレビューしてください」と依頼できます。どちらのアプリでも、自然言語でモデルを指定できます。複数のモデルが該当する場合は、アシスタントが選択を求めます。モデル ID を推測したり、エラーの後に黙って別のモデルに切り替えたりはしません。
-
-一覧のモデルを試すには、そのエイリアスで小さなタスクを実行します。あなたのアカウントでプロバイダーへの呼び出しが発生します。
-
-タスクごとにモデルを指定しても、保存済みのデフォルト設定は変わりません。デフォルトモデルを変更するには、`kimi` を実行して `/model` を使います。
-
-再開したセッションは、`-m` で別のエイリアスを指定しない限り、以前のモデルを使います。Swarm の `-m` は調整役のエージェントが使うモデルを指定します。子タスクを担当するエージェントは、Kimi のセカンダリモデル設定に基づく別のモデルを使う場合があります。[モデルの選択とプロバイダーの設定](./docs/models.md)を参照してください。
-
-## 進捗の確認とタスクのキャンセル
-
-次のコマンドでタスクを確認できます。
-
-| 操作 | Claude Code コマンド | Codex スキル |
-| --- | --- | --- |
-| 進捗を確認する | `/kimi:status` | `$kimi-status` |
-| 結果を確認する | `/kimi:result` | `$kimi-result` |
-| タスクをキャンセルする | `/kimi:cancel` | `$kimi-cancel` |
-
-タスク ID を指定しない場合、cancel はこのリポジトリで実行中のタスクのうち、最後に開始したものを停止します。複数のタスクが動いている場合は、停止する対象を先に確認してください。write-swarm がパッチを保存できるよう、アプリを強制中断せずに cancel を使ってください。
-
-タスクをキャンセルしても、すでに行われた変更は元に戻りません。
-
-Ask と rescue はセッションの再開に対応しています。たとえば `/kimi:ask -r 次の手順を説明してください。` は、直近の ask セッションを続けます。Codex では `$kimi-ask` に再開を依頼してください。[ask のオプション](./commands/ask.md)と [rescue のオプション](./commands/rescue.md)を参照できます。
-
-### MCP サーバーを使う
-
-プラグインには、既存のスラッシュコマンドとスキルに加え、Claude Code と Codex の両方で使える MCP stdio サーバーが 1 つ同梱されています。既存のコマンドとスキルも引き続き使え、既存の安全フックの設定も必須です。
-
-7 つのモデルツールは `kimi_ask`、`kimi_review`、`kimi_challenge`、`kimi_rescue`、`kimi_pursue`、`kimi_swarm`、`kimi_swarm_write` です。ジョブ制御には `kimi_job_status`、`kimi_job_result`、`kimi_job_cancel` を使います。
-
-- **Claude Code：** タスク対応の呼び出しは永続的な MCP タスクを返します。`tasks/get` でポーリングし、`tasks/cancel` でキャンセルします。
-- **Codex：** 現在はネイティブの MCP タスクではなく、通常の MCP 結果を使います。アタッチ後、実行中のジョブには起動ハンドルを返し、すでに終了したジョブには最終結果を直接返します。進捗確認・結果取得・キャンセルには 3 つのジョブ制御ツールを使います。
-
-Claude はプロジェクトディレクトリをデフォルトのワークスペースとして提供します。ホスト側にデフォルトがない場合（Codex ではこれが通常です）、最初の操作では絶対パスの `workspace` が必要です。後続のジョブ制御では、そのジョブに保存されたワークスペースの関連付けを利用できます。MCP サーバーとの接続が切れても、ジョブはキャンセルされません。`jobs` テーブルがジョブの状態と結果を管理し、最終成果物（artifact）が結果内容の正規の情報源となります。失敗したジョブも成果物とともに `isError: true` を返します。
-
-例：「`kimi_review` でこの差分を確認してください。Claude Code では返されたタスクを `tasks/get` でポーリングし、Codex では返されたハンドルを使って `kimi_job_status`、`kimi_job_result` の順に呼び出してください。」
-
-## プラグインを更新または削除する
-
-### Claude Code で更新する
-
-`/plugin` を開き、`kimi-marketplace` の情報を更新してから `kimi` を更新します。`/kimi:setup` を再実行して、フックのインストール先を更新してください。
-
-### Codex で更新する
-
-ターミナルで次のコマンドを実行します。
-
-```sh
-codex plugin marketplace upgrade kimi-marketplace
-codex plugin add kimi@kimi-marketplace
-```
-
-新しいタスクを開いて `$kimi-setup` を再実行します。
-
-### プラグインを削除する
-
-プラグインを削除する前に、そのアプリのフックを削除します。Claude Code では `/kimi:setup --uninstall` を実行します。Codex では `$kimi-setup` にフックのアンインストールを依頼してください。もう一方のアプリのフックは残ります。
-
-## 設定の問題を解決する
-
-フックの確認に失敗した場合は、診断結果に従って対処してください。Setup の実行を指示された場合は、該当するアプリで実行します。確認を回避しないでください。
-
-`KIMI_CAPABILITY_NOT_CERTIFIED` が表示されたら、プラグインを更新するか、互換性を検証済みの CLI バージョンを使ってください。Setup を再実行しても、新しい CLI の互換性が検証済みになるわけではありません。
-
-`CLI_V2_PLAN_MODE_CONFIGURED` が表示されたら、Kimi の `config.toml` で `default_plan_mode` を `false` にするか、その項目を削除してください。このプラグインが実行するセッションではプランモードを使えません。
-
-すべての拒否コードと対処方法は、[拒否コードの一覧](./docs/safety.md#refusal-codes-of-the-native-v2-contract-v1100)にまとめています。
-
-## 安全上の制限を理解する
-
-Ask、review、challenge、読み取り専用 swarm のツールルールでは、ファイルへの書き込みとシェルコマンドを禁止しています。Rescue と pursue はワークスペース内のファイルを変更できます。`--write` を指定した swarm は、一時的な Git ワークツリーで作業します。最新のコミットから開始するため、未コミットの変更は含まれません。パッチを返すだけで、プロジェクトには自動適用しません。
-
-CLI 2.3.2 / 2.3.3 / 2.4.0 / 2.4.1 の swarm では、セッションを有効化するため、そして終了後に swarm モードを無効化するため、認証付きのローカルループバック `kimi web` プロセスをそれぞれ短時間だけ起動します。タスク自体は従来どおり 1 つの `kimi -p -r` プロセスが実行します。有効化も制限時間に含まれ、トークンはメモリー内にのみ保持されてログには出ません。後処理を確認できない場合、タスクは成功と報告されません。以前の認証済みバージョンでは、引き続き `kimi -p` を直接使います。
-
-プラグインは変更をコミットしません。変更を残す、または適用する前に内容を確認してください。
-
-ファイルを書き換えるタスクは、信頼できるリポジトリでのみ実行してください。Rescue、pursue、`--write` 付きの swarm は、テストなどのコマンドを実行できます。これらのコマンドはリポジトリ内のコードを実行します。フックはツールの使用を制限しますが、OS のサンドボックスではありません。
-
-[安全上の制限](./docs/safety.md)、[リリース履歴](./CHANGELOG.md)、[今後の予定](./ROADMAP-TO-GA.md)も参照してください。
-
-## 開発に参加する
-
-まず[開発への参加ガイド](./CONTRIBUTING.md)を参照してください。[ランタイムの概要](./runtime/README.md)と[プロジェクトの規約](./AGENTS.md)に実装の説明があります。
-
-各リリースは、このプラグインがオーケストレーションするエージェント同士の相互レビューを経ています。Kimi、Claude、Codex がこのリポジトリで互いの作業をレビューしており、その実践は[リリース履歴](./CHANGELOG.md)全体に記録されています。
-
-開発時の `bun run check` には Bun が必要です。詳しい技術文書は英語で提供しています。
-
-</details>
-
----
-
-This plugin uses [Kimi Code](https://github.com/MoonshotAI/kimi-code). Its runtime design draws on [OpenAI's codex-plugin-cc](https://github.com/openai/codex-plugin-cc). It is licensed under [Apache-2.0](./LICENSE).
+Apache-2.0, same as upstream. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).

@@ -1,5 +1,11 @@
 # Registry releases
 
+> **BRILIA fork (k3-plugin-cc): this page describes upstream's npm releases and does not apply
+> here.** This fork is not published to npm, its `publish.yml` is removed, and the package
+> `kimi-plugin-cc` on npm is upstream's code, without this fork's Windows fixes. Below this note
+> the page is upstream's, verbatim, upstream's names included: `scripts/identity-map.mjs` leaves it
+> alone, so upstream merges stay clean.
+
 The npm package `kimi-plugin-cc` ships the Claude plugin at its root and the
 self-contained Codex and DSH plugins under `plugins/`. DSH users install that
 same root package with `dsh plugin --profile <name> add kimi-plugin-cc`.
