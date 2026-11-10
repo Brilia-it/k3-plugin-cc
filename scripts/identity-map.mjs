@@ -162,6 +162,9 @@ export const DECLARED_DIVERGENT = Object.freeze({
     "a dsh-kimi-plugin-cc tree is upstream's DSH package, never ours (no DSH here); Windows: double-quoted hook command and forward-slash derived hook path (T02 rows 1, 2)",
   "tests/runtime/install-paths.test.ts":
     "upstream's DSH hook path is not ours (no DSH here); upstream's install tree is not ours; tests of the Windows quoting and path normalisation",
+  // Behaviour: Windows (T02 row 3).
+  "runtime/commands/setup.ts": "Windows: the shell probe runs through cmd.exe instead of reporting a skipped check as passed; classifyProbeExit names the cause",
+  "tests/runtime/setup-shell-probe.test.ts": "added: tests of classifyProbeExit (NOTICE 3)",
   // Behaviour: the plugin recognises its own installation (T02 row 10).
   "runtime/plugin-data.ts": "the installed-package check looks for this fork's plugin directory k3, not upstream's kimi",
   "tests/runtime/plugin-data.test.ts": "fixtures install the plugin under k3, as this fork is installed",
