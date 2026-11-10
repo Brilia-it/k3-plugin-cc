@@ -1,7 +1,8 @@
 {
   "name": "k3-plugin-cc",
   "version": "2.5.6",
-  "description": "Kimi for Claude Code and Codex: code questions, independent reviews, bounded fixes, autonomous goals, parallel tasks, and MCP tools through the local Kimi Code CLI.",
+  "private": true,
+  "description": "UNOFFICIAL BRILIA fork of linxule/kimi-plugin-cc that supports Windows: the safety hook launches under cmd.exe, setup needs no path override, and the shell probe really runs. Use Kimi K3 from Claude Code through your own Kimi Code subscription. Not affiliated with Moonshot AI. Not published to npm.",
   "type": "module",
   "engines": {
     "node": ">=22.5.0"
@@ -29,11 +30,11 @@
   "author": "Xule Lin",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/linxule/kimi-plugin-cc.git"
+    "url": "git+https://github.com/Brilia-it/k3-plugin-cc.git"
   },
-  "homepage": "https://github.com/linxule/kimi-plugin-cc#readme",
+  "homepage": "https://github.com/Brilia-it/k3-plugin-cc#readme",
   "bugs": {
-    "url": "https://github.com/linxule/kimi-plugin-cc/issues"
+    "url": "https://github.com/Brilia-it/k3-plugin-cc/issues"
   },
   "keywords": [
     "claude-code",
@@ -45,10 +46,6 @@
     "mcp",
     "model-context-protocol"
   ],
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
   "files": [
     ".mcp.json",
     ".claude-plugin/",
