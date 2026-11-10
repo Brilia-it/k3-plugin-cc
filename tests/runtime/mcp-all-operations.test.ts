@@ -5,13 +5,13 @@ import { resolvePluginPaths } from "../../runtime/paths.js";
 import { createMcpFixture, McpClient } from "../helpers/mcp.js";
 
 const cases = [
-  ["kimi_ask", { prompt: "Explain this repository", fresh: true }, "ask", "ask"],
-  ["kimi_review", { focus: "Check the current diff" }, "review", "review"],
-  ["kimi_challenge", { focus: "Challenge this design" }, "challenge", "challenge"],
-  ["kimi_rescue", { prompt: "Apply a bounded fix", fresh: true }, "rescue", "rescue"],
-  ["kimi_pursue", { objective: "Complete one bounded objective", turns: 1 }, "pursue", "rescue"],
-  ["kimi_swarm", { objective: "Review two independent areas", cap: 2, max_concurrency: 1 }, "swarm", "review"],
-  ["kimi_swarm_write", { objective: "Prepare an empty patch in a worktree", cap: 1, max_concurrency: 1 }, "swarm-write", "rescue"],
+  ["k3_ask", { prompt: "Explain this repository", fresh: true }, "ask", "ask"],
+  ["k3_review", { focus: "Check the current diff" }, "review", "review"],
+  ["k3_challenge", { focus: "Challenge this design" }, "challenge", "challenge"],
+  ["k3_rescue", { prompt: "Apply a bounded fix", fresh: true }, "rescue", "rescue"],
+  ["k3_pursue", { objective: "Complete one bounded objective", turns: 1 }, "pursue", "rescue"],
+  ["k3_swarm", { objective: "Review two independent areas", cap: 2, max_concurrency: 1 }, "swarm", "review"],
+  ["k3_swarm_write", { objective: "Prepare an empty patch in a worktree", cap: 1, max_concurrency: 1 }, "swarm-write", "rescue"],
 ] as const;
 
 describe("MCP operation dispatch", () => {
@@ -30,7 +30,7 @@ describe("MCP operation dispatch", () => {
         let result: any;
         for (let attempt = 0; attempt < 40; attempt += 1) {
           result = await client.request("tools/call", {
-            name: "kimi_job_result",
+            name: "k3_job_result",
             arguments: { job_id: jobId },
           });
           if (result.structuredContent?.status && result.structuredContent.status !== "running") break;

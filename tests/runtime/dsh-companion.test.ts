@@ -100,9 +100,9 @@ describe("DSH companion argument and environment boundaries", () => {
       },
     };
     apply(fake as unknown as Context, { dataRoot: "/tmp/dsh" });
-    expect(guidance).toContain("kimi_ask, kimi_review, and kimi_challenge are read-only");
-    expect(guidance).toContain("kimi_rescue and kimi_pursue can edit");
-    expect(guidance).toContain("kimi_swarm_write edits a temporary worktree");
+    expect(guidance).toContain("k3_ask, k3_review, and k3_challenge are read-only");
+    expect(guidance).toContain("k3_rescue and k3_pursue can edit");
+    expect(guidance).toContain("k3_swarm_write edits a temporary worktree");
   });
 
   test("pins the same stable Node path used to spawn the companion", () => {

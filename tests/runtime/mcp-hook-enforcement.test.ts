@@ -17,13 +17,13 @@ describe("MCP real-node hook enforcement", () => {
       expect(fixture.env.K3_PLUGIN_CC_SKIP_HOOK_CHECK).toBeUndefined();
       client = await McpClient.legacy(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Prove the hook is active", fresh: true },
       });
       const jobId = started.structuredContent.job_id as string;
       let result: any;
       for (let attempt = 0; attempt < 30; attempt += 1) {
-        result = await client.request("tools/call", { name: "kimi_job_result", arguments: { job_id: jobId } });
+        result = await client.request("tools/call", { name: "k3_job_result", arguments: { job_id: jobId } });
         if (!result.isError) break;
         await Bun.sleep(100);
       }
@@ -45,7 +45,7 @@ describe("MCP real-node hook enforcement", () => {
     try {
       client = await McpClient.modern(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "This must not spawn", fresh: true },
         _meta: modernMeta(),
       });

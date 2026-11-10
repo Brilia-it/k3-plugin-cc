@@ -20,13 +20,13 @@ describe("MCP task ownership and data-root isolation", () => {
     try {
       client = await McpClient.legacy(first);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: first.repo, prompt: "Keep this job private", fresh: true },
       });
       const jobId = started.structuredContent.job_id as string;
       for (const [workspace, code] of [[secondRepo, "MCP_WORKSPACE_OUTSIDE_DEFAULT"], [nested, "JOB_NOT_FOUND"]] as const) {
         const denied = await client.request("tools/call", {
-          name: "kimi_job_status",
+          name: "k3_job_status",
           arguments: { job_id: jobId, workspace },
         });
         expect(denied.isError).toBe(true);
@@ -50,14 +50,14 @@ describe("MCP task ownership and data-root isolation", () => {
       expect(cliJobId).toBeDefined();
       expect(cliJobId).not.toBe(jobId);
       const denied = await client.request("tools/call", {
-        name: "kimi_job_status",
+        name: "k3_job_status",
         arguments: { job_id: cliJobId, workspace: first.repo },
       });
       expect(denied.isError).toBe(true);
       expect(denied.structuredContent.error.code).toBe("JOB_NOT_FOUND");
 
       const cancelled = await client.request("tools/call", {
-        name: "kimi_job_cancel",
+        name: "k3_job_cancel",
         arguments: { job_id: jobId },
       });
       expect(cancelled.structuredContent.cancellation.status).toBe("cancelled");

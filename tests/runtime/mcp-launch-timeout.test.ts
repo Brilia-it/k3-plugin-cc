@@ -21,7 +21,7 @@ describe("MCP attachment timeout", () => {
       import { launchMcpOperation } from ${JSON.stringify(launcherUrl)};
       import { buildMcpOperationInvocation } from ${JSON.stringify(operationsUrl)};
       await launchMcpOperation(
-        buildMcpOperationInvocation("kimi_review", { workspace: process.env.MCP_TEST_WORKSPACE, focus: "stall" }),
+        buildMcpOperationInvocation("k3_review", { workspace: process.env.MCP_TEST_WORKSPACE, focus: "stall" }),
         process.env,
         { attachTimeoutMs: 100 },
       );
@@ -63,7 +63,7 @@ describe("MCP attachment timeout", () => {
       let companionPid;
       try {
         await launchMcpOperation(
-          buildMcpOperationInvocation("kimi_ask", {
+          buildMcpOperationInvocation("k3_ask", {
             workspace: process.env.MCP_TEST_WORKSPACE,
             prompt: "Recover after an identity-less timeout",
             fresh: true,
@@ -150,7 +150,7 @@ describe("MCP attachment timeout", () => {
       let companionPid;
       let inserted = false;
       const launched = await launchMcpOperation(
-        buildMcpOperationInvocation("kimi_ask", {
+        buildMcpOperationInvocation("k3_ask", {
           workspace: process.env.MCP_TEST_WORKSPACE,
           prompt: "Keep an existing job reachable after timeout",
           fresh: true,
@@ -237,13 +237,13 @@ describe("MCP attachment timeout", () => {
 
       client = await McpClient.legacy(fixture);
       const status = await client.request("tools/call", {
-        name: "kimi_job_status",
+        name: "k3_job_status",
         arguments: { job_id: output.jobId },
       });
       expect(status.structuredContent.status).toBe("running");
       expect(store.getMcpTask(output.jobId)?.launch_state).toBe("attached");
       const cancelled = await client.request("tools/call", {
-        name: "kimi_job_cancel",
+        name: "k3_job_cancel",
         arguments: { job_id: output.jobId },
       });
       if (cancelled.isError) throw new Error(JSON.stringify(cancelled));

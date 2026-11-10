@@ -33,43 +33,43 @@ const operationCases: Array<{
   argv: string[];
 }> = [
   {
-    name: "kimi_ask",
+    name: "k3_ask",
     input: { ...common, prompt: "Explain this repository" },
     operationKind: "ask",
     argv: ["ask", ...commonArgv, "--", "Explain this repository"],
   },
   {
-    name: "kimi_review",
+    name: "k3_review",
     input: { ...common, base: "main", focus: "Check the changed API" },
     operationKind: "review",
     argv: ["review", ...commonArgv, "--base", "main", "--", "Check the changed API"],
   },
   {
-    name: "kimi_challenge",
+    name: "k3_challenge",
     input: { ...common, base: "HEAD~2", focus: "Challenge the design" },
     operationKind: "challenge",
     argv: ["task", "challenge", ...commonArgv, "--base", "HEAD~2", "--", "Challenge the design"],
   },
   {
-    name: "kimi_rescue",
+    name: "k3_rescue",
     input: { ...common, prompt: "Fix the failing parser" },
     operationKind: "rescue",
     argv: ["task", "rescue", ...commonArgv, "--", "Fix the failing parser"],
   },
   {
-    name: "kimi_pursue",
+    name: "k3_pursue",
     input: { ...common, objective: "Finish the migration", turns: 4 },
     operationKind: "pursue",
     argv: ["task", "pursue", ...commonArgv, "--turns", "4", "--", "Finish the migration"],
   },
   {
-    name: "kimi_swarm",
+    name: "k3_swarm",
     input: { ...common, objective: "Audit these modules", cap: 6, max_concurrency: 2 },
     operationKind: "swarm",
     argv: ["task", "swarm", ...commonArgv, "--cap", "6", "--max-concurrency", "2", "--", "Audit these modules"],
   },
   {
-    name: "kimi_swarm_write",
+    name: "k3_swarm_write",
     input: { ...common, objective: "Implement disjoint fixes", cap: 3, max_concurrency: 1 },
     operationKind: "swarm-write",
     argv: ["task", "swarm", ...commonArgv, "--cap", "3", "--max-concurrency", "1", "--write", "--", "Implement disjoint fixes"],
@@ -117,7 +117,7 @@ describe("MCP operation invocation construction", () => {
   }
 
   test("omits optional common flags and workspace when they are not supplied", () => {
-    const invocation = buildMcpOperationInvocation("kimi_ask", { prompt: "Hello" });
+    const invocation = buildMcpOperationInvocation("k3_ask", { prompt: "Hello" });
     expect(invocation).toEqual({ operationKind: "ask", argv: ["ask", "--", "Hello"] });
     expect(Object.hasOwn(invocation, "workspace")).toBe(false);
   });
@@ -125,13 +125,13 @@ describe("MCP operation invocation construction", () => {
   test("preserves whitespace and leading dashes in every free-text argument", () => {
     const text = "  \t--fresh\nkeep this verbatim  ";
     const cases: Array<[McpModelToolName, string]> = [
-      ["kimi_ask", "prompt"],
-      ["kimi_review", "focus"],
-      ["kimi_challenge", "focus"],
-      ["kimi_rescue", "prompt"],
-      ["kimi_pursue", "objective"],
-      ["kimi_swarm", "objective"],
-      ["kimi_swarm_write", "objective"],
+      ["k3_ask", "prompt"],
+      ["k3_review", "focus"],
+      ["k3_challenge", "focus"],
+      ["k3_rescue", "prompt"],
+      ["k3_pursue", "objective"],
+      ["k3_swarm", "objective"],
+      ["k3_swarm_write", "objective"],
     ];
     for (const [name, property] of cases) {
       const invocation = buildMcpOperationInvocation(name, { [property]: text });
@@ -142,26 +142,26 @@ describe("MCP operation invocation construction", () => {
 
   test("only swarm-write adds --write", () => {
     const minimalInputs: Record<McpModelToolName, Record<string, unknown>> = {
-      kimi_ask: { prompt: "question" },
-      kimi_review: {},
-      kimi_challenge: {},
-      kimi_rescue: { prompt: "fix" },
-      kimi_pursue: { objective: "goal" },
-      kimi_swarm: { objective: "audit" },
-      kimi_swarm_write: { objective: "implement" },
+      k3_ask: { prompt: "question" },
+      k3_review: {},
+      k3_challenge: {},
+      k3_rescue: { prompt: "fix" },
+      k3_pursue: { objective: "goal" },
+      k3_swarm: { objective: "audit" },
+      k3_swarm_write: { objective: "implement" },
     };
     for (const name of Object.keys(minimalInputs) as McpModelToolName[]) {
-      expect(buildMcpOperationInvocation(name, minimalInputs[name]).argv.includes("--write")).toBe(name === "kimi_swarm_write");
+      expect(buildMcpOperationInvocation(name, minimalInputs[name]).argv.includes("--write")).toBe(name === "k3_swarm_write");
     }
     expectRuntimeError(
-      () => buildMcpOperationInvocation("kimi_swarm", { objective: "audit", write: true }),
+      () => buildMcpOperationInvocation("k3_swarm", { objective: "audit", write: true }),
       "MCP_INVALID_ARGUMENTS",
       "Unknown argument write",
     );
   });
 
   test("supports fresh, explicit resume, and latest resume forms for ask and rescue", () => {
-    for (const [name, command] of [["kimi_ask", ["ask"]], ["kimi_rescue", ["task", "rescue"]]] as const) {
+    for (const [name, command] of [["k3_ask", ["ask"]], ["k3_rescue", ["task", "rescue"]]] as const) {
       expect(buildMcpOperationInvocation(name, { fresh: true, prompt: "new" }).argv)
         .toEqual([...command, "--fresh", "--", "new"]);
       expect(buildMcpOperationInvocation(name, { resume: "job-123" }).argv)
@@ -176,7 +176,7 @@ describe("MCP operation invocation construction", () => {
   });
 
   test("rejects incompatible or incomplete resume selections", () => {
-    for (const name of ["kimi_ask", "kimi_rescue"] as const) {
+    for (const name of ["k3_ask", "k3_rescue"] as const) {
       expectRuntimeError(() => buildMcpOperationInvocation(name, {}), "MCP_INVALID_ARGUMENTS", "requires prompt");
       expectRuntimeError(
         () => buildMcpOperationInvocation(name, { fresh: true, resume: "job-123" }),
@@ -202,7 +202,7 @@ describe("MCP operation invocation construction", () => {
   });
 
   test("rejects a blank explicit resume target", () => {
-    for (const name of ["kimi_ask", "kimi_rescue"] as const) {
+    for (const name of ["k3_ask", "k3_rescue"] as const) {
       expectRuntimeError(
         () => buildMcpOperationInvocation(name, { resume: "   " }),
         "MCP_INVALID_ARGUMENTS",
@@ -213,19 +213,19 @@ describe("MCP operation invocation construction", () => {
 
   test("validates common options without rewriting their argv values", () => {
     expectRuntimeError(
-      () => buildMcpOperationInvocation("kimi_ask", { prompt: "x", model: "  " }),
+      () => buildMcpOperationInvocation("k3_ask", { prompt: "x", model: "  " }),
       "MCP_INVALID_ARGUMENTS",
       "model must be a non-empty string",
     );
     for (const budget of ["0", "25h", "1.5h", "forever"]) {
       expectRuntimeError(
-        () => buildMcpOperationInvocation("kimi_ask", { prompt: "x", budget }),
+        () => buildMcpOperationInvocation("k3_ask", { prompt: "x", budget }),
         "INVALID_ARGS",
       );
     }
     for (const thinking of ["", "two words", "-high", "x".repeat(33)]) {
       expectRuntimeError(
-        () => buildMcpOperationInvocation("kimi_ask", { prompt: "x", thinking }),
+        () => buildMcpOperationInvocation("k3_ask", { prompt: "x", thinking }),
         "INVALID_ARGS",
       );
     }
@@ -240,14 +240,14 @@ describe("MCP operation invocation construction", () => {
       );
     }
     for (const input of [null, [], "prompt", 1, true]) {
-      expectRuntimeError(() => buildMcpOperationInvocation("kimi_review", input), "MCP_INVALID_ARGUMENTS");
+      expectRuntimeError(() => buildMcpOperationInvocation("k3_review", input), "MCP_INVALID_ARGUMENTS");
     }
     expectRuntimeError(
-      () => buildMcpOperationInvocation("kimi_ask", { prompt: "x", fresh: 1 }),
+      () => buildMcpOperationInvocation("k3_ask", { prompt: "x", fresh: 1 }),
       "MCP_INVALID_ARGUMENTS",
       "fresh must be a boolean",
     );
-    for (const [name, key] of [["kimi_pursue", "turns"], ["kimi_swarm", "cap"], ["kimi_swarm", "max_concurrency"]] as const) {
+    for (const [name, key] of [["k3_pursue", "turns"], ["k3_swarm", "cap"], ["k3_swarm", "max_concurrency"]] as const) {
       for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, "2"]) {
         expectRuntimeError(
           () => buildMcpOperationInvocation(name, { objective: "x", [key]: value }),

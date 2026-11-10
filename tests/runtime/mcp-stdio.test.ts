@@ -132,7 +132,7 @@ describe("MCP stdio framing", () => {
         method: "tools/call",
         params: {
           _meta: modernMeta(),
-          name: "kimi_ask",
+          name: "k3_ask",
           arguments: { workspace: fixture.repo, prompt: "A notification must never launch this" },
         },
       };

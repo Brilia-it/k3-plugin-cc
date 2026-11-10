@@ -9,7 +9,7 @@ describe("MCP terminal result semantics", () => {
     try {
       client = await McpClient.modern(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_rescue",
+        name: "k3_rescue",
         arguments: { workspace: fixture.repo, prompt: "Return an empty response", fresh: true },
         _meta: modernMeta(),
       });
@@ -38,7 +38,7 @@ describe("MCP terminal result semantics", () => {
     try {
       client = await McpClient.modern(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Exceed this budget", fresh: true, budget: "1s" },
         _meta: modernMeta(),
       });
@@ -66,7 +66,7 @@ describe("MCP terminal result semantics", () => {
     try {
       client = await McpClient.modern(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Cancel through the task method", fresh: true },
         _meta: modernMeta(),
       });

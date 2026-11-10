@@ -9,7 +9,7 @@ describe("MCP supervised job lifecycle", () => {
     try {
       client = await McpClient.modern(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Explain the job store" },
         _meta: modernMeta(),
       });
@@ -47,7 +47,7 @@ describe("MCP supervised job lifecycle", () => {
     try {
       client = await McpClient.legacy(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Wait for cancellation", fresh: true },
       });
       expect(started.resultType).toBeUndefined();
@@ -56,21 +56,21 @@ describe("MCP supervised job lifecycle", () => {
       const jobId = started.structuredContent.job_id as string;
 
       const status = await client.request("tools/call", {
-        name: "kimi_job_status",
+        name: "k3_job_status",
         arguments: { job_id: jobId },
       });
       expect(status.structuredContent.status).toBe("running");
       expect(status.structuredContent.operation_kind).toBe("ask");
 
       const cancelled = await client.request("tools/call", {
-        name: "kimi_job_cancel",
+        name: "k3_job_cancel",
         arguments: { job_id: jobId },
       });
       expect(cancelled.isError).toBe(false);
       expect(cancelled.structuredContent.cancellation.status).toBe("cancelled");
 
       const result = await client.request("tools/call", {
-        name: "kimi_job_result",
+        name: "k3_job_result",
         arguments: { job_id: jobId },
       });
       expect(result.isError).toBe(true);
@@ -87,14 +87,14 @@ describe("MCP supervised job lifecycle", () => {
     try {
       client = await McpClient.legacy(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Answer briefly", fresh: true },
       });
       const jobId = started.structuredContent.job_id as string;
       let result: any;
       for (let attempt = 0; attempt < 30; attempt += 1) {
         result = await client.request("tools/call", {
-          name: "kimi_job_result",
+          name: "k3_job_result",
           arguments: { job_id: jobId },
         });
         if (result.isError === false) break;

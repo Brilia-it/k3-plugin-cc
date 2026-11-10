@@ -121,7 +121,7 @@ describe("MCP unattached companion recovery", () => {
     try {
       client = await McpClient.legacy(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Verify starting recovery", fresh: true },
       });
       jobId = started.structuredContent.job_id;
@@ -142,7 +142,7 @@ describe("MCP unattached companion recovery", () => {
       }
 
       const refused = await client.request("tools/call", {
-        name: "kimi_job_status",
+        name: "k3_job_status",
         arguments: { job_id: jobId },
       });
       expect(refused.isError).toBe(true);
@@ -163,7 +163,7 @@ describe("MCP unattached companion recovery", () => {
         restored.close();
       }
       const recovered = await client.request("tools/call", {
-        name: "kimi_job_status",
+        name: "k3_job_status",
         arguments: { job_id: jobId },
       });
       expect(recovered.structuredContent.status).toBe("running");
@@ -178,7 +178,7 @@ describe("MCP unattached companion recovery", () => {
         attached.close();
       }
       const cancelled = await client.request("tools/call", {
-        name: "kimi_job_cancel",
+        name: "k3_job_cancel",
         arguments: { job_id: jobId },
       });
       expect(cancelled.structuredContent.cancellation.status).toBe("cancelled");
@@ -195,7 +195,7 @@ describe("MCP unattached companion recovery", () => {
       if (client && jobId && !terminal) {
         try {
           await client.request("tools/call", {
-            name: "kimi_job_cancel",
+            name: "k3_job_cancel",
             arguments: { job_id: jobId },
           });
         } catch {}
@@ -213,12 +213,12 @@ describe("MCP unattached companion recovery", () => {
     try {
       client = await McpClient.legacy(fixture);
       const started = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Reconcile a stale starting job", fresh: true },
       });
       const jobId = started.structuredContent.job_id as string;
       for (let attempt = 0; attempt < 40; attempt += 1) {
-        await client.request("tools/call", { name: "kimi_job_status", arguments: { job_id: jobId } });
+        await client.request("tools/call", { name: "k3_job_status", arguments: { job_id: jobId } });
         const attached = new JobStore(resolvePluginPaths(fixture.env));
         let captured: string | null;
         try {
@@ -244,13 +244,13 @@ describe("MCP unattached companion recovery", () => {
       backdate(fixture.env, jobId);
 
       const status = await client.request("tools/call", {
-        name: "kimi_job_status",
+        name: "k3_job_status",
         arguments: { job_id: jobId },
       });
       expect(status.structuredContent.status).toBe("failed");
       expect(status.structuredContent.error.code).toBe("MCP_COMPANION_DISAPPEARED");
       const result = await client.request("tools/call", {
-        name: "kimi_job_result",
+        name: "k3_job_result",
         arguments: { job_id: jobId },
       });
       expect(result.isError).toBe(true);

@@ -137,13 +137,13 @@ async function callTool(
         : await getMcpJobResult(env, { job_id: launched.task.task_id });
     } else {
       switch (name) {
-        case "kimi_job_status":
+        case "k3_job_status":
           result = await getMcpJobStatus(env, params.arguments);
           break;
-        case "kimi_job_result":
+        case "k3_job_result":
           result = await getMcpJobResult(env, params.arguments);
           break;
-        case "kimi_job_cancel":
+        case "k3_job_cancel":
           result = await cancelMcpJob(env, params.arguments);
           break;
         default:
@@ -174,7 +174,7 @@ function launchResult(launched: McpLaunchResult): McpToolResult {
     created_at: task.created_at,
   };
   return textResult(
-    `Started ${task.operation_kind} job ${task.task_id}. This is a launch handle, not the finished answer. Use kimi_job_status and kimi_job_result with this job_id until the job is terminal; use kimi_job_cancel to stop it.`,
+    `Started ${task.operation_kind} job ${task.task_id}. This is a launch handle, not the finished answer. Use k3_job_status and k3_job_result with this job_id until the job is terminal; use k3_job_cancel to stop it.`,
     metadata,
   );
 }

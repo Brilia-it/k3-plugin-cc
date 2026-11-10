@@ -74,7 +74,7 @@ describe("Codex sidecar surfaces", () => {
 
     expect(mcp).toEqual({
       mcpServers: {
-        kimi: {
+        k3: {
           command: "${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh",
           args: ["mcp"],
           env: {
@@ -106,7 +106,7 @@ describe("Codex sidecar surfaces", () => {
       await readFile(path.join(repoRoot, CODEX_PLUGIN_SUBDIR, ".mcp.json"), "utf8"),
     ) as {
       mcpServers: {
-        kimi: {
+        k3: {
           type: string;
           command: string;
           args: string[];
@@ -118,7 +118,7 @@ describe("Codex sidecar surfaces", () => {
 
     expect(mcp).toEqual({
       mcpServers: {
-        kimi: {
+        k3: {
           type: "stdio",
           command: "./scripts/companion.sh",
           args: ["mcp"],
@@ -144,7 +144,7 @@ describe("Codex sidecar surfaces", () => {
       "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK",
       "KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND",
     ]) {
-      expect(mcp.mcpServers.kimi.env_vars).not.toContain(name);
+      expect(mcp.mcpServers.k3.env_vars).not.toContain(name);
     }
   });
 

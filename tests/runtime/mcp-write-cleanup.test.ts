@@ -13,8 +13,8 @@ describe("MCP write-operation cancellation cleanup", () => {
     try {
       client = await McpClient.legacy(fixture);
       for (const [name, args, operation] of [
-        ["kimi_pursue", { objective: "Cancel an autonomous goal" }, "pursue"],
-        ["kimi_swarm_write", { objective: "Cancel a worktree run", cap: 1, max_concurrency: 1 }, "swarm-write"],
+        ["k3_pursue", { objective: "Cancel an autonomous goal" }, "pursue"],
+        ["k3_swarm_write", { objective: "Cancel a worktree run", cap: 1, max_concurrency: 1 }, "swarm-write"],
       ] as const) {
         const started = await client.request("tools/call", {
           name,
@@ -22,12 +22,12 @@ describe("MCP write-operation cancellation cleanup", () => {
         });
         const jobId = started.structuredContent.job_id as string;
         const cancelled = await client.request("tools/call", {
-          name: "kimi_job_cancel",
+          name: "k3_job_cancel",
           arguments: { job_id: jobId },
         });
         expect(cancelled.isError).toBe(false);
         const result = await client.request("tools/call", {
-          name: "kimi_job_result",
+          name: "k3_job_result",
           arguments: { job_id: jobId },
         });
         expect(result.isError).toBe(true);

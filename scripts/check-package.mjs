@@ -10,8 +10,8 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = mkdtempSync(path.join(os.tmpdir(), 'kimi-package-'));
 const pkg = JSON.parse(readFileSync(path.join(repo, 'package.json'), 'utf8'));
 const expectedMcpTools = [
-  'kimi_ask', 'kimi_review', 'kimi_challenge', 'kimi_rescue', 'kimi_pursue', 'kimi_swarm', 'kimi_swarm_write',
-  'kimi_job_status', 'kimi_job_result', 'kimi_job_cancel',
+  'k3_ask', 'k3_review', 'k3_challenge', 'k3_rescue', 'k3_pursue', 'k3_swarm', 'k3_swarm_write',
+  'k3_job_status', 'k3_job_result', 'k3_job_cancel',
 ];
 const destination = process.argv[2] ? path.resolve(process.argv[2]) : scratch;
 

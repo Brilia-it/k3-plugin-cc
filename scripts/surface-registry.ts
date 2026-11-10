@@ -60,7 +60,7 @@ export const CLAUDE_SURFACE_HASHES: readonly ClaudeSurfaceHash[] = [
 
 export const CODEX_MCP_CONFIG = {
   mcpServers: {
-    kimi: {
+    k3: {
       type: "stdio",
       command: "./scripts/companion.sh",
       args: ["mcp"],
@@ -228,13 +228,13 @@ Kimi Code subagents for DeepSeek Harness (DSH), backed by the same companion run
 
 | Tool | Operation | File access |
 |---|---|---|
-| \`kimi_ask\` | Answer a self-contained repository question | Read-only |
-| \`kimi_review\` | Review the working tree, including untracked files | Read-only |
-| \`kimi_challenge\` | Challenge assumptions and design choices | Read-only |
-| \`kimi_rescue\` | Investigate and implement a bounded fix | Can edit the selected workspace |
-| \`kimi_pursue\` | Pursue an autonomous multi-turn objective with a finite budget | Can edit the selected workspace |
-| \`kimi_swarm\` | Fan out independent read-only subagents | Read-only |
-| \`kimi_swarm_write\` | Edit disjoint targets in a temporary worktree and return a patch | Patch only; never applies or commits |
+| \`k3_ask\` | Answer a self-contained repository question | Read-only |
+| \`k3_review\` | Review the working tree, including untracked files | Read-only |
+| \`k3_challenge\` | Challenge assumptions and design choices | Read-only |
+| \`k3_rescue\` | Investigate and implement a bounded fix | Can edit the selected workspace |
+| \`k3_pursue\` | Pursue an autonomous multi-turn objective with a finite budget | Can edit the selected workspace |
+| \`k3_swarm\` | Fan out independent read-only subagents | Read-only |
+| \`k3_swarm_write\` | Edit disjoint targets in a temporary worktree and return a patch | Patch only; never applies or commits |
 
 Every activation starts a fresh companion and Kimi CLI process. The existing runtime owns hook verification, exact Kimi-version certification, SQLite jobs, response or safety budgets, artifacts, and process teardown. DSH owns delegation identity and completion notices. Parent conversations do not flow into the child, and child tool traffic stays out of the parent conversation.
 

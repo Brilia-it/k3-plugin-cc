@@ -10,20 +10,20 @@ import { K3_PLUGIN_CC_VERSION } from "../../runtime/version.js";
 import { createMcpFixture, MCP_MODERN_VERSION, McpClient, modernMeta, type McpFixture } from "../helpers/mcp.js";
 
 const expectedToolNames = [
-  "kimi_ask",
-  "kimi_review",
-  "kimi_challenge",
-  "kimi_rescue",
-  "kimi_pursue",
-  "kimi_swarm",
-  "kimi_swarm_write",
-  "kimi_job_status",
-  "kimi_job_result",
-  "kimi_job_cancel",
+  "k3_ask",
+  "k3_review",
+  "k3_challenge",
+  "k3_rescue",
+  "k3_pursue",
+  "k3_swarm",
+  "k3_swarm_write",
+  "k3_job_status",
+  "k3_job_result",
+  "k3_job_cancel",
 ];
 
-const writeTools = new Set(["kimi_rescue", "kimi_pursue", "kimi_swarm_write", "kimi_job_cancel"]);
-const jobTools = new Set(["kimi_job_status", "kimi_job_result", "kimi_job_cancel"]);
+const writeTools = new Set(["k3_rescue", "k3_pursue", "k3_swarm_write", "k3_job_cancel"]);
+const jobTools = new Set(["k3_job_status", "k3_job_result", "k3_job_cancel"]);
 
 interface FrameWaiter {
   resolve: (frame: any) => void;
@@ -249,7 +249,7 @@ describe("MCP task negotiation and task errors", () => {
     try {
       client = await McpClient.modern(fixture);
       const capable = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Task-capable mock launch" },
         _meta: modernMeta(true),
       });
@@ -258,7 +258,7 @@ describe("MCP task negotiation and task errors", () => {
       capableTaskId = capable.taskId;
 
       const withoutCapability = await client.request("tools/call", {
-        name: "kimi_ask",
+        name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Ordinary mock launch" },
         _meta: modernMeta(false),
       });
@@ -268,7 +268,7 @@ describe("MCP task negotiation and task errors", () => {
       ordinaryJobId = withoutCapability.structuredContent.job_id;
 
       const status = await client.request("tools/call", {
-        name: "kimi_job_status",
+        name: "k3_job_status",
         arguments: { job_id: ordinaryJobId },
         _meta: modernMeta(true),
       });
@@ -295,7 +295,7 @@ describe("MCP task negotiation and task errors", () => {
         }
         if (ordinaryJobId) {
           await client.request("tools/call", {
-            name: "kimi_job_cancel",
+            name: "k3_job_cancel",
             arguments: { job_id: ordinaryJobId },
             _meta: modernMeta(false),
           }).catch(() => undefined);
@@ -413,7 +413,7 @@ describe("MCP JSON-RPC validation and stdout discipline", () => {
         jsonrpc: "2.0",
         id: "invalid-tool-arguments",
         method: "tools/call",
-        params: { _meta: modernMeta(), name: "kimi_ask", arguments: null },
+        params: { _meta: modernMeta(), name: "k3_ask", arguments: null },
       });
       expect(invalidToolArguments.id).toBe("invalid-tool-arguments");
       expect(invalidToolArguments.error).toBeUndefined();
@@ -439,7 +439,7 @@ describe("MCP JSON-RPC validation and stdout discipline", () => {
         method: "tools/call",
         params: {
           _meta: modernMeta(),
-          name: "kimi_ask",
+          name: "k3_ask",
           arguments: { workspace: fixture.repo, prompt: "This notification must not start a job" },
         },
       });

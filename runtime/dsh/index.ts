@@ -29,9 +29,9 @@ export const inject = ["subagents", "subprocess"];
 
 export const DSH_TOOL_GUIDANCE = [
   "Kimi delegation tools have different write boundaries:",
-  "kimi_ask, kimi_review, and kimi_challenge are read-only; kimi_swarm is a read-only parallel review.",
-  "kimi_rescue and kimi_pursue can edit the selected workspace; kimi_pursue continues toward a bounded goal.",
-  "kimi_swarm_write edits a temporary worktree and returns a patch without applying it.",
+  "k3_ask, k3_review, and k3_challenge are read-only; k3_swarm is a read-only parallel review.",
+  "k3_rescue and k3_pursue can edit the selected workspace; k3_pursue continues toward a bounded goal.",
+  "k3_swarm_write edits a temporary worktree and returns a patch without applying it.",
 ].join(" ");
 
 const DEFAULT_DISPOSE_GRACE_MS = 6_000;

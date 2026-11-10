@@ -48,7 +48,7 @@ export async function runCancel(argv: string[], context: CommandContext): Promis
       (context.mcpCompanionIdentity === undefined || context.mcpKimiIdentity === undefined)) {
       throw new RuntimeError(
         "MCP_CANCEL_REQUIRES_BINDING",
-        `MCP job ${job.job_id} requires MCP job-control cancellation with recorded identities; use tasks/cancel or kimi_job_cancel.`,
+        `MCP job ${job.job_id} requires MCP job-control cancellation with recorded identities; use tasks/cancel or k3_job_cancel.`,
         "mcp.cancel",
       );
     }

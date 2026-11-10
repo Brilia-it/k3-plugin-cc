@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "kimi": {
+    "k3": {
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/companion.sh",
       "args": [
         "mcp"

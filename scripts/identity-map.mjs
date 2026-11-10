@@ -6,7 +6,8 @@
 //
 // This fork carries its own name everywhere a user or another program can see
 // it: commands (/k3:*), agents and Codex skills (k3-*), the plugin and
-// marketplace ids, the environment variables (K3_PLUGIN_CC_*), the marker of
+// marketplace ids, the MCP server and its tools (k3, k3_*), the environment
+// variables (K3_PLUGIN_CC_*), the marker of
 // the block it writes into ~/.kimi-code/config.toml, its data directory and its
 // messages. Upstream keeps "kimi". Two reasons, both practical:
 //
@@ -68,6 +69,10 @@ import { fileURLToPath } from "node:url";
 // Agent, command and Codex skill names that upstream spells kimi-<name>.
 const SURFACE_NAMES = "swarm-write|swarm|rescue|review|challenge|ask|pursue|setup|status|result|cancel|replay";
 
+// Operations the plugin's MCP server exposes as kimi_<name> (upstream 2.4.0).
+// Longer names first, so swarm_write is never read as swarm.
+const MCP_TOOL_NAMES = "swarm_write|swarm|rescue|review|challenge|ask|pursue|job_status|job_result|job_cancel";
+
 // Order matters: the longer, more specific tokens first.
 export const IDENTITY_RULES = Object.freeze([
   { name: "Claude plugin data id", from: /(?<![\w-])kimi-kimi-marketplace(?![\w-])/g, to: "k3-brilia-k3-marketplace" },
@@ -105,6 +110,22 @@ export const IDENTITY_RULES = Object.freeze([
   // The plugin's review gate, a feature of ours. "Kimi review" alone stays: it
   // says that Kimi (the model) reviews.
   { name: "review gate", from: /(?<![\w-])Kimi (?=review gate\b)/g, to: "K3 " },
+  // The tools of the plugin's MCP server (upstream 2.4.0) are ours, like the
+  // commands: kimi_ask becomes k3_ask. Only the listed operations: the job-store
+  // fields that name Moonshot's CLI and its process (kimi_session_id, kimi_pid,
+  // kimi_version, kimi_command, kimi_identity, ...) keep their names.
+  {
+    name: "MCP tools",
+    from: new RegExp(`(?<![\\w-])kimi_(${MCP_TOOL_NAMES})(?![\\w-])`, "g"),
+    to: "k3_$1",
+  },
+  { name: "MCP job tool titles", from: /"kimi job (status|result|cancel)"/g, to: '"k3 job $1"' },
+  // The name the plugin's MCP server is registered under: .mcp.json, the Codex
+  // .mcp.json generated from scripts/surface-registry.ts, and the code and tests
+  // that read it back. A bare "kimi" anywhere else is Moonshot's CLI and stays.
+  { name: "MCP server name (JSON)", from: /("mcpServers":\s*\{\s*)"kimi"(?=\s*:)/g, to: '$1"k3"' },
+  { name: "MCP server name (TypeScript)", from: /(\bmcpServers:\s*\{\s*)kimi(?=\s*:)/g, to: "$1k3" },
+  { name: "MCP server name (property access)", from: /\bmcpServers\.kimi\b/g, to: "mcpServers.k3" },
 ]);
 
 // Upstream files kept verbatim, upstream's names included, under a fork note:
@@ -178,10 +199,30 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "docs/registry-releases.md": "fork note on top of upstream's page, kept verbatim (KEEP_VERBATIM)",
 });
 
-// Upstream files this fork deliberately does not carry.
+// Upstream files this fork deliberately does not carry. Keys are paths in
+// UPSTREAM's tree; a key ending in "/" covers every file below that directory.
 export const DECLARED_REMOVED = Object.freeze({
   ".github/workflows/publish.yml": "this fork is not published to npm (NOTICE 4)",
+  // The DeepSeek Harness host (upstream 2.5.0 and 2.5.1) is not part of this fork.
+  "plugins/kimi-dsh/": "the DeepSeek Harness bundle is not part of this fork",
+  "runtime/dsh/": "the DeepSeek Harness providers are not part of this fork",
+  "dist/dsh/": "compiled DeepSeek Harness providers, not part of this fork",
+  "plugins/kimi-codex/dist/dsh/": "compiled DeepSeek Harness providers, not part of this fork",
+  "dsh/": "the DeepSeek Harness Discover index is not part of this fork",
+  "scripts/check-dsh-package.mjs": "checks the DeepSeek Harness package, not part of this fork",
+  "tests/runtime/dsh-companion.test.ts": "tests of the DeepSeek Harness providers",
+  "tests/runtime/dsh-surfaces.test.ts": "tests of the DeepSeek Harness surfaces",
+  "tests/helpers/dsh-live.patch.yml": "fixture of the DeepSeek Harness tests",
+  "tests/helpers/dsh-live-mock-package/": "fixture of the DeepSeek Harness tests",
 });
+
+export function removedReason(upstreamPath, removed = DECLARED_REMOVED) {
+  if (removed[upstreamPath]) return removed[upstreamPath];
+  for (const [key, reason] of Object.entries(removed)) {
+    if (key.endsWith("/") && upstreamPath.startsWith(key)) return reason;
+  }
+  return undefined;
+}
 
 const COMPILED = [
   [/^dist\/(.+)\.js$/, "runtime/$1.ts"],
@@ -232,8 +273,13 @@ export function verify(repo, upstreamRef, { declared = DECLARED_DIVERGENT, remov
   for (const upstreamPath of upstreamFiles) {
     const ours = applyIdentityMap(upstreamPath);
     seen.add(ours);
+    const removedBecause = removedReason(upstreamPath, removed);
     if (!headFiles.has(ours)) {
-      if (!removed[upstreamPath]) problems.push(`removed without a declaration: ${upstreamPath}`);
+      if (!removedBecause) problems.push(`removed without a declaration: ${upstreamPath}`);
+      continue;
+    }
+    if (removedBecause) {
+      problems.push(`declared removed but still in this tree (stale declaration): ${ours}`);
       continue;
     }
     const upstreamBytes = git(repo, ["show", `${upstreamRef}:${upstreamPath}`]);

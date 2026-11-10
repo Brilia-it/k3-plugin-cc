@@ -4,14 +4,14 @@ import { parseDurationMs, validateThinkingEffort } from "../parsing.js";
 
 export type McpModelOperation = Exclude<KimiOperationKind, "review_gate">;
 export type McpModelToolName =
-  | "kimi_ask"
-  | "kimi_review"
-  | "kimi_challenge"
-  | "kimi_rescue"
-  | "kimi_pursue"
-  | "kimi_swarm"
-  | "kimi_swarm_write";
-export type McpJobToolName = "kimi_job_status" | "kimi_job_result" | "kimi_job_cancel";
+  | "k3_ask"
+  | "k3_review"
+  | "k3_challenge"
+  | "k3_rescue"
+  | "k3_pursue"
+  | "k3_swarm"
+  | "k3_swarm_write";
+export type McpJobToolName = "k3_job_status" | "k3_job_result" | "k3_job_cancel";
 export type McpToolName = McpModelToolName | McpJobToolName;
 
 export interface McpToolDefinition {
@@ -103,49 +103,49 @@ const MAX_CONCURRENCY_PROPERTY = {
   description: "Hard peak subagent concurrency on supported Kimi Code versions. Distinct from the soft total cap.",
 } as const;
 const START_RESULT_GUIDANCE =
-  "Task-capable clients receive an MCP task. Other clients receive a job ID immediately after launch; use kimi_job_status and kimi_job_result until terminal, and kimi_job_cancel to stop. Do not present a launch handle as the finished answer.";
+  "Task-capable clients receive an MCP task. Other clients receive a job ID immediately after launch; use k3_job_status and k3_job_result until terminal, and k3_job_cancel to stop. Do not present a launch handle as the finished answer.";
 
 function schema(properties: Record<string, unknown>, required: string[] = []): Record<string, unknown> {
   return { type: "object", properties, required, additionalProperties: false };
 }
 
 const OPERATION_SPECS: Readonly<Record<McpModelToolName, OperationSpec>> = {
-  kimi_ask: {
+  k3_ask: {
     kind: "ask",
     command: ["ask"],
     write: false,
     summary: "Start an independent read-only Kimi repository explanation.",
     inputSchema: schema({ ...COMMON_PROPERTIES, prompt: PROMPT_PROPERTY, ...RESUME_PROPERTIES }),
   },
-  kimi_review: {
+  k3_review: {
     kind: "review",
     command: ["review"],
     write: false,
     summary: "Start an independent read-only Kimi review of working-tree changes, including untracked files, or a committed base diff.",
     inputSchema: schema({ ...COMMON_PROPERTIES, base: BASE_PROPERTY, focus: FOCUS_PROPERTY }),
   },
-  kimi_challenge: {
+  k3_challenge: {
     kind: "challenge",
     command: ["task", "challenge"],
     write: false,
     summary: "Start a read-only Kimi challenge of assumptions, design choices, and tradeoffs rather than a defect-only review.",
     inputSchema: schema({ ...COMMON_PROPERTIES, base: BASE_PROPERTY, focus: FOCUS_PROPERTY }),
   },
-  kimi_rescue: {
+  k3_rescue: {
     kind: "rescue",
     command: ["task", "rescue"],
     write: true,
     summary: "Start a bounded write-capable Kimi investigation or fix inside the validated workspace. Review the resulting changes; no commit is made.",
     inputSchema: schema({ ...COMMON_PROPERTIES, prompt: PROMPT_PROPERTY, ...RESUME_PROPERTIES }),
   },
-  kimi_pursue: {
+  k3_pursue: {
     kind: "pursue",
     command: ["task", "pursue"],
     write: true,
     summary: "Start explicitly autonomous Kimi goal mode with a finite hard budget and workspace write limits. Use only for hands-off objectives, not a single bounded fix.",
     inputSchema: schema({ ...COMMON_PROPERTIES, objective: OBJECTIVE_PROPERTY, turns: TURNS_PROPERTY }, ["objective"]),
   },
-  kimi_swarm: {
+  k3_swarm: {
     kind: "swarm",
     command: ["task", "swarm"],
     write: false,
@@ -155,7 +155,7 @@ const OPERATION_SPECS: Readonly<Record<McpModelToolName, OperationSpec>> = {
       ["objective"],
     ),
   },
-  kimi_swarm_write: {
+  k3_swarm_write: {
     kind: "swarm-write",
     command: ["task", "swarm"],
     write: true,
@@ -186,22 +186,22 @@ export const MCP_TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
     },
   })),
   {
-    name: "kimi_job_status",
+    name: "k3_job_status",
     description: "Read one MCP-launched job's durable state and phase in the same workspace. This is always an ordinary MCP result, never a task.",
     inputSchema: JOB_CONTROL_SCHEMA,
-    annotations: { title: "kimi job status", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: "k3 job status", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
-    name: "kimi_job_result",
+    name: "k3_job_result",
     description: "Read the terminal artifact for one MCP-launched job in the same workspace. Failed jobs return isError:true with their artifact; running jobs return JOB_NOT_TERMINAL without changing state.",
     inputSchema: JOB_CONTROL_SCHEMA,
-    annotations: { title: "kimi job result", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: "k3 job result", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
-    name: "kimi_job_cancel",
+    name: "k3_job_cancel",
     description: "Cooperatively cancel one running MCP-launched job in the same workspace. Terminal jobs are a no-op. Cancellation does not roll back edits, and write-swarm still captures its patch before cleanup.",
     inputSchema: JOB_CONTROL_SCHEMA,
-    annotations: { title: "kimi job cancel", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    annotations: { title: "k3 job cancel", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   },
 ];
 
