@@ -257,6 +257,18 @@ describe("MCP task negotiation and task errors", () => {
       expect(capable.status).toBe("working");
       capableTaskId = capable.taskId;
 
+      // One model job at a time, and MCP has no allow_concurrent: the task-capable job
+      // must be terminal before the ordinary launch. The task stays readable once cancelled.
+      expect(await client.request("tasks/cancel", { taskId: capableTaskId, _meta: modernMeta(true) }))
+        .toEqual({ resultType: "complete" });
+      let cancelledView: any;
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        cancelledView = await client.request("tasks/get", { taskId: capableTaskId, _meta: modernMeta(true) });
+        if (cancelledView.status !== "working") break;
+        await Bun.sleep(100);
+      }
+      expect(cancelledView.status).toBe("cancelled");
+
       const withoutCapability = await client.request("tools/call", {
         name: "k3_ask",
         arguments: { workspace: fixture.repo, prompt: "Ordinary mock launch" },

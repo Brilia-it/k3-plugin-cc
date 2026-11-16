@@ -33,7 +33,9 @@ describe("MCP task ownership and data-root isolation", () => {
         expect(denied.structuredContent.error.code).toBe(code);
       }
 
-      const foreground = spawnSync(path.join(first.pluginRoot, "scripts/companion.sh"), ["ask", "--fresh", "Create a CLI-only job"], {
+      // The MCP job above is still running: the one-model-job-at-a-time guard would
+      // refuse this launch, so the CLI override is used. Ownership is what is tested here.
+      const foreground = spawnSync(path.join(first.pluginRoot, "scripts/companion.sh"), ["ask", "--fresh", "--allow-concurrent", "Create a CLI-only job"], {
         cwd: first.repo,
         env: { ...first.env, K3_PLUGIN_CC_MOCK_DELAY_MS: "0" },
         encoding: "utf8",

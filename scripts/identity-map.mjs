@@ -208,6 +208,10 @@ export const DECLARED_DIVERGENT = Object.freeze({
   "runtime/commands/swarm.ts": "one model job at a time, read and write mode",
   "tests/runtime/concurrency-guard.test.ts":
     "added: the guard on every model command, MCP child launches, the atomic insert and launcher ownership (NOTICE 3)",
+  "tests/runtime/mcp-ownership.test.ts":
+    "the CLI-only job is launched with --allow-concurrent while the MCP job is still running (T02 row 17)",
+  "tests/runtime/mcp-protocol.test.ts":
+    "the task-capable job is cancelled before the ordinary launch: MCP has no allow_concurrent (T02 row 17)",
   // Behaviour: a background row is owned by its launcher's pid (T02 row 18).
   "runtime/commands/worker.ts": "passes the launcher pid to the job, which claims its row by compare-and-set",
   "tests/runtime/job-commands.test.ts": "the 0.1.4-migration seed rows carry an owner pid, as every running row now does (T02 row 18)",
